@@ -1,28 +1,37 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PayrollService } from './payroll.service';
 
 @Controller('payroll')
 export class PayrollController {
-  constructor(private readonly service: PayrollService) {}
+  constructor(private readonly payrollService: PayrollService) {}
 
   @Get('periods')
-  periods() { return this.service.periodsPlaceholder(); }
+  getPayrollPeriods() {
+    return this.payrollService.getPayrollPeriods();
+  }
+
+  @Post('periods')
+  createPayrollPeriod(@Body() body: unknown) {
+    return this.payrollService.createPayrollPeriod(body as any);
+  }
+
+  @Get('ready-employees')
+  getPayrollReadyEmployees() {
+    return this.payrollService.getPayrollReadyEmployees();
+  }
 
   @Get('runs')
-  runs() { return this.service.runsPlaceholder(); }
+  getPayrollRuns() {
+    return this.payrollService.getPayrollRuns();
+  }
 
-  @Post('runs/:id/calculate')
-  calculate(@Param('id') id: string) { return this.service.calculatePlaceholder(id); }
+  @Post('runs')
+  createPayrollRun(@Body() body: unknown) {
+    return this.payrollService.createPayrollRun(body as any);
+  }
 
-  @Post('runs/:id/hr-review')
-  hrReview(@Param('id') id: string) { return this.service.approvalPlaceholder(id, 'HR_REVIEW'); }
-
-  @Post('runs/:id/finance-review')
-  financeReview(@Param('id') id: string) { return this.service.approvalPlaceholder(id, 'FINANCE_REVIEW'); }
-
-  @Post('runs/:id/director-approve')
-  directorApprove(@Param('id') id: string) { return this.service.approvalPlaceholder(id, 'DIRECTOR_APPROVAL'); }
-
-  @Post('runs/:id/lock')
-  lock(@Param('id') id: string) { return this.service.lockPlaceholder(id); }
+  @Get('runs/:id')
+  getPayrollRun(@Param('id') id: string) {
+    return this.payrollService.getPayrollRun(id);
+  }
 }

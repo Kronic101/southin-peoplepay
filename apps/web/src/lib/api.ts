@@ -253,3 +253,92 @@ export async function approveEmployeeServiceCondition(employeeId: string, condit
 
   return res.json();
 }
+
+export async function getPayrollPeriods() {
+  const res = await fetch(`${API_URL}/payroll/periods`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll periods');
+  }
+
+  return res.json();
+}
+
+export async function createPayrollPeriod(payload: {
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+}) {
+  const res = await fetch(`${API_URL}/payroll/periods`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create payroll period');
+  }
+
+  return res.json();
+}
+
+export async function getPayrollReadyEmployees() {
+  const res = await fetch(`${API_URL}/payroll/ready-employees`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll-ready employees');
+  }
+
+  return res.json();
+}
+
+export async function getPayrollRuns() {
+  const res = await fetch(`${API_URL}/payroll/runs`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll runs');
+  }
+
+  return res.json();
+}
+
+export async function createPayrollRun(payload: {
+  payrollPeriodId: string;
+  runName: string;
+  runType: string;
+}) {
+  const res = await fetch(`${API_URL}/payroll/runs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create payroll run');
+  }
+
+  return res.json();
+}
+
+export async function getPayrollRun(id: string) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll run');
+  }
+
+  return res.json();
+}
