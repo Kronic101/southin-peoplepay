@@ -1,0 +1,462 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeStatus {
+  DRAFT
+  ACTIVE
+  ON_PROBATION
+  SUSPENDED
+  ON_LEAVE
+  CONTRACT_EXPIRING
+  TERMINATED
+  ARCHIVED
+}
+
+enum PayrollRunStatus {
+  OPEN
+  PROCESSING
+  SUBMITTED_HR_REVIEW
+  HR_REVIEWED
+  SUBMITTED_FINANCE_REVIEW
+  FINANCE_REVIEWED
+  SUBMITTED_DIRECTOR_APPROVAL
+  DIRECTOR_APPROVED
+  LOCKED
+  CLOSED
+  REJECTED
+}
+
+enum PayrollRunType {
+  MONTHLY
+  WEEKLY
+  CASUAL
+  OFF_CYCLE
+  FINAL_PAY
+  ADJUSTMENT
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  users       UserRole[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String?    @unique
+  displayName     String
+  microsoftUserId String?    @unique
+  isActive        Boolean    @default(true)
+  roles           UserRole[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model Department {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  employees   Employee[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model JobTitle {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  employees   Employee[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Site {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  employees   Employee[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model EmploymentType {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  employees   Employee[]
+  templates   ServiceConditionTemplate[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Employee {
+  id               String         @id @default(uuid())
+  employeeNumber   String         @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  gender           String?
+  dateOfBirth      DateTime?
+  nrcNumber        String?
+  email            String?
+  phone            String?
+  departmentId     String?
+  jobTitleId       String?
+  siteId           String?
+  employmentTypeId String?
+  supervisorId     String?
+  startDate        DateTime?
+  endDate          DateTime?
+  status           EmployeeStatus @default(DRAFT)
+
+  department       Department?    @relation(fields: [departmentId], references: [id])
+  jobTitle         JobTitle?      @relation(fields: [jobTitleId], references: [id])
+  site             Site?          @relation(fields: [siteId], references: [id])
+  employmentType   EmploymentType? @relation(fields: [employmentTypeId], references: [id])
+  supervisor       Employee?      @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  directReports    Employee[]     @relation("EmployeeSupervisor")
+
+  portalAccount    EmployeePortalAccount?
+  statutoryDetails EmployeeStatutoryDetails?
+  bankAccounts     EmployeeBankAccount[]
+  serviceConditions EmployeeServiceCondition[]
+  contracts        EmployeeContract[]
+  payrollRuns      PayrollRunEmployee[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model EmployeePortalAccount {
+  id              String    @id @default(uuid())
+  employeeId      String    @unique
+  employeeNumber  String    @unique
+  pinHash         String
+  mustChangePin   Boolean   @default(true)
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+  failedAttempts  Int       @default(0)
+  lockedUntil     DateTime?
+  employee        Employee  @relation(fields: [employeeId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model EmployeeStatutoryDetails {
+  id              String   @id @default(uuid())
+  employeeId      String   @unique
+  tpin            String?
+  napsaNumber     String?
+  nhimaNumber     String?
+  payeApplicable  Boolean  @default(true)
+  napsaApplicable Boolean  @default(true)
+  nhimaApplicable Boolean  @default(true)
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model EmployeeBankAccount {
+  id             String         @id @default(uuid())
+  employeeId     String
+  bankName       String
+  branchName     String?
+  accountNumber  String
+  accountName    String
+  isPrimary      Boolean        @default(false)
+  approvalStatus ApprovalStatus @default(PENDING)
+  effectiveFrom  DateTime?
+  employee       Employee       @relation(fields: [employeeId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model ContractType {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  description String?
+  contracts   EmployeeContract[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model EmployeeContract {
+  id             String       @id @default(uuid())
+  employeeId     String
+  contractTypeId String?
+  startDate      DateTime
+  endDate        DateTime?
+  probationEnd   DateTime?
+  noticePeriod   String?
+  status         String       @default("ACTIVE")
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  contractType   ContractType? @relation(fields: [contractTypeId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model ServiceConditionTemplate {
+  id               String                      @id @default(uuid())
+  name             String                      @unique
+  description      String?
+  employmentTypeId String?
+  isActive         Boolean                     @default(true)
+  employmentType   EmploymentType?             @relation(fields: [employmentTypeId], references: [id])
+  components       ServiceConditionComponent[]
+  assignments      EmployeeServiceCondition[]
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+}
+
+model ServiceConditionComponent {
+  id                String                   @id @default(uuid())
+  templateId        String
+  componentName     String
+  componentType     String
+  calculationMethod String
+  amount            Decimal?                 @db.Decimal(14, 2)
+  percentage        Decimal?                 @db.Decimal(8, 4)
+  frequency         String?
+  taxable           Boolean                  @default(true)
+  napsaPensionable  Boolean                  @default(false)
+  nhimaApplicable   Boolean                  @default(false)
+  includedInGross   Boolean                  @default(true)
+  requiresApproval  Boolean                  @default(false)
+  effectiveFrom     DateTime?
+  effectiveTo       DateTime?
+  isActive          Boolean                  @default(true)
+  template          ServiceConditionTemplate @relation(fields: [templateId], references: [id])
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+}
+
+model EmployeeServiceCondition {
+  id            String                    @id @default(uuid())
+  employeeId    String
+  templateId    String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  status        ApprovalStatus            @default(PENDING)
+  assignedBy    String?
+  approvedBy    String?
+  approvedAt    DateTime?
+  employee      Employee                  @relation(fields: [employeeId], references: [id])
+  template      ServiceConditionTemplate  @relation(fields: [templateId], references: [id])
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+}
+
+model PayrollPeriod {
+  id         String       @id @default(uuid())
+  periodName String
+  startDate  DateTime
+  endDate    DateTime
+  payDate    DateTime?
+  status     String       @default("OPEN")
+  runs       PayrollRun[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model PayrollRun {
+  id                     String             @id @default(uuid())
+  payrollPeriodId        String
+  runName                String
+  runType                PayrollRunType     @default(MONTHLY)
+  status                 PayrollRunStatus   @default(OPEN)
+  preparedBy             String?
+  submittedAt            DateTime?
+  hrReviewedBy           String?
+  financeReviewedBy      String?
+  directorApprovedBy     String?
+  lockedAt               DateTime?
+  payrollPeriod          PayrollPeriod      @relation(fields: [payrollPeriodId], references: [id])
+  employees              PayrollRunEmployee[]
+  approvals              PayrollApproval[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+}
+
+model PayrollRunEmployee {
+  id              String           @id @default(uuid())
+  payrollRunId    String
+  employeeId       String
+  grossPay         Decimal          @default(0) @db.Decimal(14, 2)
+  totalDeductions  Decimal          @default(0) @db.Decimal(14, 2)
+  netPay           Decimal          @default(0) @db.Decimal(14, 2)
+  employerCost     Decimal          @default(0) @db.Decimal(14, 2)
+  status           String           @default("DRAFT")
+  calculatedAt     DateTime?
+  payrollRun       PayrollRun       @relation(fields: [payrollRunId], references: [id])
+  employee         Employee         @relation(fields: [employeeId], references: [id])
+  earnings         PayrollEarning[]
+  deductions       PayrollDeduction[]
+  payslip          Payslip?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model PayrollEarning {
+  id                   String             @id @default(uuid())
+  payrollRunEmployeeId String
+  earningType          String
+  description          String?
+  amount               Decimal            @db.Decimal(14, 2)
+  taxable              Boolean            @default(true)
+  napsaPensionable     Boolean            @default(false)
+  nhimaApplicable      Boolean            @default(false)
+  source               String?
+  payrollRunEmployee   PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
+  createdAt            DateTime           @default(now())
+}
+
+model PayrollDeduction {
+  id                   String             @id @default(uuid())
+  payrollRunEmployeeId String
+  deductionType        String
+  description          String?
+  amount               Decimal            @db.Decimal(14, 2)
+  source               String?
+  payrollRunEmployee   PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
+  createdAt            DateTime           @default(now())
+}
+
+model PayrollApproval {
+  id             String         @id @default(uuid())
+  payrollRunId   String
+  approvalStage  String
+  approverRole   String
+  approverId     String?
+  status         ApprovalStatus @default(PENDING)
+  comments       String?
+  approvedAt     DateTime?
+  payrollRun     PayrollRun     @relation(fields: [payrollRunId], references: [id])
+  createdAt      DateTime       @default(now())
+}
+
+model Payslip {
+  id                   String             @id @default(uuid())
+  payrollRunEmployeeId String             @unique
+  employeeId           String
+  payrollPeriodId      String
+  fileUrl              String?
+  fileStorageProvider  String?
+  generatedAt          DateTime?
+  viewedAt             DateTime?
+  payrollRunEmployee   PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
+  createdAt            DateTime           @default(now())
+}
+
+model TaxYear {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean    @default(false)
+  payeBands   PayeBand[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model PayeBand {
+  id          String   @id @default(uuid())
+  taxYearId   String
+  lowerBound  Decimal  @db.Decimal(14, 2)
+  upperBound  Decimal? @db.Decimal(14, 2)
+  rate        Decimal  @db.Decimal(8, 4)
+  taxYear     TaxYear  @relation(fields: [taxYearId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model NapsaRate {
+  id             String   @id @default(uuid())
+  name           String
+  employeeRate   Decimal  @db.Decimal(8, 4)
+  employerRate   Decimal  @db.Decimal(8, 4)
+  monthlyCeiling Decimal? @db.Decimal(14, 2)
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  status         String   @default("DRAFT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model NhimaRate {
+  id            String   @id @default(uuid())
+  name          String
+  employeeRate  Decimal  @db.Decimal(8, 4)
+  employerRate  Decimal  @db.Decimal(8, 4)
+  calculationBase String  @default("CONFIGURABLE")
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  status        String   @default("DRAFT")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SdlRate {
+  id            String   @id @default(uuid())
+  name          String
+  employerRate  Decimal  @db.Decimal(8, 4)
+  calculationBase String  @default("GROSS_EMOLUMENTS")
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  status        String   @default("DRAFT")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  beforeJson  Json?
+  afterJson   Json?
+  reason      String?
+  createdAt   DateTime @default(now())
+}
+
+model DashboardSnapshot {
+  id          String   @id @default(uuid())
+  snapshotType String
+  payload     Json
+  createdAt   DateTime @default(now())
+  publishedToSharePoint Boolean @default(false)
+}
+
+model SharePointPublishLog {
+  id          String   @id @default(uuid())
+  publishType String
+  status      String
+  targetPath  String?
+  message     String?
+  createdAt   DateTime @default(now())
+}
