@@ -85,14 +85,15 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
     setMessage('');
 
     const formData = new FormData(event.currentTarget);
+    const rawContractNumber = String(formData.get('contractNumber') || '').trim();
 
     await createEmployeeContract(employee.id, {
       contractTypeId: String(formData.get('contractTypeId') || ''),
-      contractNumber: String(formData.get('contractNumber') || ''),
+      contractNumber: rawContractNumber.length > 0 ? rawContractNumber : undefined,
       startDate: String(formData.get('startDate') || ''),
       endDate: String(formData.get('endDate') || ''),
       probationEndDate: String(formData.get('probationEndDate') || ''),
-      noticePeriodDays: Number(formData.get('noticePeriodDays') || 30),
+      noticePeriod: String(formData.get('noticePeriod') || '30 days'),
     });
 
     setMessage('Contract captured.');
@@ -367,7 +368,7 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
 
             <label>
               Contract Number
-              <input name="contractNumber" />
+              <input name="contractNumber" placeholder="Leave blank to auto-generate" />
             </label>
 
             <label>
@@ -386,8 +387,8 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
             </label>
 
             <label>
-              Notice Period Days
-              <input name="noticePeriodDays" type="number" defaultValue={30} />
+              Notice Period
+              <input name="noticePeriod" placeholder="Example: 30 days" defaultValue="30 days" />
             </label>
 
             <button className="btn" type="submit">

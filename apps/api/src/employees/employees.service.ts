@@ -324,7 +324,7 @@ export class EmployeesService {
         startDate: new Date(input.startDate),
         endDate: input.endDate ? new Date(input.endDate) : null,
         probationEnd: input.probationEndDate ? new Date(input.probationEndDate) : null,
-        noticePeriod: String(input.noticePeriod || 30),
+        noticePeriod: String(input.noticePeriod || '30 days'),
         status: input.status || 'DRAFT',
       },
       include: {
