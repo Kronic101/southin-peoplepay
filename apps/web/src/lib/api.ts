@@ -217,3 +217,15 @@ export async function assignEmployeeServiceCondition(id: string, payload: Record
 
   return res.json();
 }
+
+export async function getPayrollReadiness() {
+  const res = await fetch(`${API_URL}/employees/payroll-readiness`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll readiness');
+  }
+
+  return res.json();
+}

@@ -20,6 +20,11 @@ export class EmployeesController {
     return this.employeesService.create(body as any);
   }
 
+  @Get('payroll-readiness')
+  getPayrollReadiness() {
+    return this.employeesService.getPayrollReadiness();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.employeesService.findOne(id);

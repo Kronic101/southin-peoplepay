@@ -509,8 +509,14 @@ function RecordList({ title, items, fields }: { title: string; items: any[]; fie
 
 function formatValue(value: unknown) {
   if (!value) return '-';
-  if (typeof value === 'string' && value.includes('T')) {
-    return value.split('T')[0];
+
+  if (typeof value === 'string') {
+    const looksLikeIsoDate = /^\d{4}-\d{2}-\d{2}T/.test(value);
+
+    if (looksLikeIsoDate) {
+      return value.split('T')[0];
+    }
   }
+
   return String(value);
 }

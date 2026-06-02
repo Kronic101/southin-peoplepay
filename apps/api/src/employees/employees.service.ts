@@ -368,6 +368,103 @@ export class EmployeesService {
     });
   }
 
+    async getPayrollReadiness() {
+    const employees = await this.prisma.employee.findMany({
+      orderBy: { employeeNumber: 'asc' },
+      include: {
+        department: true,
+        jobTitle: true,
+        site: true,
+        employmentType: true,
+        statutoryDetails: true,
+        bankAccounts: true,
+        contracts: true,
+        serviceConditions: {
+          include: {
+            template: true,
+          },
+        },
+        portalAccount: {
+          select: {
+            id: true,
+            isActive: true,
+            mustChangePin: true,
+            lastLoginAt: true,
+          },
+        },
+      },
+    });
+
+    const rows = employees.map((employee) => {
+      const hasBankAccount = employee.bankAccounts.length > 0;
+      const hasApprovedBankAccount = employee.bankAccounts.some(
+        (account) => account.approvalStatus === 'APPROVED',
+      );
+
+      const hasContract = employee.contracts.length > 0;
+
+      const hasConditionOfService = employee.serviceConditions.length > 0;
+      const hasApprovedConditionOfService = employee.serviceConditions.some(
+        (condition) => condition.status === 'APPROVED',
+      );
+
+      const checks = {
+        department: Boolean(employee.departmentId),
+        jobTitle: Boolean(employee.jobTitleId),
+        site: Boolean(employee.siteId),
+        employmentType: Boolean(employee.employmentTypeId),
+        tpin: Boolean(employee.statutoryDetails?.tpin),
+        napsaNumber: Boolean(employee.statutoryDetails?.napsaNumber),
+        nhimaNumber: Boolean(employee.statutoryDetails?.nhimaNumber),
+        bankAccount: hasBankAccount,
+        approvedBankAccount: hasApprovedBankAccount,
+        contract: hasContract,
+        conditionOfService: hasConditionOfService,
+        approvedConditionOfService: hasApprovedConditionOfService,
+        portalAccess: Boolean(employee.portalAccount?.isActive),
+      };
+
+      const missingItems = Object.entries(checks)
+        .filter(([, passed]) => !passed)
+        .map(([key]) => key);
+
+      const requiredCheckCount = Object.keys(checks).length;
+      const passedCheckCount = Object.values(checks).filter(Boolean).length;
+
+      return {
+        employeeId: employee.id,
+        employeeNumber: employee.employeeNumber,
+        name: `${employee.firstName} ${employee.lastName}`,
+        status: employee.status,
+        department: employee.department?.name || null,
+        jobTitle: employee.jobTitle?.name || null,
+        site: employee.site?.name || null,
+        employmentType: employee.employmentType?.name || null,
+        checks,
+        missingItems,
+        passedCheckCount,
+        requiredCheckCount,
+        readinessPercentage: Math.round((passedCheckCount / requiredCheckCount) * 100),
+        payrollReady: missingItems.length === 0,
+      };
+    });
+
+    const totalEmployees = rows.length;
+    const payrollReady = rows.filter((row) => row.payrollReady).length;
+    const notReady = totalEmployees - payrollReady;
+
+    return {
+      summary: {
+        totalEmployees,
+        payrollReady,
+        notReady,
+        readinessPercentage:
+          totalEmployees === 0 ? 0 : Math.round((payrollReady / totalEmployees) * 100),
+      },
+      rows,
+    };
+  }
+
   private async ensureEmployeeExists(id: string) {
     const employee = await this.prisma.employee.findUnique({
       where: { id },
