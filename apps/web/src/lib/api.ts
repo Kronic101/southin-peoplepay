@@ -342,3 +342,26 @@ export async function getPayrollRun(id: string) {
 
   return res.json();
 }
+
+export async function updatePayrollLineGrossPay(
+  runId: string,
+  lineId: string,
+  payload: {
+    grossPay: number;
+    description?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payroll/runs/${runId}/employees/${lineId}/gross-pay`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update payroll line gross pay');
+  }
+
+  return res.json();
+}

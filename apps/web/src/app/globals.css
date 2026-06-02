@@ -312,3 +312,22 @@ th {
 .btn-small:hover {
   background: #c2410c;
 }
+
+.inline-pay-form {
+  display: grid;
+  grid-template-columns: 120px minmax(180px, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.inline-pay-form input {
+  padding: 0.55rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.45rem;
+}
+
+@media (max-width: 900px) {
+  .inline-pay-form {
+    grid-template-columns: 1fr;
+  }
+}

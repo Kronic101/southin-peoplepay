@@ -174,6 +174,94 @@ export class PayrollService {
     return payrollRun;
   }
 
+    async updatePayrollLineGrossPay(
+    runId: string,
+    lineId: string,
+    input: {
+      grossPay: number | string;
+      description?: string;
+    },
+  ) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id: runId },
+    });
+
+    if (!run) {
+      throw new NotFoundException('Payroll run not found');
+    }
+
+    if (run.status !== 'OPEN' && run.status !== 'PROCESSING') {
+      throw new BadRequestException('Only OPEN or PROCESSING payroll runs can be edited');
+    }
+
+    const payrollLine = await this.prisma.payrollRunEmployee.findFirst({
+      where: {
+        id: lineId,
+        payrollRunId: runId,
+      },
+      include: {
+        employee: true,
+      },
+    });
+
+    if (!payrollLine) {
+      throw new NotFoundException('Payroll employee line not found');
+    }
+
+    const grossPay = Number(input.grossPay || 0);
+
+    if (Number.isNaN(grossPay) || grossPay < 0) {
+      throw new BadRequestException('Gross pay must be a valid positive number');
+    }
+
+    await this.prisma.payrollEarning.deleteMany({
+      where: {
+        payrollRunEmployeeId: lineId,
+        earningType: 'BASIC_PAY',
+      },
+    });
+
+    if (grossPay > 0) {
+      await this.prisma.payrollEarning.create({
+        data: {
+          payrollRunEmployeeId: lineId,
+          earningType: 'BASIC_PAY',
+          description: input.description || 'Basic salary / gross pay',
+          amount: grossPay,
+          taxable: true,
+          napsaPensionable: true,
+          nhimaApplicable: true,
+          source: 'MANUAL_ENTRY',
+        },
+      });
+    }
+
+    return this.prisma.payrollRunEmployee.update({
+      where: {
+        id: lineId,
+      },
+      data: {
+        grossPay,
+        totalDeductions: 0,
+        netPay: grossPay,
+        employerCost: grossPay,
+        status: grossPay > 0 ? 'CALCULATED' : 'DRAFT',
+        calculatedAt: new Date(),
+      },
+      include: {
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            employmentType: true,
+          },
+        },
+        earnings: true,
+        deductions: true,
+      },
+    });
+  }
+
   async getPayrollRun(id: string) {
     const run = await this.prisma.payrollRun.findUnique({
       where: { id },

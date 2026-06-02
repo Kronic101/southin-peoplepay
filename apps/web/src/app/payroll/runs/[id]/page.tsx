@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/AppShell';
 import { getPayrollRun } from '@/lib/api';
+import { PayrollRunLinesEditor } from './components/PayrollRunLinesEditor';
 
 type PayrollRunPageProps = {
   params: Promise<{
@@ -57,73 +58,29 @@ export default async function PayrollRunPage({ params }: PayrollRunPageProps) {
 
           <div className="summary-card">
             <span className="summary-label">Gross Pay</span>
-            <strong>{totalGross.toFixed(2)}</strong>
+            <strong>{money(totalGross)}</strong>
           </div>
 
           <div className="summary-card">
             <span className="summary-label">Deductions</span>
-            <strong>{totalDeductions.toFixed(2)}</strong>
+            <strong>{money(totalDeductions)}</strong>
           </div>
 
           <div className="summary-card">
             <span className="summary-label">Net Pay</span>
-            <strong>{totalNet.toFixed(2)}</strong>
+            <strong>{money(totalNet)}</strong>
           </div>
 
           <div className="summary-card">
             <span className="summary-label">Employer Cost</span>
-            <strong>{totalEmployerCost.toFixed(2)}</strong>
+            <strong>{money(totalEmployerCost)}</strong>
           </div>
         </div>
 
-        <div className="table-wrap">
-          <h3>Payroll Employees</h3>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Employee No.</th>
-                <th>Name</th>
-                <th>Department</th>
-                <th>Job Title</th>
-                <th>Employment Type</th>
-                <th>Gross</th>
-                <th>Deductions</th>
-                <th>Net</th>
-                <th>Employer Cost</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {employees.length === 0 ? (
-                <tr>
-                  <td colSpan={10}>No employees in this payroll run.</td>
-                </tr>
-              ) : (
-                employees.map((line: any) => (
-                  <tr key={line.id}>
-                    <td>{line.employee?.employeeNumber || '-'}</td>
-                    <td>
-                      {line.employee?.firstName || '-'} {line.employee?.lastName || ''}
-                    </td>
-                    <td>{line.employee?.department?.name || '-'}</td>
-                    <td>{line.employee?.jobTitle?.name || '-'}</td>
-                    <td>{line.employee?.employmentType?.name || '-'}</td>
-                    <td>{money(line.grossPay)}</td>
-                    <td>{money(line.totalDeductions)}</td>
-                    <td>{money(line.netPay)}</td>
-                    <td>{money(line.employerCost)}</td>
-                    <td>{line.status}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PayrollRunLinesEditor runId={run.id} employees={employees} />
 
         <div className="notice">
-          Payroll calculation, statutory deductions, approval workflow, and payroll lock will be added in the next payroll phases.
+          This phase records manual gross pay and creates a BASIC_PAY earning. Statutory calculations for PAYE, NAPSA, and NHIMA will be added next.
         </div>
       </section>
     </AppShell>
