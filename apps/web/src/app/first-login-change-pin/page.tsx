@@ -54,11 +54,15 @@ export default function FirstLoginChangePinPage() {
 
   return (
     <main className="auth-page">
-      <section className="auth-card">
-        <h1>Change Temporary PIN</h1>
-        <p className="muted">For security, you must change your temporary PIN before accessing your portal.</p>
+      <section className="auth-card wide-auth-card">
+        <div className="auth-header">
+          <h1>Change Temporary PIN</h1>
+          <p className="muted">
+            For security, you must change your temporary PIN before accessing your Southin PeoplePay employee portal.
+          </p>
+        </div>
 
-        <form onSubmit={handleChangePin}>
+        <form className="form-grid" onSubmit={handleChangePin}>
           <label>
             Employee Number
             <input value={employeeNumber} readOnly />
@@ -70,6 +74,7 @@ export default function FirstLoginChangePinPage() {
               value={currentPin}
               onChange={(event) => setCurrentPin(event.target.value)}
               type="password"
+              placeholder="Enter temporary PIN"
               required
             />
           </label>
@@ -80,6 +85,7 @@ export default function FirstLoginChangePinPage() {
               value={newPin}
               onChange={(event) => setNewPin(event.target.value)}
               type="password"
+              placeholder="Enter new PIN"
               required
             />
           </label>
@@ -90,6 +96,7 @@ export default function FirstLoginChangePinPage() {
               value={confirmPin}
               onChange={(event) => setConfirmPin(event.target.value)}
               type="password"
+              placeholder="Confirm new PIN"
               required
             />
           </label>
@@ -97,7 +104,7 @@ export default function FirstLoginChangePinPage() {
           {error && <div className="notice">{error}</div>}
 
           <button className="btn" disabled={loading} type="submit">
-            {loading ? 'Updating...' : 'Change PIN'}
+            {loading ? 'Updating PIN...' : 'Change PIN'}
           </button>
         </form>
       </section>

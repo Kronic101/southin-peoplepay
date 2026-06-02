@@ -132,3 +132,62 @@ th {
   background: #fff7ed;
   border: 1px solid #fed7aa;
 }
+
+.auth-header {
+  margin-bottom: 1.5rem;
+}
+
+.wide-auth-card {
+  width: min(720px, 94vw);
+}
+
+.employee-portal-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  padding: 2rem;
+}
+
+.employee-portal-card {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.summary-card {
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border-radius: 0.8rem;
+  padding: 1rem;
+}
+
+.summary-label {
+  display: block;
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-portal-page {
+    padding: 1rem;
+  }
+}

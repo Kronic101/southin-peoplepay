@@ -7,6 +7,12 @@ export default function EmployeeMePage() {
   const [employee, setEmployee] = useState<any>(null);
   const [error, setError] = useState('');
 
+  function handleLogout() {
+    localStorage.removeItem('peoplepay_employee_token');
+    localStorage.removeItem('peoplepay_employee_number');
+    window.location.href = '/employee-login';
+  }
+
   useEffect(() => {
     async function loadProfile() {
       try {
@@ -33,6 +39,9 @@ export default function EmployeeMePage() {
         <section className="auth-card">
           <h1>Employee Portal</h1>
           <div className="notice">{error}</div>
+          <a className="btn" href="/employee-login">
+            Back to Login
+          </a>
         </section>
       </main>
     );
@@ -50,12 +59,42 @@ export default function EmployeeMePage() {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <h1>Welcome, {employee.firstName}</h1>
-        <p className="muted">
-          {employee.employeeNumber} · {employee.status}
-        </p>
+    <main className="employee-portal-page">
+      <section className="employee-portal-card">
+        <div className="page-header">
+          <div>
+            <h1>Welcome, {employee.firstName}</h1>
+            <p className="muted">
+              {employee.employeeNumber} · {employee.status}
+            </p>
+          </div>
+
+          <button className="btn-secondary" onClick={handleLogout} type="button">
+            Logout
+          </button>
+        </div>
+
+        <div className="summary-grid">
+          <div className="summary-card">
+            <span className="summary-label">PAYE</span>
+            <strong>{employee.statutoryDetails?.payeApplicable ? 'Applicable' : 'Not applicable'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">NAPSA</span>
+            <strong>{employee.statutoryDetails?.napsaApplicable ? 'Applicable' : 'Not applicable'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">NHIMA</span>
+            <strong>{employee.statutoryDetails?.nhimaApplicable ? 'Applicable' : 'Not applicable'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Payslips</span>
+            <strong>{employee.payslipCount}</strong>
+          </div>
+        </div>
 
         <div className="table-wrap">
           <table>
@@ -75,23 +114,23 @@ export default function EmployeeMePage() {
                 <td>{employee.email || '-'}</td>
               </tr>
               <tr>
-                <th>PAYE</th>
-                <td>{employee.statutoryDetails?.payeApplicable ? 'Applicable' : 'Not applicable'}</td>
+                <th>Portal Status</th>
+                <td>{employee.portalAccount?.isActive ? 'Active' : 'Inactive'}</td>
               </tr>
               <tr>
-                <th>NAPSA</th>
-                <td>{employee.statutoryDetails?.napsaApplicable ? 'Applicable' : 'Not applicable'}</td>
+                <th>PIN Change Required</th>
+                <td>{employee.portalAccount?.mustChangePin ? 'Yes' : 'No'}</td>
               </tr>
               <tr>
-                <th>NHIMA</th>
-                <td>{employee.statutoryDetails?.nhimaApplicable ? 'Applicable' : 'Not applicable'}</td>
-              </tr>
-              <tr>
-                <th>Payslips</th>
-                <td>{employee.payslipCount}</td>
+                <th>Last Login</th>
+                <td>{employee.portalAccount?.lastLoginAt || '-'}</td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div className="notice">
+          Payslip download and leave requests will be added in the next employee self-service phase.
         </div>
       </section>
     </main>
