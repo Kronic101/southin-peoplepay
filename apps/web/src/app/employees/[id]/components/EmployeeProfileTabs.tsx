@@ -396,7 +396,11 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
             </button>
           </form>
 
-          <RecordList title="Existing Contracts" items={employee.contracts} fields={['contractNumber', 'startDate', 'endDate', 'status']} />
+          <RecordList
+            title="Existing Contracts"
+            items={employee.contracts}
+            fields={['contractNumber', 'startDate', 'endDate', 'probationEnd', 'noticePeriod', 'status']}
+          />
         </>
       )}
 
