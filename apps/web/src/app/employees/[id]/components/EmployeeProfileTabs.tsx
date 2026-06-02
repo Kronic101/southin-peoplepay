@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import {
+  approveEmployeeBankAccount,
+  approveEmployeeServiceCondition,
   assignEmployeeServiceCondition,
   createEmployeeBankAccount,
   createEmployeeContract,
@@ -19,6 +21,22 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
   const [activeTab, setActiveTab] = useState('profile');
   const [message, setMessage] = useState('');
   const [portalResult, setPortalResult] = useState<any>(null);
+
+  async function handleApproveBankAccount(bankAccountId: string) {
+      setMessage('');
+
+      await approveEmployeeBankAccount(employee.id, bankAccountId);
+
+      setMessage('Bank account approved. Refresh the profile to view latest status.');
+    }
+
+    async function handleApproveServiceCondition(conditionId: string) {
+      setMessage('');
+
+      await approveEmployeeServiceCondition(employee.id, conditionId);
+
+      setMessage('Condition of service approved. Refresh the profile to view latest status.');
+    }
 
   async function handleProfileSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -347,7 +365,51 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
             </button>
           </form>
 
-          <RecordList title="Existing Bank Accounts" items={employee.bankAccounts} fields={['bankName', 'accountNumber', 'approvalStatus']} />
+          <div className="table-wrap">
+            <h3>Existing Bank Accounts</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Bank</th>
+                  <th>Account Number</th>
+                  <th>Account Name</th>
+                  <th>Status</th>
+                  <th>Primary</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!employee.bankAccounts || employee.bankAccounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>No records captured yet.</td>
+                  </tr>
+                ) : (
+                  employee.bankAccounts.map((account: any) => (
+                    <tr key={account.id}>
+                      <td>{account.bankName}</td>
+                      <td>{account.accountNumber}</td>
+                      <td>{account.accountName}</td>
+                      <td>{account.approvalStatus}</td>
+                      <td>{account.isPrimary ? 'Yes' : 'No'}</td>
+                      <td>
+                        {account.approvalStatus === 'APPROVED' ? (
+                          <span className="ready-text">Approved</span>
+                        ) : (
+                          <button
+                            className="btn-small"
+                            onClick={() => handleApproveBankAccount(account.id)}
+                            type="button"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
@@ -434,7 +496,49 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
             </button>
           </form>
 
-          <RecordList title="Assigned Conditions" items={employee.serviceConditions} fields={['status', 'effectiveFrom', 'effectiveTo']} />
+          <div className="table-wrap">
+            <h3>Assigned Conditions</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Template</th>
+                  <th>Status</th>
+                  <th>Effective From</th>
+                  <th>Effective To</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!employee.serviceConditions || employee.serviceConditions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>No records captured yet.</td>
+                  </tr>
+                ) : (
+                  employee.serviceConditions.map((condition: any) => (
+                    <tr key={condition.id}>
+                      <td>{condition.template?.name || '-'}</td>
+                      <td>{condition.status}</td>
+                      <td>{formatValue(condition.effectiveFrom)}</td>
+                      <td>{formatValue(condition.effectiveTo)}</td>
+                      <td>
+                        {condition.status === 'APPROVED' ? (
+                          <span className="ready-text">Approved</span>
+                        ) : (
+                          <button
+                            className="btn-small"
+                            onClick={() => handleApproveServiceCondition(condition.id)}
+                            type="button"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 

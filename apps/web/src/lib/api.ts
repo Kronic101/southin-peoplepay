@@ -229,3 +229,27 @@ export async function getPayrollReadiness() {
 
   return res.json();
 }
+
+export async function approveEmployeeBankAccount(employeeId: string, bankAccountId: string) {
+  const res = await fetch(`${API_URL}/employees/${employeeId}/bank-accounts/${bankAccountId}/approve`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to approve bank account');
+  }
+
+  return res.json();
+}
+
+export async function approveEmployeeServiceCondition(employeeId: string, conditionId: string) {
+  const res = await fetch(`${API_URL}/employees/${employeeId}/service-conditions/${conditionId}/approve`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to approve condition of service');
+  }
+
+  return res.json();
+}

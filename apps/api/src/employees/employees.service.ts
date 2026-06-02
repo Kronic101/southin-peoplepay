@@ -465,6 +465,81 @@ export class EmployeesService {
     };
   }
 
+    async approveBankAccount(id: string, bankAccountId: string) {
+    await this.ensureEmployeeExists(id);
+
+    const bankAccount = await this.prisma.employeeBankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        employeeId: id,
+      },
+    });
+
+    if (!bankAccount) {
+      throw new NotFoundException('Bank account not found');
+    }
+
+    await this.prisma.employeeBankAccount.updateMany({
+      where: {
+        employeeId: id,
+      },
+      data: {
+        isPrimary: false,
+      },
+    });
+
+    return this.prisma.employeeBankAccount.update({
+      where: {
+        id: bankAccountId,
+      },
+      data: {
+        approvalStatus: 'APPROVED',
+        isPrimary: true,
+      },
+    });
+  }
+
+    async approveServiceCondition(id: string, conditionId: string) {
+    await this.ensureEmployeeExists(id);
+
+    const condition = await this.prisma.employeeServiceCondition.findFirst({
+      where: {
+        id: conditionId,
+        employeeId: id,
+      },
+    });
+
+    if (!condition) {
+      throw new NotFoundException('Condition of service not found');
+    }
+
+    await this.prisma.employeeServiceCondition.updateMany({
+      where: {
+        employeeId: id,
+        status: 'APPROVED',
+        NOT: {
+          id: conditionId,
+        },
+      },
+      data: {
+        status: 'REJECTED',
+        effectiveTo: new Date(),
+      },
+    });
+
+    return this.prisma.employeeServiceCondition.update({
+      where: {
+        id: conditionId,
+      },
+      data: {
+        status: 'APPROVED',
+      },
+      include: {
+        template: true,
+      },
+    });
+  }
+
   private async ensureEmployeeExists(id: string) {
     const employee = await this.prisma.employee.findUnique({
       where: { id },

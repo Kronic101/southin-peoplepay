@@ -55,6 +55,22 @@ export class EmployeesController {
     return this.employeesService.assignServiceCondition(id, body as any);
   }
 
+  @Post(':id/bank-accounts/:bankAccountId/approve')
+  approveBankAccount(
+    @Param('id') id: string,
+    @Param('bankAccountId') bankAccountId: string,
+  ) {
+    return this.employeesService.approveBankAccount(id, bankAccountId);
+  }
+
+  @Post(':id/service-conditions/:conditionId/approve')
+  approveServiceCondition(
+    @Param('id') id: string,
+    @Param('conditionId') conditionId: string,
+  ) {
+    return this.employeesService.approveServiceCondition(id, conditionId);
+  }
+
   @Post(':id/portal-account')
   createPortalAccount(@Param('id') id: string) {
     return this.employeesService.createPortalAccount(id);
