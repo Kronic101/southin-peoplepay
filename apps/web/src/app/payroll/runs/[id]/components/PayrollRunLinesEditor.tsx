@@ -51,6 +51,7 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
         <table>
           <thead>
             <tr>
+              <th>Line ID</th>
               <th>Employee No.</th>
               <th>Name</th>
               <th>Department</th>
@@ -66,11 +67,15 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
           <tbody>
             {employees.length === 0 ? (
               <tr>
-                <td colSpan={9}>No employees in this payroll run.</td>
+                <td colSpan={10}>No employees in this payroll run.</td>
               </tr>
             ) : (
               employees.map((line: any) => (
                 <tr key={line.id}>
+                  <td>
+                    <code>{line.id}</code>
+                  </td>
+                  <td>{line.employee?.employeeNumber || '-'}</td>
                   <td>{line.employee?.employeeNumber || '-'}</td>
                   <td>
                     {line.employee?.firstName || '-'} {line.employee?.lastName || ''}
