@@ -123,3 +123,97 @@ export async function getEmployeeMe(token: string) {
 
   return res.json();
 }
+
+export async function getEmployee(id: string) {
+  const res = await fetch(`${API_URL}/employees/${id}`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load employee');
+  }
+
+  return res.json();
+}
+
+export async function getEmployeeSetupLookups() {
+  const res = await fetch(`${API_URL}/employees/lookups/setup`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load setup lookups');
+  }
+
+  return res.json();
+}
+
+export async function updateEmployee(id: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/employees/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update employee');
+  }
+
+  return res.json();
+}
+
+export async function updateEmployeeStatutoryDetails(id: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/employees/${id}/statutory-details`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update statutory details');
+  }
+
+  return res.json();
+}
+
+export async function createEmployeeBankAccount(id: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/employees/${id}/bank-accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create bank account');
+  }
+
+  return res.json();
+}
+
+export async function createEmployeeContract(id: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/employees/${id}/contracts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create contract');
+  }
+
+  return res.json();
+}
+
+export async function assignEmployeeServiceCondition(id: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/employees/${id}/service-conditions/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to assign service condition');
+  }
+
+  return res.json();
+}

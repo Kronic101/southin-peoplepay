@@ -208,6 +208,7 @@ model ContractType {
 
 model EmployeeContract {
   id             String       @id @default(uuid())
+  contractNumber   String?  @unique
   employeeId     String
   contractTypeId String?
   startDate      DateTime

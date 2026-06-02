@@ -39,7 +39,7 @@ export default async function EmployeesPage() {
                   <tr key={employee.id}>
                     <td>{employee.employeeNumber}</td>
                     <td>
-                      <Link href={`/employees/${employee.id}`}>
+                      <Link className="employee-link" href={`/employees/${employee.id}`}>
                         {employee.firstName} {employee.lastName}
                       </Link>
                     </td>

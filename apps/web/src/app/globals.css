@@ -191,3 +191,65 @@ th {
     padding: 1rem;
   }
 }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+.tab {
+  border: 1px solid #dbe3ef;
+  background: #fff;
+  color: #111827;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.active-tab {
+  background: #f26a21;
+  color: #fff;
+  border-color: #f26a21;
+}
+
+.checkbox-line {
+  display: flex !important;
+  grid-template-columns: auto 1fr !important;
+  align-items: center;
+  gap: 0.55rem !important;
+  font-weight: 700;
+}
+
+.checkbox-line input {
+  width: auto;
+}
+
+.pin-box {
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  font-size: 1rem;
+}
+
+.employee-link {
+  color: #f26a21;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.employee-link:hover {
+  color: #c2410c;
+}
+
+.employee-link::after {
+  content: " →";
+  font-weight: 800;
+}

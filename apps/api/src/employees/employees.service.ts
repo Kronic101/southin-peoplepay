@@ -204,6 +204,170 @@ export class EmployeesService {
     };
   }
 
+    async getSetupLookups() {
+    const [departments, jobTitles, sites, employmentTypes, contractTypes, serviceConditionTemplates] =
+      await Promise.all([
+        this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
+        this.prisma.jobTitle.findMany({ orderBy: { name: 'asc' } }),
+        this.prisma.site.findMany({ orderBy: { name: 'asc' } }),
+        this.prisma.employmentType.findMany({ orderBy: { name: 'asc' } }),
+        this.prisma.contractType.findMany({ orderBy: { name: 'asc' } }),
+        this.prisma.serviceConditionTemplate.findMany({
+          where: { isActive: true },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+
+    return {
+      departments,
+      jobTitles,
+      sites,
+      employmentTypes,
+      contractTypes,
+      serviceConditionTemplates,
+    };
+  }
+
+  async updateStatutoryDetails(
+    id: string,
+    input: {
+      tpin?: string;
+      napsaNumber?: string;
+      nhimaNumber?: string;
+      payeApplicable?: boolean;
+      napsaApplicable?: boolean;
+      nhimaApplicable?: boolean;
+    },
+  ) {
+    await this.ensureEmployeeExists(id);
+
+    return this.prisma.employeeStatutoryDetails.upsert({
+      where: { employeeId: id },
+      create: {
+        employeeId: id,
+        tpin: input.tpin || null,
+        napsaNumber: input.napsaNumber || null,
+        nhimaNumber: input.nhimaNumber || null,
+        payeApplicable: input.payeApplicable ?? true,
+        napsaApplicable: input.napsaApplicable ?? true,
+        nhimaApplicable: input.nhimaApplicable ?? true,
+      },
+      update: {
+        tpin: input.tpin || null,
+        napsaNumber: input.napsaNumber || null,
+        nhimaNumber: input.nhimaNumber || null,
+        payeApplicable: input.payeApplicable ?? true,
+        napsaApplicable: input.napsaApplicable ?? true,
+        nhimaApplicable: input.nhimaApplicable ?? true,
+      },
+    });
+  }
+
+  async createBankAccount(
+    id: string,
+    input: {
+      bankName: string;
+      branchName?: string;
+      accountNumber: string;
+      accountName: string;
+      isPrimary?: boolean;
+      effectiveFrom?: string;
+    },
+  ) {
+    await this.ensureEmployeeExists(id);
+
+    if (input.isPrimary) {
+      await this.prisma.employeeBankAccount.updateMany({
+        where: { employeeId: id },
+        data: { isPrimary: false },
+      });
+    }
+
+    return this.prisma.employeeBankAccount.create({
+      data: {
+        employeeId: id,
+        bankName: input.bankName,
+        branchName: input.branchName || null,
+        accountNumber: input.accountNumber,
+        accountName: input.accountName,
+        isPrimary: input.isPrimary ?? true,
+        approvalStatus: 'PENDING',
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+      },
+    });
+  }
+
+    async createContract(
+    id: string,
+    input: {
+      contractTypeId: string;
+      contractNumber?: string;
+      startDate: string;
+      endDate?: string;
+      probationEndDate?: string;
+      noticePeriod?: string;
+      status?: string;
+    },
+  ) {
+    await this.ensureEmployeeExists(id);
+
+    const generatedContractNumber =
+      input.contractNumber && input.contractNumber.trim().length > 0
+        ? input.contractNumber.trim()
+        : await this.generateContractNumber();
+
+    return this.prisma.employeeContract.create({
+      data: {
+        employeeId: id,
+        contractTypeId: input.contractTypeId,
+        contractNumber: generatedContractNumber,
+        startDate: new Date(input.startDate),
+        endDate: input.endDate ? new Date(input.endDate) : null,
+        probationEnd: input.probationEndDate ? new Date(input.probationEndDate) : null,
+        noticePeriod: String(input.noticePeriod || 30),
+        status: input.status || 'DRAFT',
+      },
+      include: {
+        contractType: true,
+      },
+    });
+  }
+
+  async assignServiceCondition(
+    id: string,
+    input: {
+      templateId: string;
+      effectiveFrom: string;
+      effectiveTo?: string;
+    },
+  ) {
+    await this.ensureEmployeeExists(id);
+
+    await this.prisma.employeeServiceCondition.updateMany({
+      where: {
+        employeeId: id,
+        status: 'APPROVED',
+        effectiveTo: null,
+      },
+      data: {
+        effectiveTo: new Date(input.effectiveFrom),
+      },
+    });
+
+    return this.prisma.employeeServiceCondition.create({
+      data: {
+        employeeId: id,
+        templateId: input.templateId,
+        effectiveFrom: new Date(input.effectiveFrom),
+        effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
+        status: 'PENDING',
+      },
+      include: {
+        template: true,
+      },
+    });
+  }
+
   private async ensureEmployeeExists(id: string) {
     const employee = await this.prisma.employee.findUnique({
       where: { id },
@@ -222,6 +386,20 @@ export class EmployeesService {
   private async generateEmployeeNumber() {
     const count = await this.prisma.employee.count();
     return `STH-${String(count + 1).padStart(6, '0')}`;
+  }
+
+    private async generateContractNumber() {
+    const year = new Date().getFullYear();
+
+    const count = await this.prisma.employeeContract.count({
+      where: {
+        contractNumber: {
+          startsWith: `CNT-${year}-`,
+        },
+      },
+    });
+
+    return `CNT-${year}-${String(count + 1).padStart(6, '0')}`;
   }
 
   private generateTemporaryPin() {
