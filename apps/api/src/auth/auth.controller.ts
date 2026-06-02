@@ -1,27 +1,50 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+
+function decodeDevToken(authHeader?: string) {
+  if (!authHeader) {
+    throw new UnauthorizedException('Missing authorization header');
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+
+  try {
+    return JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
+  } catch {
+    throw new UnauthorizedException('Invalid token');
+  }
+}
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly service: AuthService) {}
-
-  @Get('me')
-  me() {
-    return this.service.currentUserPlaceholder();
-  }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('employee/login')
-  employeeLogin(@Body() body: { employeeNumber: string; pin: string }) {
-    return this.service.employeeLoginPlaceholder(body.employeeNumber);
+  employeeLogin(@Body() body: unknown) {
+    return this.authService.employeeLogin(body as any);
   }
 
   @Post('employee/change-pin')
-  changePin() {
-    return this.service.changePinPlaceholder();
+  employeeChangePin(@Body() body: unknown) {
+    return this.authService.employeeChangePin(body as any);
   }
 
-  @Post('microsoft/login')
-  microsoftLogin() {
-    return this.service.microsoftLoginPlaceholder();
+  @Get('employee/me')
+  employeeMe(@Headers('authorization') authorization?: string) {
+    const token = decodeDevToken(authorization);
+
+    if (token.type !== 'EMPLOYEE' || !token.employeeId) {
+      throw new UnauthorizedException('Invalid employee session');
+    }
+
+    return this.authService.getEmployeeMe(token.employeeId);
+  }
+
+  @Get('dev/admin-token')
+  devAdminToken() {
+    return {
+      message: 'Development admin token placeholder. Microsoft 365 authentication will replace this.',
+      token: 'DEV_ADMIN_TOKEN',
+    };
   }
 }

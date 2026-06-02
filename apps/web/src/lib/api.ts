@@ -72,3 +72,54 @@ export async function createPortalAccount(employeeId: string) {
 
   return res.json();
 }
+
+export async function employeeLogin(payload: { employeeNumber: string; pin: string }) {
+  const res = await fetch(`${API_URL}/auth/employee/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Invalid employee number or PIN');
+  }
+
+  return res.json();
+}
+
+export async function employeeChangePin(payload: {
+  employeeNumber: string;
+  currentPin: string;
+  newPin: string;
+}) {
+  const res = await fetch(`${API_URL}/auth/employee/change-pin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to change PIN');
+  }
+
+  return res.json();
+}
+
+export async function getEmployeeMe(token: string) {
+  const res = await fetch(`${API_URL}/auth/employee/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load employee profile');
+  }
+
+  return res.json();
+}
