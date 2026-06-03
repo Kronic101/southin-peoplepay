@@ -497,3 +497,39 @@ th {
   justify-content: flex-end;
   margin-top: 1rem;
 }
+
+.payslip-card {
+  max-width: 1100px;
+}
+
+.payslip-header {
+  align-items: center;
+  border-bottom: 1px solid #dbe4ef;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+}
+
+@media print {
+  .sidebar,
+  .btn,
+  .btn-secondary,
+  .action-row,
+  nav {
+    display: none !important;
+  }
+
+  .main {
+    padding: 0 !important;
+  }
+
+  .card {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}

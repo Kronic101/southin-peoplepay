@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -195,5 +195,110 @@ export class AuthService {
         issuedAt: new Date().toISOString(),
       }),
     ).toString('base64url');
+  }
+
+    private extractEmployeeNumberFromRequest(req: any) {
+    const authHeader = req.headers?.authorization || req.headers?.Authorization;
+
+    if (!authHeader || !String(authHeader).startsWith('Bearer ')) {
+      throw new UnauthorizedException('Missing employee token');
+    }
+
+    const token = String(authHeader).replace('Bearer ', '').trim();
+
+    try {
+      const decoded = this.jwtService.verify(token);
+      return decoded.employeeNumber;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired employee token');
+    }
+  }
+
+  async getEmployeePayslips(req: any) {
+    const employeeNumber = this.extractEmployeeNumberFromRequest(req);
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { employeeNumber },
+      include: {
+        payslips: {
+          include: {
+            payrollPeriod: true,
+            payrollRunEmployee: {
+              include: {
+                earnings: true,
+                deductions: true,
+              },
+            },
+          },
+          orderBy: {
+            generatedAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      throw new UnauthorizedException('Employee not found');
+    }
+
+    return employee.payslips.map((payslip) => ({
+      id: payslip.id,
+      employeeNumber: employee.employeeNumber,
+      employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+      payrollPeriod: payslip.payrollPeriod?.periodName || '-',
+      periodStart: payslip.payrollPeriod?.startDate || null,
+      periodEnd: payslip.payrollPeriod?.endDate || null,
+      payDate: payslip.payrollPeriod?.payDate || null,
+      grossPay: payslip.grossPay,
+      totalDeductions: payslip.totalDeductions,
+      netPay: payslip.netPay,
+      employerCost: payslip.employerCost,
+      status: payslip.status,
+      generatedAt: payslip.generatedAt,
+      earningsCount: payslip.payrollRunEmployee?.earnings?.length || 0,
+      deductionsCount: payslip.payrollRunEmployee?.deductions?.length || 0,
+    }));
+  }
+
+  async getEmployeePayslip(id: string, req: any) {
+    const employeeNumber = this.extractEmployeeNumberFromRequest(req);
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { employeeNumber },
+    });
+
+    if (!employee) {
+      throw new UnauthorizedException('Employee not found');
+    }
+
+    const payslip = await this.prisma.payslip.findFirst({
+      where: {
+        id,
+        employeeId: employee.id,
+      },
+      include: {
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
+          },
+        },
+        payrollPeriod: true,
+        payrollRunEmployee: {
+          include: {
+            earnings: true,
+            deductions: true,
+          },
+        },
+      },
+    });
+
+    if (!payslip) {
+      throw new NotFoundException('Payslip not found');
+    }
+
+    return payslip;
   }
 }

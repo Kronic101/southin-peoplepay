@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 function decodeDevToken(authHeader?: string) {
@@ -46,5 +46,15 @@ export class AuthController {
       message: 'Development admin token placeholder. Microsoft 365 authentication will replace this.',
       token: 'DEV_ADMIN_TOKEN',
     };
+  }
+
+  @Get('employee/payslips')
+  getEmployeePayslips(@Req() req: any) {
+    return this.authService.getEmployeePayslips(req);
+  }
+
+  @Get('employee/payslips/:id')
+  getEmployeePayslip(@Param('id') id: string, @Req() req: any) {
+    return this.authService.getEmployeePayslip(id, req);
   }
 }

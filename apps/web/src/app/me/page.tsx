@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getEmployeeMe } from '@/lib/api';
+import Link from 'next/link';
 
 export default function EmployeeMePage() {
   const [employee, setEmployee] = useState<any>(null);
@@ -134,5 +135,12 @@ export default function EmployeeMePage() {
         </div>
       </section>
     </main>
+
   );
+
+    <div className="action-row">
+      <Link className="btn" href="/me/payslips">
+        View My Payslips
+      </Link>
+    </div>
 }

@@ -743,3 +743,33 @@ export async function generatePayslipsForRun(
 
   return res.json();
 }
+
+export async function getEmployeePayslips(token: string) {
+  const res = await fetch(`${API_URL}/auth/employee/payslips`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load employee payslips');
+  }
+
+  return res.json();
+}
+
+export async function getEmployeePayslip(id: string, token: string) {
+  const res = await fetch(`${API_URL}/auth/employee/payslips/${id}`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load employee payslip');
+  }
+
+  return res.json();
+}
