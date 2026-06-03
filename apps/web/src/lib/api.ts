@@ -377,3 +377,161 @@ export async function updatePayrollLineGrossPay(
 
   return res.json();
 }
+
+export async function getStatutorySettings() {
+  const res = await fetch(`${API_URL}/statutory/settings`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load statutory settings');
+  }
+
+  return res.json();
+}
+
+export async function createTaxYear(payload: {
+  name: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}) {
+  const res = await fetch(`${API_URL}/statutory/tax-years`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create tax year');
+  }
+
+  return res.json();
+}
+
+export async function createPayeBand(payload: {
+  taxYearId: string;
+  lowerBound: number;
+  upperBound?: number | null;
+  rate: number;
+}) {
+  const res = await fetch(`${API_URL}/statutory/paye-bands`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create PAYE band');
+  }
+
+  return res.json();
+}
+
+export async function createNapsaRate(payload: {
+  name: string;
+  employeeRate: number;
+  employerRate: number;
+  monthlyCeiling?: number | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  const res = await fetch(`${API_URL}/statutory/napsa-rates`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create NAPSA rate');
+  }
+
+  return res.json();
+}
+
+export async function approveNapsaRate(id: string) {
+  const res = await fetch(`${API_URL}/statutory/napsa-rates/${id}/approve`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to approve NAPSA rate');
+  }
+
+  return res.json();
+}
+
+export async function createNhimaRate(payload: {
+  name: string;
+  employeeRate: number;
+  employerRate: number;
+  calculationBase: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  const res = await fetch(`${API_URL}/statutory/nhima-rates`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create NHIMA rate');
+  }
+
+  return res.json();
+}
+
+export async function approveNhimaRate(id: string) {
+  const res = await fetch(`${API_URL}/statutory/nhima-rates/${id}/approve`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to approve NHIMA rate');
+  }
+
+  return res.json();
+}
+
+export async function createSdlRate(payload: {
+  name: string;
+  employerRate: number;
+  calculationBase: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  const res = await fetch(`${API_URL}/statutory/sdl-rates`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to create SDL rate');
+  }
+
+  return res.json();
+}
+
+export async function approveSdlRate(id: string) {
+  const res = await fetch(`${API_URL}/statutory/sdl-rates/${id}/approve`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to approve SDL rate');
+  }
+
+  return res.json();
+}

@@ -1,12 +1,13 @@
 import { AppShell } from '@/components/AppShell';
+import { getStatutorySettings } from '@/lib/api';
+import { StatutorySettingsClient } from './components/StatutorySettingsClient';
 
-export default function Page() {
+export default async function StatutoryPage() {
+  const settings = await getStatutorySettings();
+
   return (
     <AppShell>
-      <section className="card">
-        <h1>Statutory Compliance</h1>
-        <p className="muted">Configure and report PAYE, NAPSA, NHIMA, SDL, and Workers Compensation records.</p>
-      </section>
+      <StatutorySettingsClient settings={settings} />
     </AppShell>
   );
 }
