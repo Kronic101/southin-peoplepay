@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Post, Query } from '@nestjs/common';
 import { ExecutiveService } from './executive.service';
 
 @Controller('executive')
@@ -25,5 +25,30 @@ export class ExecutiveController {
   @Header('Content-Disposition', 'attachment; filename="southin-payroll-audit.csv"')
   exportPayrollAuditCsv(@Query('runId') runId?: string) {
     return this.executiveService.exportPayrollAuditCsv(runId);
+  }
+
+  @Get('sharepoint/export-package')
+  getSharePointExportPackage() {
+    return this.executiveService.getSharePointExportPackage();
+  }
+
+  @Get('sharepoint/executive-page-payload')
+  getExecutivePagePayload() {
+    return this.executiveService.getExecutivePagePayload();
+  }
+
+  @Get('sharepoint/public-dashboard-payload')
+  getPublicDashboardPayload() {
+    return this.executiveService.getPublicDashboardPayload();
+  }
+
+  @Get('sharepoint/finance-audit-payload')
+  getFinanceAuditPayload(@Query('runId') runId?: string) {
+    return this.executiveService.getFinanceAuditPayload(runId);
+  }
+
+  @Post('sharepoint/export-dev-log')
+  logSharePointExportRequest(@Body() body: any) {
+    return this.executiveService.logSharePointExportRequest(body);
   }
 }

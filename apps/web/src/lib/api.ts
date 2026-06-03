@@ -855,3 +855,54 @@ export function getPayrollAuditCsvUrl(runId?: string) {
     : `${API_URL}/executive/payroll-audit.csv`;
 }
 
+export async function getSharePointExportPackage() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/export-package`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load SharePoint export package');
+  }
+
+  return res.json();
+}
+
+export async function getExecutivePagePayload() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/executive-page-payload`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load executive SharePoint page payload');
+  }
+
+  return res.json();
+}
+
+export async function getPublicDashboardPayload() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/public-dashboard-payload`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load public dashboard payload');
+  }
+
+  return res.json();
+}
+
+export async function getFinanceAuditPayload(runId?: string) {
+  const url = runId
+    ? `${API_URL}/executive/sharepoint/finance-audit-payload?runId=${runId}`
+    : `${API_URL}/executive/sharepoint/finance-audit-payload`;
+
+  const res = await fetch(url, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load finance audit SharePoint payload');
+  }
+
+  return res.json();
+}

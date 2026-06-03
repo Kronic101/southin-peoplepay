@@ -378,4 +378,252 @@ export class ExecutiveService {
 
     return rows.map((row) => row.map(csvEscape).join(',')).join('\n');
   }
+
+    async getExecutivePagePayload() {
+    const dashboard = await this.getDashboardSummary();
+
+    return {
+      payloadType: 'EXECUTIVE_LEADERSHIP_PAGE',
+      generatedAt: new Date(),
+      sourceSystem: 'Southin PeoplePay',
+      target: {
+        siteName: 'Executive Leadership',
+        recommendedPageName: 'PeoplePay Executive Dashboard',
+        confidentiality: 'CONFIDENTIAL_EXECUTIVE',
+        publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+        futureGraphTarget: {
+          sitePath: '/sites/ExecutiveLeadership',
+          pageName: 'PeoplePay Executive Dashboard.aspx',
+          status: 'PENDING_AZURE_APP_REGISTRATION',
+        },
+      },
+      pageSections: [
+        {
+          sectionKey: 'kpi_summary',
+          title: 'PeoplePay KPI Summary',
+          displayOrder: 1,
+          data: {
+            totalEmployees: dashboard.summary.totalEmployees,
+            activeEmployees: dashboard.summary.activeEmployees,
+            draftEmployees: dashboard.summary.draftEmployees,
+            payslipsGenerated: dashboard.summary.totalPayslips,
+            payrollPeriods: dashboard.summary.payrollPeriods,
+            payrollRuns: dashboard.summary.payrollRuns,
+            lockedPayrollRuns: dashboard.summary.lockedPayrollRuns,
+            openPayrollRuns: dashboard.summary.openPayrollRuns,
+          },
+        },
+        {
+          sectionKey: 'latest_locked_payroll',
+          title: 'Latest Locked Payroll',
+          displayOrder: 2,
+          data: dashboard.latestLockedPayroll || {
+            message: 'No locked payroll available yet.',
+          },
+        },
+        {
+          sectionKey: 'latest_financial_summary',
+          title: 'Latest Payroll Financial Summary',
+          displayOrder: 3,
+          data: {
+            grossPay: money(dashboard.financials.latestGrossPay),
+            deductions: money(dashboard.financials.latestDeductions),
+            netPay: money(dashboard.financials.latestNetPay),
+            employerCost: money(dashboard.financials.latestEmployerCost),
+          },
+        },
+        {
+          sectionKey: 'recent_payroll_runs',
+          title: 'Recent Payroll Runs',
+          displayOrder: 4,
+          data: dashboard.recentPayrollRuns.map((run: any) => ({
+            id: run.id,
+            runName: run.runName,
+            periodName: run.periodName,
+            runType: run.runType,
+            status: run.status,
+            employeeCount: run.employeeCount,
+            grossPay: money(run.grossPay),
+            deductions: money(run.totalDeductions),
+            netPay: money(run.netPay),
+            employerCost: money(run.employerCost),
+            approvalCount: run.approvalCount,
+            lockedAt: run.lockedAt,
+          })),
+        },
+        {
+          sectionKey: 'compliance_notes',
+          title: 'Compliance Notes',
+          displayOrder: 5,
+          data: dashboard.complianceNotes,
+        },
+      ],
+      securityRules: [
+        'This payload may contain payroll totals and must only be published to restricted executive audiences.',
+        'Do not publish individual employee payslip, NRC, bank, PAYE, NAPSA, or NHIMA details to public sites.',
+        'Detailed payroll evidence must remain restricted to Finance and Executive Leadership.',
+      ],
+    };
+  }
+
+  async getPublicDashboardPayload() {
+    const dashboard = await this.getDashboardSummary();
+
+    const latestStatus = dashboard.latestLockedPayroll
+      ? dashboard.latestLockedPayroll.status
+      : 'NO_LOCKED_PAYROLL';
+
+    return {
+      payloadType: 'PUBLIC_DASHBOARD_SUMMARY',
+      generatedAt: new Date(),
+      sourceSystem: 'Southin PeoplePay',
+      target: {
+        siteName: 'Southin Public Dashboard',
+        recommendedPageName: 'PeoplePay Public Summary',
+        confidentiality: 'PUBLIC_SUMMARY_ONLY',
+        publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+        futureGraphTarget: {
+          sitePath: '/sites/SouthinPublicDashboard',
+          pageName: 'PeoplePay Public Summary.aspx',
+          status: 'PENDING_AZURE_APP_REGISTRATION',
+        },
+      },
+      publicSummary: {
+        totalEmployees: dashboard.summary.totalEmployees,
+        activeEmployees: dashboard.summary.activeEmployees,
+        payrollProcessingStatus: latestStatus,
+        lockedPayrollRuns: dashboard.summary.lockedPayrollRuns,
+        openPayrollRuns: dashboard.summary.openPayrollRuns,
+        lastUpdated: dashboard.generatedAt,
+      },
+      excludedFields: [
+        'grossPay',
+        'deductions',
+        'netPay',
+        'employerCost',
+        'employeeNames',
+        'employeeNumbers',
+        'NRC',
+        'bankDetails',
+        'PAYE',
+        'NAPSA',
+        'NHIMA',
+        'payslipDetails',
+      ],
+      securityRules: [
+        'This payload must not contain salary values.',
+        'This payload must not contain employee names or employee numbers.',
+        'This payload must not contain statutory, banking, or payslip details.',
+      ],
+    };
+  }
+
+  async getFinanceAuditPayload(runId?: string) {
+    const audit = await this.getPayrollAudit(runId);
+
+    return {
+      payloadType: 'FINANCE_PAYROLL_AUDIT_PACKAGE',
+      generatedAt: new Date(),
+      sourceSystem: 'Southin PeoplePay',
+      target: {
+        siteName: 'Finance',
+        recommendedLibraryName: 'Payroll Audit Reports',
+        confidentiality: 'CONFIDENTIAL_FINANCE',
+        publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+        futureGraphTarget: {
+          sitePath: '/sites/Finance',
+          documentLibrary: 'Payroll Audit Reports',
+          status: 'PENDING_AZURE_APP_REGISTRATION',
+        },
+      },
+      auditPackage: audit,
+      recommendedFiles: audit.run
+        ? [
+            {
+              fileName: `${audit.run.periodName} - ${audit.run.runName} - Payroll Audit.csv`,
+              sourceEndpoint: `/api/executive/payroll-audit.csv?runId=${audit.run.id}`,
+              documentType: 'PAYROLL_AUDIT_CSV',
+            },
+            {
+              fileName: `${audit.run.periodName} - ${audit.run.runName} - Approval Evidence.json`,
+              sourceEndpoint: `/api/executive/payroll-audit?runId=${audit.run.id}`,
+              documentType: 'PAYROLL_APPROVAL_EVIDENCE_JSON',
+            },
+          ]
+        : [],
+      financeControls: [
+        'Confirm payroll totals match approved Finance review.',
+        'Confirm locked payroll has Director approval.',
+        'Confirm payslips were generated after payroll lock.',
+        'Confirm statutory configuration used for payroll was approved before live payroll use.',
+        'Confirm bank payment preparation evidence is stored separately in Finance.',
+      ],
+    };
+  }
+
+  async getSharePointExportPackage() {
+    const [executivePage, publicDashboard, financeAudit] = await Promise.all([
+      this.getExecutivePagePayload(),
+      this.getPublicDashboardPayload(),
+      this.getFinanceAuditPayload(),
+    ]);
+
+    return {
+      payloadType: 'SOUTHIN_PEOPLEPAY_SHAREPOINT_EXPORT_PACKAGE',
+      generatedAt: new Date(),
+      sourceSystem: 'Southin PeoplePay',
+      graphAutomationStatus: 'NOT_ENABLED_YET',
+      reasonGraphNotEnabled:
+        'Azure App Registration, Microsoft Graph permissions, site IDs, and document library IDs are not configured yet.',
+      packageTargets: [
+        {
+          siteName: 'Executive Leadership',
+          purpose: 'Confidential executive payroll dashboard summary',
+          payloadEndpoint: '/api/executive/sharepoint/executive-page-payload',
+        },
+        {
+          siteName: 'Finance',
+          purpose: 'Payroll audit reports and finance evidence',
+          payloadEndpoint: '/api/executive/sharepoint/finance-audit-payload',
+        },
+        {
+          siteName: 'Human Resource',
+          purpose: 'Employee master validation and payroll readiness tracking',
+          payloadEndpoint: '/api/employees/payroll-readiness',
+        },
+        {
+          siteName: 'Southin Public Dashboard',
+          purpose: 'Non-confidential employee and payroll processing status only',
+          payloadEndpoint: '/api/executive/sharepoint/public-dashboard-payload',
+        },
+      ],
+      payloads: {
+        executiveLeadership: executivePage,
+        financeAudit,
+        publicDashboard,
+      },
+      nextGraphReadinessChecklist: [
+        'Create Azure App Registration.',
+        'Grant Microsoft Graph Application permissions.',
+        'Approve admin consent.',
+        'Store tenant ID, client ID, and client secret in .env.',
+        'Resolve SharePoint site IDs.',
+        'Resolve document library drive IDs.',
+        'Create Graph upload service.',
+        'Add audit logs for every SharePoint export.',
+      ],
+    };
+  }
+
+  async logSharePointExportRequest(body: any) {
+    return {
+      message:
+        'SharePoint export request received in development mode. No Microsoft Graph write operation was performed.',
+      graphAutomationStatus: 'DISABLED_DEV_MODE',
+      receivedAt: new Date(),
+      receivedPayload: body,
+      nextStep:
+        'Enable Microsoft Graph only after Azure App Registration, permissions, site IDs, and library IDs are configured.',
+    };
+  }
 }
