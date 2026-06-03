@@ -14,6 +14,7 @@ const links = [
   ['Finance', '/finance/dashboard'],
   ['Executive', '/executive/dashboard'],
   ['Admin', '/admin'],
+  ['Payroll Audit', '/reports/payroll-audit'],
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
