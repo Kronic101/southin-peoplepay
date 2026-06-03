@@ -1,6 +1,7 @@
 import { AppShell } from '@/components/AppShell';
 import { getPayrollRun } from '@/lib/api';
 import { PayrollRunLinesEditor } from './components/PayrollRunLinesEditor';
+import { PayrollWorkflowPanel } from './components/PayrollWorkflowPanel';
 
 type PayrollRunPageProps = {
   params: Promise<{
@@ -78,6 +79,10 @@ export default async function PayrollRunPage({ params }: PayrollRunPageProps) {
         </div>
 
         <PayrollRunLinesEditor runId={run.id} employees={employees} />
+        
+        <PayrollWorkflowPanel run={run} />
+
+        <PayrollRunLinesEditor runId={run.id} employees={run.employees || []} />
 
         <div className="notice">
           This phase records manual gross pay and creates a BASIC_PAY earning. Statutory calculations for PAYE, NAPSA, and NHIMA will be added next.

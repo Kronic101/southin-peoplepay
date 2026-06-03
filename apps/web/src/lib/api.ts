@@ -635,3 +635,89 @@ export async function updateSdlRate(
 
   return res.json();
 }
+
+export async function submitPayrollRunToHr(id: string, payload: { actorId?: string; comments?: string }) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-hr`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to submit payroll to HR');
+  return res.json();
+}
+
+export async function hrReviewPayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/hr-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to complete HR review');
+  return res.json();
+}
+
+export async function submitPayrollRunToFinance(id: string, payload: { actorId?: string; comments?: string }) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-finance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to submit payroll to Finance');
+  return res.json();
+}
+
+export async function financeReviewPayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/finance-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to complete Finance review');
+  return res.json();
+}
+
+export async function submitPayrollRunToDirector(id: string, payload: { actorId?: string; comments?: string }) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-director`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to submit payroll to Director');
+  return res.json();
+}
+
+export async function directorApprovePayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/director-approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to complete Director approval');
+  return res.json();
+}
+
+export async function lockPayrollRun(id: string, payload: { actorId?: string; comments?: string }) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/lock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error('Failed to lock payroll run');
+  return res.json();
+}

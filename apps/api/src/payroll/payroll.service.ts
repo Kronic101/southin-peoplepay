@@ -28,6 +28,12 @@ type DraftDeductionInput = {
   source: string;
 };
 
+type WorkflowActionInput = {
+  actorId?: string;
+  comments?: string;
+  approved?: boolean;
+};
+
 @Injectable()
 export class PayrollService {
   constructor(private readonly prisma: PrismaService) {}
@@ -626,5 +632,353 @@ export class PayrollService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+    private async getRunForWorkflow(id: string) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: true,
+            earnings: true,
+            deductions: true,
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!run) {
+      throw new NotFoundException('Payroll run not found');
+    }
+
+    return run;
+  }
+
+  private ensureAllPayrollLinesCalculated(run: any) {
+    if (run.employees.length === 0) {
+      throw new BadRequestException('Payroll run has no employees');
+    }
+
+    const uncalculatedLines = run.employees.filter((line: any) => {
+      return Number(line.grossPay || 0) <= 0 || line.status !== 'CALCULATED';
+    });
+
+    if (uncalculatedLines.length > 0) {
+      throw new BadRequestException(
+        'All payroll employees must have gross pay and calculated statutory deductions before submission',
+      );
+    }
+  }
+
+  private async createWorkflowApproval(params: {
+    payrollRunId: string;
+    approvalStage: string;
+    approverRole: string;
+    approverId?: string | null;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    comments?: string | null;
+  }) {
+    return this.prisma.payrollApproval.create({
+      data: {
+        payrollRunId: params.payrollRunId,
+        approvalStage: params.approvalStage,
+        approverRole: params.approverRole,
+        approverId: params.approverId || null,
+        status: params.status || 'PENDING',
+        comments: params.comments || null,
+        approvedAt: params.status === 'APPROVED' || params.status === 'REJECTED' ? new Date() : null,
+      },
+    });
+  }
+
+  async submitPayrollRunToHr(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'OPEN' && run.status !== 'PROCESSING') {
+      throw new BadRequestException('Only OPEN or PROCESSING payroll runs can be submitted to HR');
+    }
+
+    this.ensureAllPayrollLinesCalculated(run);
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'HR_REVIEW',
+      approverRole: 'HR_MANAGER',
+      status: 'PENDING',
+      comments: input.comments || 'Submitted to HR for employee changes, attendance, and payroll validation',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'SUBMITTED_HR_REVIEW',
+        submittedAt: new Date(),
+        preparedBy: input.actorId || null,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: true,
+            earnings: true,
+            deductions: true,
+          },
+        },
+        approvals: true,
+      },
+    });
+  }
+
+  async hrReviewPayrollRun(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'SUBMITTED_HR_REVIEW') {
+      throw new BadRequestException('Payroll run must be submitted to HR before HR review');
+    }
+
+    if (input.approved === false) {
+      await this.createWorkflowApproval({
+        payrollRunId: id,
+        approvalStage: 'HR_REVIEW',
+        approverRole: 'HR_MANAGER',
+        approverId: input.actorId || null,
+        status: 'REJECTED',
+        comments: input.comments || 'Rejected by HR',
+      });
+
+      return this.prisma.payrollRun.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          hrReviewedBy: input.actorId || null,
+        },
+        include: {
+          payrollPeriod: true,
+          employees: true,
+          approvals: true,
+        },
+      });
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'HR_REVIEW',
+      approverRole: 'HR_MANAGER',
+      approverId: input.actorId || null,
+      status: 'APPROVED',
+      comments: input.comments || 'HR review completed',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'HR_REVIEWED',
+        hrReviewedBy: input.actorId || null,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: true,
+        approvals: true,
+      },
+    });
+  }
+
+  async submitPayrollRunToFinance(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'HR_REVIEWED') {
+      throw new BadRequestException('Payroll run must be HR reviewed before submission to Finance');
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'FINANCE_REVIEW',
+      approverRole: 'FINANCE_MANAGER',
+      status: 'PENDING',
+      comments: input.comments || 'Submitted to Finance for totals, deductions, and bank file validation',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'SUBMITTED_FINANCE_REVIEW',
+      },
+      include: {
+        payrollPeriod: true,
+        employees: true,
+        approvals: true,
+      },
+    });
+  }
+
+  async financeReviewPayrollRun(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'SUBMITTED_FINANCE_REVIEW') {
+      throw new BadRequestException('Payroll run must be submitted to Finance before Finance review');
+    }
+
+    if (input.approved === false) {
+      await this.createWorkflowApproval({
+        payrollRunId: id,
+        approvalStage: 'FINANCE_REVIEW',
+        approverRole: 'FINANCE_MANAGER',
+        approverId: input.actorId || null,
+        status: 'REJECTED',
+        comments: input.comments || 'Rejected by Finance',
+      });
+
+      return this.prisma.payrollRun.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          financeReviewedBy: input.actorId || null,
+        },
+        include: {
+          payrollPeriod: true,
+          employees: true,
+          approvals: true,
+        },
+      });
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'FINANCE_REVIEW',
+      approverRole: 'FINANCE_MANAGER',
+      approverId: input.actorId || null,
+      status: 'APPROVED',
+      comments: input.comments || 'Finance review completed',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'FINANCE_REVIEWED',
+        financeReviewedBy: input.actorId || null,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: true,
+        approvals: true,
+      },
+    });
+  }
+
+  async submitPayrollRunToDirector(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'FINANCE_REVIEWED') {
+      throw new BadRequestException('Payroll run must be Finance reviewed before Director approval');
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'DIRECTOR_APPROVAL',
+      approverRole: 'DIRECTOR',
+      status: 'PENDING',
+      comments: input.comments || 'Submitted to Director for final payroll approval',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'SUBMITTED_DIRECTOR_APPROVAL',
+      },
+      include: {
+        payrollPeriod: true,
+        employees: true,
+        approvals: true,
+      },
+    });
+  }
+
+  async directorApprovePayrollRun(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'SUBMITTED_DIRECTOR_APPROVAL') {
+      throw new BadRequestException('Payroll run must be submitted to Director before approval');
+    }
+
+    if (input.approved === false) {
+      await this.createWorkflowApproval({
+        payrollRunId: id,
+        approvalStage: 'DIRECTOR_APPROVAL',
+        approverRole: 'DIRECTOR',
+        approverId: input.actorId || null,
+        status: 'REJECTED',
+        comments: input.comments || 'Rejected by Director',
+      });
+
+      return this.prisma.payrollRun.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          directorApprovedBy: input.actorId || null,
+        },
+        include: {
+          payrollPeriod: true,
+          employees: true,
+          approvals: true,
+        },
+      });
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'DIRECTOR_APPROVAL',
+      approverRole: 'DIRECTOR',
+      approverId: input.actorId || null,
+      status: 'APPROVED',
+      comments: input.comments || 'Director approved payroll',
+    });
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'DIRECTOR_APPROVED',
+        directorApprovedBy: input.actorId || null,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: true,
+        approvals: true,
+      },
+    });
+  }
+
+  async lockPayrollRun(id: string, input: WorkflowActionInput) {
+    const run = await this.getRunForWorkflow(id);
+
+    if (run.status !== 'DIRECTOR_APPROVED') {
+      throw new BadRequestException('Payroll run must be Director approved before locking');
+    }
+
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'LOCKED',
+        lockedAt: new Date(),
+      },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: true,
+            earnings: true,
+            deductions: true,
+            payslip: true,
+          },
+        },
+        approvals: true,
+      },
+    });
   }
 }
