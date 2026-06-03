@@ -331,3 +331,9 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.action-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

@@ -23,14 +23,15 @@ function shortId(value: string) {
 
 export function PayrollRunLinesEditor({ runId, employees }: Props) {
   const router = useRouter();
-  const [savingLineId, setSavingLineId] = useState('');
+  const [savingGrossLineId, setSavingGrossLineId] = useState('');
+  const [calculatingLineId, setCalculatingLineId] = useState('');
   const [message, setMessage] = useState('');
 
   async function handleUpdateGrossPay(event: React.FormEvent<HTMLFormElement>, lineId: string) {
     event.preventDefault();
 
     setMessage('');
-    setSavingLineId(lineId);
+    setSavingGrossLineId(lineId);
 
     const formData = new FormData(event.currentTarget);
     const grossPay = Number(formData.get('grossPay') || 0);
@@ -47,13 +48,13 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
     } catch {
       setMessage('Failed to update gross pay. Check the API and try again.');
     } finally {
-      setSavingLineId('');
+      setSavingGrossLineId('');
     }
   }
 
   async function handleCalculateStatutory(lineId: string) {
     setMessage('');
-    setSavingLineId(lineId);
+    setCalculatingLineId(lineId);
 
     try {
       await calculatePayrollLineStatutory(runId, lineId);
@@ -62,7 +63,7 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
     } catch {
       setMessage('Failed to calculate statutory deductions. Confirm gross pay has been entered.');
     } finally {
-      setSavingLineId('');
+      setCalculatingLineId('');
     }
   }
 
@@ -136,12 +137,12 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
                         />
 
                         <button
-                          className="btn-small"
-                          disabled={savingLineId === line.id}
-                          type="submit"
-                        >
-                          {savingLineId === line.id ? 'Saving...' : 'Update'}
-                        </button>
+                        className="btn-small"
+                        disabled={savingGrossLineId === line.id}
+                        type="submit"
+                      >
+                        {savingGrossLineId === line.id ? 'Saving...' : 'Update'}
+                      </button>
                       </form>
                     </td>
 
@@ -163,13 +164,13 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
 
                     <td>
                       <button
-                        className="btn-small"
-                        disabled={savingLineId === line.id}
-                        onClick={() => handleCalculateStatutory(line.id)}
-                        type="button"
-                      >
-                        {savingLineId === line.id ? 'Calculating...' : 'Calculate Statutory'}
-                      </button>
+                      className="btn-small"
+                      disabled={calculatingLineId === line.id}
+                      onClick={() => handleCalculateStatutory(line.id)}
+                      type="button"
+                    >
+                      {calculatingLineId === line.id ? 'Calculating...' : 'Calculate Statutory'}
+                    </button>
                     </td>
                   </tr>
                 );

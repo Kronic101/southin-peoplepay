@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { StatutoryService } from './statutory.service';
 
 @Controller('statutory')
@@ -58,5 +58,30 @@ export class StatutoryController {
   @Get('reports/:payrollRunId')
   getStatutoryReport(@Param('payrollRunId') payrollRunId: string) {
     return this.statutoryService.getStatutoryReport(payrollRunId);
+  }
+
+    @Patch('tax-years/:id')
+  updateTaxYear(@Param('id') id: string, @Body() body: unknown) {
+    return this.statutoryService.updateTaxYear(id, body as any);
+  }
+
+  @Patch('paye-bands/:id')
+  updatePayeBand(@Param('id') id: string, @Body() body: unknown) {
+    return this.statutoryService.updatePayeBand(id, body as any);
+  }
+
+  @Patch('napsa-rates/:id')
+  updateNapsaRate(@Param('id') id: string, @Body() body: unknown) {
+    return this.statutoryService.updateNapsaRate(id, body as any);
+  }
+
+  @Patch('nhima-rates/:id')
+  updateNhimaRate(@Param('id') id: string, @Body() body: unknown) {
+    return this.statutoryService.updateNhimaRate(id, body as any);
+  }
+
+  @Patch('sdl-rates/:id')
+  updateSdlRate(@Param('id') id: string, @Body() body: unknown) {
+    return this.statutoryService.updateSdlRate(id, body as any);
   }
 }

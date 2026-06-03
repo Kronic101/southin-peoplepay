@@ -535,3 +535,103 @@ export async function approveSdlRate(id: string) {
 
   return res.json();
 }
+
+export async function updatePayeBand(
+  id: string,
+  payload: {
+    lowerBound?: number;
+    upperBound?: number | null;
+    rate?: number;
+  },
+) {
+  const res = await fetch(`${API_URL}/statutory/paye-bands/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update PAYE band');
+  }
+
+  return res.json();
+}
+
+export async function updateNapsaRate(
+  id: string,
+  payload: {
+    name?: string;
+    employeeRate?: number;
+    employerRate?: number;
+    monthlyCeiling?: number | null;
+    effectiveFrom?: string;
+    effectiveTo?: string | null;
+  },
+) {
+  const res = await fetch(`${API_URL}/statutory/napsa-rates/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update NAPSA rate');
+  }
+
+  return res.json();
+}
+
+export async function updateNhimaRate(
+  id: string,
+  payload: {
+    name?: string;
+    employeeRate?: number;
+    employerRate?: number;
+    calculationBase?: string;
+    effectiveFrom?: string;
+    effectiveTo?: string | null;
+  },
+) {
+  const res = await fetch(`${API_URL}/statutory/nhima-rates/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update NHIMA rate');
+  }
+
+  return res.json();
+}
+
+export async function updateSdlRate(
+  id: string,
+  payload: {
+    name?: string;
+    employerRate?: number;
+    calculationBase?: string;
+    effectiveFrom?: string;
+    effectiveTo?: string | null;
+  },
+) {
+  const res = await fetch(`${API_URL}/statutory/sdl-rates/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update SDL rate');
+  }
+
+  return res.json();
+}

@@ -325,10 +325,13 @@ export class PayrollService {
     });
   }
 
-  async calculatePayrollLineStatutory(runId: string, lineId: string) {
+    async calculatePayrollLineStatutory(runId: string, lineId: string) {
     const run = await this.prisma.payrollRun.findUnique({
       where: {
         id: runId,
+      },
+      include: {
+        payrollPeriod: true,
       },
     });
 
@@ -377,14 +380,125 @@ export class PayrollService {
       throw new BadRequestException('Employee statutory details are missing');
     }
 
-    /*
-      Development foundation:
-      These values are deliberately zero until Southin HR/Finance validates
-      the live PAYE, NAPSA, NHIMA configuration rules before go-live.
-    */
-    const paye = statutory.payeApplicable ? 0 : 0;
-    const napsa = statutory.napsaApplicable ? 0 : 0;
-    const nhima = statutory.nhimaApplicable ? 0 : 0;
+    const payDate = run.payrollPeriod?.payDate || new Date();
+
+    const activeTaxYear = await this.prisma.taxYear.findFirst({
+      where: {
+        isActive: true,
+        startDate: {
+          lte: payDate,
+        },
+        endDate: {
+          gte: payDate,
+        },
+      },
+      include: {
+        payeBands: {
+          orderBy: {
+            lowerBound: 'asc',
+          },
+        },
+      },
+    });
+
+    const approvedNapsaRate = await this.prisma.napsaRate.findFirst({
+      where: {
+        status: 'APPROVED',
+        effectiveFrom: {
+          lte: payDate,
+        },
+        OR: [
+          {
+            effectiveTo: null,
+          },
+          {
+            effectiveTo: {
+              gte: payDate,
+            },
+          },
+        ],
+      },
+      orderBy: {
+        effectiveFrom: 'desc',
+      },
+    });
+
+    const approvedNhimaRate = await this.prisma.nhimaRate.findFirst({
+      where: {
+        status: 'APPROVED',
+        effectiveFrom: {
+          lte: payDate,
+        },
+        OR: [
+          {
+            effectiveTo: null,
+          },
+          {
+            effectiveTo: {
+              gte: payDate,
+            },
+          },
+        ],
+      },
+      orderBy: {
+        effectiveFrom: 'desc',
+      },
+    });
+
+    const approvedSdlRate = await this.prisma.sdlRate.findFirst({
+      where: {
+        status: 'APPROVED',
+        effectiveFrom: {
+          lte: payDate,
+        },
+        OR: [
+          {
+            effectiveTo: null,
+          },
+          {
+            effectiveTo: {
+              gte: payDate,
+            },
+          },
+        ],
+      },
+      orderBy: {
+        effectiveFrom: 'desc',
+      },
+    });
+
+    const paye = statutory.payeApplicable
+      ? this.calculatePayeFromBands(grossPay, activeTaxYear?.payeBands || [])
+      : 0;
+
+    const napsaBase =
+      approvedNapsaRate?.monthlyCeiling === null || approvedNapsaRate?.monthlyCeiling === undefined
+        ? grossPay
+        : Math.min(grossPay, Number(approvedNapsaRate.monthlyCeiling || 0));
+
+    const napsa =
+      statutory.napsaApplicable && approvedNapsaRate
+        ? this.roundMoney(napsaBase * Number(approvedNapsaRate.employeeRate || 0))
+        : 0;
+
+    const nhima =
+      statutory.nhimaApplicable && approvedNhimaRate
+        ? this.roundMoney(grossPay * Number(approvedNhimaRate.employeeRate || 0))
+        : 0;
+
+    const sdlEmployerCost = approvedSdlRate
+      ? this.roundMoney(grossPay * Number(approvedSdlRate.employerRate || 0))
+      : 0;
+
+    const napsaEmployerCost =
+      statutory.napsaApplicable && approvedNapsaRate
+        ? this.roundMoney(napsaBase * Number(approvedNapsaRate.employerRate || 0))
+        : 0;
+
+    const nhimaEmployerCost =
+      statutory.nhimaApplicable && approvedNhimaRate
+        ? this.roundMoney(grossPay * Number(approvedNhimaRate.employerRate || 0))
+        : 0;
 
     await this.prisma.payrollDeduction.deleteMany({
       where: {
@@ -401,9 +515,11 @@ export class PayrollService {
       deductionsToCreate.push({
         payrollRunEmployeeId: lineId,
         deductionType: 'PAYE',
-        description: 'PAYE - pending approved statutory formula',
+        description: activeTaxYear
+          ? `PAYE calculated using active tax year: ${activeTaxYear.name}`
+          : 'PAYE not calculated - no active approved tax year/bands configured',
         amount: paye,
-        source: 'SYSTEM_DRAFT',
+        source: activeTaxYear ? 'SYSTEM_CONFIGURED' : 'SYSTEM_DRAFT',
       });
     }
 
@@ -411,9 +527,11 @@ export class PayrollService {
       deductionsToCreate.push({
         payrollRunEmployeeId: lineId,
         deductionType: 'NAPSA',
-        description: 'NAPSA - pending approved statutory formula',
+        description: approvedNapsaRate
+          ? `NAPSA calculated using approved rate: ${approvedNapsaRate.name}`
+          : 'NAPSA not calculated - no approved NAPSA rate configured',
         amount: napsa,
-        source: 'SYSTEM_DRAFT',
+        source: approvedNapsaRate ? 'SYSTEM_CONFIGURED' : 'SYSTEM_DRAFT',
       });
     }
 
@@ -421,9 +539,11 @@ export class PayrollService {
       deductionsToCreate.push({
         payrollRunEmployeeId: lineId,
         deductionType: 'NHIMA',
-        description: 'NHIMA - pending approved statutory formula',
+        description: approvedNhimaRate
+          ? `NHIMA calculated using approved rate: ${approvedNhimaRate.name}`
+          : 'NHIMA not calculated - no approved NHIMA rate configured',
         amount: nhima,
-        source: 'SYSTEM_DRAFT',
+        source: approvedNhimaRate ? 'SYSTEM_CONFIGURED' : 'SYSTEM_DRAFT',
       });
     }
 
@@ -433,8 +553,9 @@ export class PayrollService {
       });
     }
 
-    const totalDeductions = paye + napsa + nhima;
-    const netPay = grossPay - totalDeductions;
+    const totalDeductions = this.roundMoney(paye + napsa + nhima);
+    const netPay = this.roundMoney(grossPay - totalDeductions);
+    const employerCost = this.roundMoney(grossPay + napsaEmployerCost + nhimaEmployerCost + sdlEmployerCost);
 
     return this.prisma.payrollRunEmployee.update({
       where: {
@@ -443,7 +564,7 @@ export class PayrollService {
       data: {
         totalDeductions,
         netPay,
-        employerCost: grossPay,
+        employerCost,
         status: 'CALCULATED',
         calculatedAt: new Date(),
       },
@@ -461,5 +582,49 @@ export class PayrollService {
         payslip: true,
       },
     });
+  }
+
+    private calculatePayeFromBands(
+    grossPay: number,
+    bands: Array<{
+      lowerBound: unknown;
+      upperBound: unknown;
+      rate: unknown;
+    }>,
+  ) {
+    if (!bands || bands.length === 0) {
+      return 0;
+    }
+
+    let totalTax = 0;
+
+    for (const band of bands) {
+      const lowerBound = Number(band.lowerBound || 0);
+      const upperBound =
+        band.upperBound === null || band.upperBound === undefined
+          ? null
+          : Number(band.upperBound);
+
+      const rate = Number(band.rate || 0);
+
+      if (grossPay <= lowerBound) {
+        continue;
+      }
+
+      const taxableInBand =
+        upperBound === null
+          ? grossPay - lowerBound
+          : Math.min(grossPay, upperBound) - lowerBound;
+
+      if (taxableInBand > 0) {
+        totalTax += taxableInBand * rate;
+      }
+    }
+
+    return this.roundMoney(totalTax);
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }

@@ -11,15 +11,21 @@ import {
   createPayeBand,
   createSdlRate,
   createTaxYear,
+  updateNapsaRate,
+  updateNhimaRate,
+  updatePayeBand,
+  updateSdlRate,
 } from '@/lib/api';
 
+type StatutorySettings = {
+  taxYears: any[];
+  napsaRates: any[];
+  nhimaRates: any[];
+  sdlRates: any[];
+};
+
 type Props = {
-  settings: {
-    taxYears: any[];
-    napsaRates: any[];
-    nhimaRates: any[];
-    sdlRates: any[];
-  };
+  settings: StatutorySettings;
 };
 
 function formatDate(value?: string | null) {
@@ -37,11 +43,34 @@ function numberValue(value: FormDataEntryValue | null) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function optionalNumber(value: FormDataEntryValue | null) {
+  const raw = String(value || '').trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function rateHint() {
+  return 'Enter rates as decimals: 5% = 0.05, 10% = 0.10, 37.5% = 0.375';
+}
+
 export function StatutorySettingsClient({ settings }: Props) {
   const router = useRouter();
+
   const [activeTab, setActiveTab] = useState('tax-years');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const payeBandRows = settings.taxYears.flatMap((taxYear) =>
+    (taxYear.payeBands || []).map((band: any) => ({
+      ...band,
+      taxYearName: taxYear.name,
+    })),
+  );
 
   async function runAction(action: () => Promise<unknown>, successMessage: string) {
     setMessage('');
@@ -52,7 +81,7 @@ export function StatutorySettingsClient({ settings }: Props) {
       setMessage(successMessage);
       router.refresh();
     } catch {
-      setMessage('Action failed. Check the API terminal and try again.');
+      setMessage('Action failed. Confirm the values are valid and check the API terminal.');
     } finally {
       setSaving(false);
     }
@@ -61,7 +90,8 @@ export function StatutorySettingsClient({ settings }: Props) {
   async function handleCreateTaxYear(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     await runAction(
       () =>
@@ -74,34 +104,34 @@ export function StatutorySettingsClient({ settings }: Props) {
       'Tax year created.',
     );
 
-    event.currentTarget.reset();
+    form.reset();
   }
 
   async function handleCreatePayeBand(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
-    const upperBoundRaw = String(formData.get('upperBound') || '').trim();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     await runAction(
       () =>
         createPayeBand({
           taxYearId: String(formData.get('taxYearId') || ''),
           lowerBound: numberValue(formData.get('lowerBound')),
-          upperBound: upperBoundRaw ? Number(upperBoundRaw) : null,
+          upperBound: optionalNumber(formData.get('upperBound')),
           rate: numberValue(formData.get('rate')),
         }),
       'PAYE band created.',
     );
 
-    event.currentTarget.reset();
+    form.reset();
   }
 
   async function handleCreateNapsaRate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
-    const monthlyCeilingRaw = String(formData.get('monthlyCeiling') || '').trim();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     await runAction(
       () =>
@@ -109,20 +139,21 @@ export function StatutorySettingsClient({ settings }: Props) {
           name: String(formData.get('name') || ''),
           employeeRate: numberValue(formData.get('employeeRate')),
           employerRate: numberValue(formData.get('employerRate')),
-          monthlyCeiling: monthlyCeilingRaw ? Number(monthlyCeilingRaw) : null,
+          monthlyCeiling: optionalNumber(formData.get('monthlyCeiling')),
           effectiveFrom: String(formData.get('effectiveFrom') || ''),
           effectiveTo: String(formData.get('effectiveTo') || '') || null,
         }),
       'NAPSA rate created as DRAFT.',
     );
 
-    event.currentTarget.reset();
+    form.reset();
   }
 
   async function handleCreateNhimaRate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     await runAction(
       () =>
@@ -137,13 +168,14 @@ export function StatutorySettingsClient({ settings }: Props) {
       'NHIMA rate created as DRAFT.',
     );
 
-    event.currentTarget.reset();
+    form.reset();
   }
 
   async function handleCreateSdlRate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     await runAction(
       () =>
@@ -157,7 +189,119 @@ export function StatutorySettingsClient({ settings }: Props) {
       'SDL rate created as DRAFT.',
     );
 
-    event.currentTarget.reset();
+    form.reset();
+  }
+
+  async function handleEditPayeBand(band: any) {
+    const lowerBound = window.prompt('Lower bound', String(band.lowerBound ?? '0'));
+
+    if (lowerBound === null) return;
+
+    const upperBound = window.prompt(
+      'Upper bound - leave blank if no upper limit',
+      band.upperBound === null || band.upperBound === undefined ? '' : String(band.upperBound),
+    );
+
+    if (upperBound === null) return;
+
+    const rate = window.prompt(`PAYE rate. ${rateHint()}`, String(band.rate ?? '0'));
+
+    if (rate === null) return;
+
+    await runAction(
+      () =>
+        updatePayeBand(band.id, {
+          lowerBound: Number(lowerBound || 0),
+          upperBound: upperBound.trim() ? Number(upperBound) : null,
+          rate: Number(rate || 0),
+        }),
+      'PAYE band updated.',
+    );
+  }
+
+  async function handleEditNapsaRate(row: any) {
+    const name = window.prompt('Name', row.name || '');
+
+    if (name === null) return;
+
+    const employeeRate = window.prompt(`Employee rate. ${rateHint()}`, String(row.employeeRate ?? '0'));
+
+    if (employeeRate === null) return;
+
+    const employerRate = window.prompt(`Employer rate. ${rateHint()}`, String(row.employerRate ?? '0'));
+
+    if (employerRate === null) return;
+
+    const monthlyCeiling = window.prompt(
+      'Monthly ceiling - leave blank if none',
+      row.monthlyCeiling === null || row.monthlyCeiling === undefined ? '' : String(row.monthlyCeiling),
+    );
+
+    if (monthlyCeiling === null) return;
+
+    await runAction(
+      () =>
+        updateNapsaRate(row.id, {
+          name,
+          employeeRate: Number(employeeRate || 0),
+          employerRate: Number(employerRate || 0),
+          monthlyCeiling: monthlyCeiling.trim() ? Number(monthlyCeiling) : null,
+        }),
+      'NAPSA rate updated and returned to DRAFT.',
+    );
+  }
+
+  async function handleEditNhimaRate(row: any) {
+    const name = window.prompt('Name', row.name || '');
+
+    if (name === null) return;
+
+    const employeeRate = window.prompt(`Employee rate. ${rateHint()}`, String(row.employeeRate ?? '0'));
+
+    if (employeeRate === null) return;
+
+    const employerRate = window.prompt(`Employer rate. ${rateHint()}`, String(row.employerRate ?? '0'));
+
+    if (employerRate === null) return;
+
+    const calculationBase = window.prompt('Calculation base', row.calculationBase || 'CONFIGURABLE');
+
+    if (calculationBase === null) return;
+
+    await runAction(
+      () =>
+        updateNhimaRate(row.id, {
+          name,
+          employeeRate: Number(employeeRate || 0),
+          employerRate: Number(employerRate || 0),
+          calculationBase,
+        }),
+      'NHIMA rate updated and returned to DRAFT.',
+    );
+  }
+
+  async function handleEditSdlRate(row: any) {
+    const name = window.prompt('Name', row.name || '');
+
+    if (name === null) return;
+
+    const employerRate = window.prompt(`Employer rate. ${rateHint()}`, String(row.employerRate ?? '0'));
+
+    if (employerRate === null) return;
+
+    const calculationBase = window.prompt('Calculation base', row.calculationBase || 'GROSS_EMOLUMENTS');
+
+    if (calculationBase === null) return;
+
+    await runAction(
+      () =>
+        updateSdlRate(row.id, {
+          name,
+          employerRate: Number(employerRate || 0),
+          calculationBase,
+        }),
+      'SDL rate updated and returned to DRAFT.',
+    );
   }
 
   const tabs = [
@@ -179,7 +323,8 @@ export function StatutorySettingsClient({ settings }: Props) {
       </div>
 
       <div className="notice">
-        These values must be validated and approved by HR/Finance before go-live. Draft values are for system setup and testing only.
+        These values must be validated and approved by HR/Finance before go-live. Enter rates as decimals:
+        <strong> 5% = 0.05</strong>, <strong>10% = 0.10</strong>, <strong>37.5% = 0.375</strong>.
       </div>
 
       <div className="tabs">
@@ -226,7 +371,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             </label>
 
             <button className="btn" disabled={saving} type="submit">
-              Create Tax Year
+              {saving ? 'Saving...' : 'Create Tax Year'}
             </button>
           </form>
 
@@ -258,15 +403,17 @@ export function StatutorySettingsClient({ settings }: Props) {
             <label>
               Rate
               <input name="rate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 30% must be entered as 0.30</span>
             </label>
 
             <button className="btn" disabled={saving || settings.taxYears.length === 0} type="submit">
-              Add PAYE Band
+              {saving ? 'Saving...' : 'Add PAYE Band'}
             </button>
           </form>
 
           <div className="table-wrap">
             <h3>Tax Years</h3>
+
             <table>
               <thead>
                 <tr>
@@ -277,6 +424,7 @@ export function StatutorySettingsClient({ settings }: Props) {
                   <th>PAYE Bands</th>
                 </tr>
               </thead>
+
               <tbody>
                 {settings.taxYears.length === 0 ? (
                   <tr>
@@ -290,6 +438,44 @@ export function StatutorySettingsClient({ settings }: Props) {
                       <td>{formatDate(taxYear.endDate)}</td>
                       <td>{taxYear.isActive ? 'Yes' : 'No'}</td>
                       <td>{taxYear.payeBands?.length || 0}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="table-wrap">
+            <h3>PAYE Bands</h3>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Tax Year</th>
+                  <th>Lower Bound</th>
+                  <th>Upper Bound</th>
+                  <th>Rate</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {payeBandRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>No PAYE bands configured.</td>
+                  </tr>
+                ) : (
+                  payeBandRows.map((band) => (
+                    <tr key={band.id}>
+                      <td>{band.taxYearName}</td>
+                      <td>{band.lowerBound}</td>
+                      <td>{band.upperBound ?? '-'}</td>
+                      <td>{band.rate}</td>
+                      <td>
+                        <button className="btn-small" onClick={() => handleEditPayeBand(band)} type="button">
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -312,11 +498,13 @@ export function StatutorySettingsClient({ settings }: Props) {
             <label>
               Employee Rate
               <input name="employeeRate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 5% must be entered as 0.05</span>
             </label>
 
             <label>
               Employer Rate
               <input name="employerRate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 5% must be entered as 0.05</span>
             </label>
 
             <label>
@@ -335,7 +523,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             </label>
 
             <button className="btn" disabled={saving} type="submit">
-              Create NAPSA Rate
+              {saving ? 'Saving...' : 'Create NAPSA Rate'}
             </button>
           </form>
 
@@ -343,6 +531,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             title="NAPSA Rates"
             rows={settings.napsaRates}
             onApprove={(id) => runAction(() => approveNapsaRate(id), 'NAPSA rate approved.')}
+            onEdit={handleEditNapsaRate}
           />
         </>
       )}
@@ -360,11 +549,13 @@ export function StatutorySettingsClient({ settings }: Props) {
             <label>
               Employee Rate
               <input name="employeeRate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 1% must be entered as 0.01</span>
             </label>
 
             <label>
               Employer Rate
               <input name="employerRate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 1% must be entered as 0.01</span>
             </label>
 
             <label>
@@ -383,7 +574,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             </label>
 
             <button className="btn" disabled={saving} type="submit">
-              Create NHIMA Rate
+              {saving ? 'Saving...' : 'Create NHIMA Rate'}
             </button>
           </form>
 
@@ -391,6 +582,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             title="NHIMA Rates"
             rows={settings.nhimaRates}
             onApprove={(id) => runAction(() => approveNhimaRate(id), 'NHIMA rate approved.')}
+            onEdit={handleEditNhimaRate}
           />
         </>
       )}
@@ -408,6 +600,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             <label>
               Employer Rate
               <input name="employerRate" type="number" step="0.0001" defaultValue="0" required />
+              <span className="muted">Example: 0.5% must be entered as 0.005</span>
             </label>
 
             <label>
@@ -426,7 +619,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             </label>
 
             <button className="btn" disabled={saving} type="submit">
-              Create SDL Rate
+              {saving ? 'Saving...' : 'Create SDL Rate'}
             </button>
           </form>
 
@@ -434,6 +627,7 @@ export function StatutorySettingsClient({ settings }: Props) {
             title="SDL / Employer Rates"
             rows={settings.sdlRates}
             onApprove={(id) => runAction(() => approveSdlRate(id), 'SDL rate approved.')}
+            onEdit={handleEditSdlRate}
           />
         </>
       )}
@@ -445,10 +639,12 @@ function RatesTable({
   title,
   rows,
   onApprove,
+  onEdit,
 }: {
   title: string;
   rows: any[];
   onApprove: (id: string) => void;
+  onEdit: (row: any) => void;
 }) {
   return (
     <div className="table-wrap">
@@ -484,13 +680,19 @@ function RatesTable({
                 <td>{formatDate(row.effectiveTo)}</td>
                 <td>{row.status}</td>
                 <td>
-                  {row.status === 'APPROVED' ? (
-                    <span className="ready-text">Approved</span>
-                  ) : (
-                    <button className="btn-small" onClick={() => onApprove(row.id)} type="button">
-                      Approve
+                  <div className="action-row">
+                    <button className="btn-small" onClick={() => onEdit(row)} type="button">
+                      Edit
                     </button>
-                  )}
+
+                    {row.status === 'APPROVED' ? (
+                      <span className="ready-text">Approved</span>
+                    ) : (
+                      <button className="btn-small" onClick={() => onApprove(row.id)} type="button">
+                        Approve
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))

@@ -41,6 +41,20 @@ type CreateSdlRateInput = {
   effectiveTo?: string | null;
 };
 
+type UpdateTaxYearInput = Partial<CreateTaxYearInput>;
+
+type UpdatePayeBandInput = {
+  lowerBound?: number | string;
+  upperBound?: number | string | null;
+  rate?: number | string;
+};
+
+type UpdateNapsaRateInput = Partial<CreateNapsaRateInput>;
+
+type UpdateNhimaRateInput = Partial<CreateNhimaRateInput>;
+
+type UpdateSdlRateInput = Partial<CreateSdlRateInput>;
+
 @Injectable()
 export class StatutoryService {
   constructor(private readonly prisma: PrismaService) {}
@@ -48,7 +62,9 @@ export class StatutoryService {
   async getSettings() {
     const [taxYears, napsaRates, nhimaRates, sdlRates] = await Promise.all([
       this.prisma.taxYear.findMany({
-        orderBy: { startDate: 'desc' },
+        orderBy: {
+          startDate: 'desc',
+        },
         include: {
           payeBands: {
             orderBy: {
@@ -57,14 +73,23 @@ export class StatutoryService {
           },
         },
       }),
+
       this.prisma.napsaRate.findMany({
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: {
+          effectiveFrom: 'desc',
+        },
       }),
+
       this.prisma.nhimaRate.findMany({
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: {
+          effectiveFrom: 'desc',
+        },
       }),
+
       this.prisma.sdlRate.findMany({
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: {
+          effectiveFrom: 'desc',
+        },
       }),
     ]);
 
@@ -102,9 +127,46 @@ export class StatutoryService {
     });
   }
 
+  async updateTaxYear(id: string, input: UpdateTaxYearInput) {
+    const existing = await this.prisma.taxYear.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Tax year not found');
+    }
+
+    if (input.isActive) {
+      await this.prisma.taxYear.updateMany({
+        data: {
+          isActive: false,
+        },
+      });
+    }
+
+    return this.prisma.taxYear.update({
+      where: {
+        id,
+      },
+      data: {
+        name: input.name ?? existing.name,
+        startDate: input.startDate ? new Date(input.startDate) : existing.startDate,
+        endDate: input.endDate ? new Date(input.endDate) : existing.endDate,
+        isActive: input.isActive ?? existing.isActive,
+      },
+      include: {
+        payeBands: true,
+      },
+    });
+  }
+
   async setActiveTaxYear(id: string) {
     const taxYear = await this.prisma.taxYear.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
 
     if (!taxYear) {
@@ -118,7 +180,9 @@ export class StatutoryService {
     });
 
     return this.prisma.taxYear.update({
-      where: { id },
+      where: {
+        id,
+      },
       data: {
         isActive: true,
       },
@@ -134,22 +198,71 @@ export class StatutoryService {
     }
 
     const taxYear = await this.prisma.taxYear.findUnique({
-      where: { id: input.taxYearId },
+      where: {
+        id: input.taxYearId,
+      },
     });
 
     if (!taxYear) {
       throw new NotFoundException('Tax year not found');
     }
 
+    const lowerBound = this.normalizeMoney(input.lowerBound, 'Lower bound') ?? 0;
+    const upperBound = this.normalizeMoney(input.upperBound, 'Upper bound');
+    const rate = this.normalizeRate(input.rate, 'PAYE rate');
+
+    if (upperBound !== null && upperBound <= lowerBound) {
+      throw new BadRequestException('Upper bound must be greater than lower bound');
+    }
+
     return this.prisma.payeBand.create({
       data: {
         taxYearId: input.taxYearId,
-        lowerBound: Number(input.lowerBound),
-        upperBound:
-          input.upperBound === undefined || input.upperBound === null || input.upperBound === ''
-            ? null
-            : Number(input.upperBound),
-        rate: Number(input.rate),
+        lowerBound,
+        upperBound,
+        rate,
+      },
+    });
+  }
+
+  async updatePayeBand(id: string, input: UpdatePayeBandInput) {
+    const existing = await this.prisma.payeBand.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('PAYE band not found');
+    }
+
+    const lowerBound =
+      input.lowerBound === undefined
+        ? Number(existing.lowerBound)
+        : this.normalizeMoney(input.lowerBound, 'Lower bound') ?? 0;
+
+    const upperBound =
+      input.upperBound === undefined
+        ? existing.upperBound === null
+          ? null
+          : Number(existing.upperBound)
+        : this.normalizeMoney(input.upperBound, 'Upper bound');
+
+    const rate =
+      input.rate === undefined ? Number(existing.rate) : this.normalizeRate(input.rate, 'PAYE rate');
+
+    if (upperBound !== null && upperBound <= lowerBound) {
+      throw new BadRequestException('Upper bound must be greater than lower bound');
+    }
+
+    return this.prisma.payeBand.update({
+      where: {
+        id,
+      },
+      data: {
+        lowerBound,
+        upperBound,
+        rate,
       },
     });
   }
@@ -162,12 +275,9 @@ export class StatutoryService {
     return this.prisma.napsaRate.create({
       data: {
         name: input.name,
-        employeeRate: Number(input.employeeRate || 0),
-        employerRate: Number(input.employerRate || 0),
-        monthlyCeiling:
-          input.monthlyCeiling === undefined || input.monthlyCeiling === null || input.monthlyCeiling === ''
-            ? null
-            : Number(input.monthlyCeiling),
+        employeeRate: this.normalizeRate(input.employeeRate, 'NAPSA employee rate'),
+        employerRate: this.normalizeRate(input.employerRate, 'NAPSA employer rate'),
+        monthlyCeiling: this.normalizeMoney(input.monthlyCeiling, 'NAPSA monthly ceiling'),
         effectiveFrom: new Date(input.effectiveFrom),
         effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
         status: 'DRAFT',
@@ -175,9 +285,54 @@ export class StatutoryService {
     });
   }
 
+  async updateNapsaRate(id: string, input: UpdateNapsaRateInput) {
+    const existing = await this.prisma.napsaRate.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('NAPSA rate not found');
+    }
+
+    return this.prisma.napsaRate.update({
+      where: {
+        id,
+      },
+      data: {
+        name: input.name ?? existing.name,
+        employeeRate:
+          input.employeeRate === undefined
+            ? Number(existing.employeeRate)
+            : this.normalizeRate(input.employeeRate, 'NAPSA employee rate'),
+        employerRate:
+          input.employerRate === undefined
+            ? Number(existing.employerRate)
+            : this.normalizeRate(input.employerRate, 'NAPSA employer rate'),
+        monthlyCeiling:
+          input.monthlyCeiling === undefined
+            ? existing.monthlyCeiling === null
+              ? null
+              : Number(existing.monthlyCeiling)
+            : this.normalizeMoney(input.monthlyCeiling, 'NAPSA monthly ceiling'),
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : existing.effectiveFrom,
+        effectiveTo:
+          input.effectiveTo === undefined
+            ? existing.effectiveTo
+            : input.effectiveTo
+              ? new Date(input.effectiveTo)
+              : null,
+        status: 'DRAFT',
+      },
+    });
+  }
+
   async approveNapsaRate(id: string) {
     const rate = await this.prisma.napsaRate.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
 
     if (!rate) {
@@ -185,7 +340,9 @@ export class StatutoryService {
     }
 
     return this.prisma.napsaRate.update({
-      where: { id },
+      where: {
+        id,
+      },
       data: {
         status: 'APPROVED',
       },
@@ -200,8 +357,8 @@ export class StatutoryService {
     return this.prisma.nhimaRate.create({
       data: {
         name: input.name,
-        employeeRate: Number(input.employeeRate || 0),
-        employerRate: Number(input.employerRate || 0),
+        employeeRate: this.normalizeRate(input.employeeRate, 'NHIMA employee rate'),
+        employerRate: this.normalizeRate(input.employerRate, 'NHIMA employer rate'),
         calculationBase: input.calculationBase || 'CONFIGURABLE',
         effectiveFrom: new Date(input.effectiveFrom),
         effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
@@ -210,9 +367,49 @@ export class StatutoryService {
     });
   }
 
+  async updateNhimaRate(id: string, input: UpdateNhimaRateInput) {
+    const existing = await this.prisma.nhimaRate.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('NHIMA rate not found');
+    }
+
+    return this.prisma.nhimaRate.update({
+      where: {
+        id,
+      },
+      data: {
+        name: input.name ?? existing.name,
+        employeeRate:
+          input.employeeRate === undefined
+            ? Number(existing.employeeRate)
+            : this.normalizeRate(input.employeeRate, 'NHIMA employee rate'),
+        employerRate:
+          input.employerRate === undefined
+            ? Number(existing.employerRate)
+            : this.normalizeRate(input.employerRate, 'NHIMA employer rate'),
+        calculationBase: input.calculationBase ?? existing.calculationBase,
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : existing.effectiveFrom,
+        effectiveTo:
+          input.effectiveTo === undefined
+            ? existing.effectiveTo
+            : input.effectiveTo
+              ? new Date(input.effectiveTo)
+              : null,
+        status: 'DRAFT',
+      },
+    });
+  }
+
   async approveNhimaRate(id: string) {
     const rate = await this.prisma.nhimaRate.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
 
     if (!rate) {
@@ -220,7 +417,9 @@ export class StatutoryService {
     }
 
     return this.prisma.nhimaRate.update({
-      where: { id },
+      where: {
+        id,
+      },
       data: {
         status: 'APPROVED',
       },
@@ -235,7 +434,7 @@ export class StatutoryService {
     return this.prisma.sdlRate.create({
       data: {
         name: input.name,
-        employerRate: Number(input.employerRate || 0),
+        employerRate: this.normalizeRate(input.employerRate, 'SDL employer rate'),
         calculationBase: input.calculationBase || 'GROSS_EMOLUMENTS',
         effectiveFrom: new Date(input.effectiveFrom),
         effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
@@ -244,9 +443,45 @@ export class StatutoryService {
     });
   }
 
+  async updateSdlRate(id: string, input: UpdateSdlRateInput) {
+    const existing = await this.prisma.sdlRate.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('SDL rate not found');
+    }
+
+    return this.prisma.sdlRate.update({
+      where: {
+        id,
+      },
+      data: {
+        name: input.name ?? existing.name,
+        employerRate:
+          input.employerRate === undefined
+            ? Number(existing.employerRate)
+            : this.normalizeRate(input.employerRate, 'SDL employer rate'),
+        calculationBase: input.calculationBase ?? existing.calculationBase,
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : existing.effectiveFrom,
+        effectiveTo:
+          input.effectiveTo === undefined
+            ? existing.effectiveTo
+            : input.effectiveTo
+              ? new Date(input.effectiveTo)
+              : null,
+        status: 'DRAFT',
+      },
+    });
+  }
+
   async approveSdlRate(id: string) {
     const rate = await this.prisma.sdlRate.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
 
     if (!rate) {
@@ -254,7 +489,9 @@ export class StatutoryService {
     }
 
     return this.prisma.sdlRate.update({
-      where: { id },
+      where: {
+        id,
+      },
       data: {
         status: 'APPROVED',
       },
@@ -320,5 +557,35 @@ export class StatutoryService {
         deductions: line.deductions,
       })),
     };
+  }
+
+  private normalizeRate(value: number | string | undefined | null, fieldName: string) {
+    const rate = Number(value || 0);
+
+    if (Number.isNaN(rate) || rate < 0) {
+      throw new BadRequestException(`${fieldName} must be a valid positive decimal rate`);
+    }
+
+    if (rate > 1) {
+      throw new BadRequestException(
+        `${fieldName} must be entered as a decimal. Example: 5% = 0.05, 10% = 0.10, 37.5% = 0.375`,
+      );
+    }
+
+    return rate;
+  }
+
+  private normalizeMoney(value: number | string | undefined | null, fieldName: string) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+
+    const amount = Number(value);
+
+    if (Number.isNaN(amount) || amount < 0) {
+      throw new BadRequestException(`${fieldName} must be a valid positive amount`);
+    }
+
+    return amount;
   }
 }
