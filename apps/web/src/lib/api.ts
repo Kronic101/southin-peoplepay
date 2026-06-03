@@ -343,6 +343,18 @@ export async function getPayrollRun(id: string) {
   return res.json();
 }
 
+export async function calculatePayrollLineStatutory(runId: string, lineId: string) {
+  const res = await fetch(`${API_URL}/payroll/runs/${runId}/employees/${lineId}/calculate-statutory`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to calculate statutory deductions');
+  }
+
+  return res.json();
+}
+
 export async function updatePayrollLineGrossPay(
   runId: string,
   lineId: string,

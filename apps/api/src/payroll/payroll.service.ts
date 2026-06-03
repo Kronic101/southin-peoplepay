@@ -15,6 +15,19 @@ type CreatePayrollRunInput = {
   runType?: PayrollRunType;
 };
 
+type UpdatePayrollLineGrossPayInput = {
+  grossPay: number | string;
+  description?: string;
+};
+
+type DraftDeductionInput = {
+  payrollRunEmployeeId: string;
+  deductionType: string;
+  description: string;
+  amount: number;
+  source: string;
+};
+
 @Injectable()
 export class PayrollService {
   constructor(private readonly prisma: PrismaService) {}
@@ -48,7 +61,9 @@ export class PayrollService {
 
   async getPayrollReadyEmployees() {
     const employees = await this.prisma.employee.findMany({
-      orderBy: { employeeNumber: 'asc' },
+      orderBy: {
+        employeeNumber: 'asc',
+      },
       include: {
         department: true,
         jobTitle: true,
@@ -121,7 +136,9 @@ export class PayrollService {
     }
 
     const period = await this.prisma.payrollPeriod.findUnique({
-      where: { id: input.payrollPeriodId },
+      where: {
+        id: input.payrollPeriodId,
+      },
     });
 
     if (!period) {
@@ -138,7 +155,7 @@ export class PayrollService {
       throw new BadRequestException('No payroll-ready employees found');
     }
 
-    const payrollRun = await this.prisma.payrollRun.create({
+    return this.prisma.payrollRun.create({
       data: {
         payrollPeriodId: input.payrollPeriodId,
         runName: input.runName,
@@ -163,27 +180,62 @@ export class PayrollService {
               include: {
                 department: true,
                 jobTitle: true,
+                site: true,
                 employmentType: true,
               },
             },
+            earnings: true,
+            deductions: true,
+            payslip: true,
           },
         },
+        approvals: true,
+      },
+    });
+  }
+
+  async getPayrollRun(id: string) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: {
+              include: {
+                department: true,
+                jobTitle: true,
+                site: true,
+                employmentType: true,
+              },
+            },
+            earnings: true,
+            deductions: true,
+            payslip: true,
+          },
+        },
+        approvals: true,
       },
     });
 
-    return payrollRun;
+    if (!run) {
+      throw new NotFoundException('Payroll run not found');
+    }
+
+    return run;
   }
 
-    async updatePayrollLineGrossPay(
+  async updatePayrollLineGrossPay(
     runId: string,
     lineId: string,
-    input: {
-      grossPay: number | string;
-      description?: string;
-    },
+    input: UpdatePayrollLineGrossPayInput,
   ) {
     const run = await this.prisma.payrollRun.findUnique({
-      where: { id: runId },
+      where: {
+        id: runId,
+      },
     });
 
     if (!run) {
@@ -221,6 +273,15 @@ export class PayrollService {
       },
     });
 
+    await this.prisma.payrollDeduction.deleteMany({
+      where: {
+        payrollRunEmployeeId: lineId,
+        deductionType: {
+          in: ['PAYE', 'NAPSA', 'NHIMA'],
+        },
+      },
+    });
+
     if (grossPay > 0) {
       await this.prisma.payrollEarning.create({
         data: {
@@ -253,35 +314,21 @@ export class PayrollService {
           include: {
             department: true,
             jobTitle: true,
+            site: true,
             employmentType: true,
           },
         },
         earnings: true,
         deductions: true,
+        payslip: true,
       },
     });
   }
 
-  async getPayrollRun(id: string) {
+  async calculatePayrollLineStatutory(runId: string, lineId: string) {
     const run = await this.prisma.payrollRun.findUnique({
-      where: { id },
-      include: {
-        payrollPeriod: true,
-        employees: {
-          include: {
-            employee: {
-              include: {
-                department: true,
-                jobTitle: true,
-                employmentType: true,
-              },
-            },
-            earnings: true,
-            deductions: true,
-            payslip: true,
-          },
-        },
-        approvals: true,
+      where: {
+        id: runId,
       },
     });
 
@@ -289,6 +336,130 @@ export class PayrollService {
       throw new NotFoundException('Payroll run not found');
     }
 
-    return run;
+    if (run.status !== 'OPEN' && run.status !== 'PROCESSING') {
+      throw new BadRequestException('Only OPEN or PROCESSING payroll runs can be calculated');
+    }
+
+    const payrollLine = await this.prisma.payrollRunEmployee.findFirst({
+      where: {
+        id: lineId,
+        payrollRunId: runId,
+      },
+      include: {
+        employee: {
+          include: {
+            statutoryDetails: true,
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
+          },
+        },
+        earnings: true,
+        deductions: true,
+        payslip: true,
+      },
+    });
+
+    if (!payrollLine) {
+      throw new NotFoundException('Payroll employee line not found');
+    }
+
+    const grossPay = Number(payrollLine.grossPay || 0);
+
+    if (grossPay <= 0) {
+      throw new BadRequestException('Gross pay must be entered before statutory calculation');
+    }
+
+    const statutory = payrollLine.employee.statutoryDetails;
+
+    if (!statutory) {
+      throw new BadRequestException('Employee statutory details are missing');
+    }
+
+    /*
+      Development foundation:
+      These values are deliberately zero until Southin HR/Finance validates
+      the live PAYE, NAPSA, NHIMA configuration rules before go-live.
+    */
+    const paye = statutory.payeApplicable ? 0 : 0;
+    const napsa = statutory.napsaApplicable ? 0 : 0;
+    const nhima = statutory.nhimaApplicable ? 0 : 0;
+
+    await this.prisma.payrollDeduction.deleteMany({
+      where: {
+        payrollRunEmployeeId: lineId,
+        deductionType: {
+          in: ['PAYE', 'NAPSA', 'NHIMA'],
+        },
+      },
+    });
+
+    const deductionsToCreate: DraftDeductionInput[] = [];
+
+    if (statutory.payeApplicable) {
+      deductionsToCreate.push({
+        payrollRunEmployeeId: lineId,
+        deductionType: 'PAYE',
+        description: 'PAYE - pending approved statutory formula',
+        amount: paye,
+        source: 'SYSTEM_DRAFT',
+      });
+    }
+
+    if (statutory.napsaApplicable) {
+      deductionsToCreate.push({
+        payrollRunEmployeeId: lineId,
+        deductionType: 'NAPSA',
+        description: 'NAPSA - pending approved statutory formula',
+        amount: napsa,
+        source: 'SYSTEM_DRAFT',
+      });
+    }
+
+    if (statutory.nhimaApplicable) {
+      deductionsToCreate.push({
+        payrollRunEmployeeId: lineId,
+        deductionType: 'NHIMA',
+        description: 'NHIMA - pending approved statutory formula',
+        amount: nhima,
+        source: 'SYSTEM_DRAFT',
+      });
+    }
+
+    if (deductionsToCreate.length > 0) {
+      await this.prisma.payrollDeduction.createMany({
+        data: deductionsToCreate,
+      });
+    }
+
+    const totalDeductions = paye + napsa + nhima;
+    const netPay = grossPay - totalDeductions;
+
+    return this.prisma.payrollRunEmployee.update({
+      where: {
+        id: lineId,
+      },
+      data: {
+        totalDeductions,
+        netPay,
+        employerCost: grossPay,
+        status: 'CALCULATED',
+        calculatedAt: new Date(),
+      },
+      include: {
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
+          },
+        },
+        earnings: true,
+        deductions: true,
+        payslip: true,
+      },
+    });
   }
 }
