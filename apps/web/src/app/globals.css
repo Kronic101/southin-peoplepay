@@ -337,3 +337,40 @@ th {
   gap: 0.5rem;
   align-items: center;
 }
+
+.link-button {
+  background: transparent;
+  border: 0;
+  color: #f97316;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.payroll-breakdown {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.payroll-breakdown h4 {
+  margin: 0 0 0.75rem;
+}
+
+.breakdown-summary {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.85rem;
+}
+
+.breakdown-summary span {
+  color: #334155;
+}
