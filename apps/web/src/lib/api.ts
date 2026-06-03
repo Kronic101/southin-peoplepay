@@ -721,3 +721,25 @@ export async function lockPayrollRun(id: string, payload: { actorId?: string; co
   if (!res.ok) throw new Error('Failed to lock payroll run');
   return res.json();
 }
+
+export async function generatePayslipsForRun(
+  id: string,
+  payload: {
+    actorId?: string;
+    comments?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payroll/runs/${id}/generate-payslips`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to generate payslips');
+  }
+
+  return res.json();
+}

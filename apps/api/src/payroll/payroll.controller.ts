@@ -82,6 +82,11 @@ export class PayrollController {
     return this.payrollService.lockPayrollRun(id, body as any);
   }
 
+  @Post('runs/:id/generate-payslips')
+  generatePayslipsForRun(@Param('id') id: string, @Body() body: unknown) {
+    return this.payrollService.generatePayslipsForRun(id, body as any);
+  }
+
   @Get('runs/:id')
   getPayrollRun(@Param('id') id: string) {
     return this.payrollService.getPayrollRun(id);

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   directorApprovePayrollRun,
   financeReviewPayrollRun,
+  generatePayslipsForRun,
   hrReviewPayrollRun,
   lockPayrollRun,
   submitPayrollRunToDirector,
@@ -14,6 +15,13 @@ import {
 
 type Props = {
   run: any;
+};
+
+type PendingAction = {
+  title: string;
+  defaultComment: string;
+  action: (comments: string) => Promise<unknown>;
+  successMessage: string;
 };
 
 function formatDateTime(value?: string | null) {
@@ -30,6 +38,8 @@ export function PayrollWorkflowPanel({ run }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [comments, setComments] = useState('');
 
   async function runWorkflowAction(action: () => Promise<unknown>, successMessage: string) {
     setMessage('');
@@ -38,6 +48,8 @@ export function PayrollWorkflowPanel({ run }: Props) {
     try {
       await action();
       setMessage(successMessage);
+      setPendingAction(null);
+      setComments('');
       router.refresh();
     } catch {
       setMessage('Workflow action failed. Confirm the payroll status and check the API terminal.');
@@ -46,8 +58,21 @@ export function PayrollWorkflowPanel({ run }: Props) {
     }
   }
 
-  function getComment(defaultComment: string) {
-    return window.prompt('Comments', defaultComment) || defaultComment;
+  function openWorkflowModal(action: PendingAction) {
+    setPendingAction(action);
+    setComments(action.defaultComment);
+    setMessage('');
+  }
+
+  async function submitModalAction(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!pendingAction) return;
+
+    await runWorkflowAction(
+      () => pendingAction.action(comments.trim() || pendingAction.defaultComment),
+      pendingAction.successMessage,
+    );
   }
 
   const status = run.status;
@@ -68,14 +93,16 @@ export function PayrollWorkflowPanel({ run }: Props) {
               className="btn"
               disabled={saving}
               onClick={() =>
-                runWorkflowAction(
-                  () =>
+                openWorkflowModal({
+                  title: 'Submit Payroll to HR',
+                  defaultComment: 'Payroll prepared and submitted for HR review.',
+                  successMessage: 'Payroll submitted to HR review.',
+                  action: (workflowComments) =>
                     submitPayrollRunToHr(run.id, {
                       actorId: 'payroll-officer-dev',
-                      comments: getComment('Payroll prepared and submitted for HR review.'),
+                      comments: workflowComments,
                     }),
-                  'Payroll submitted to HR review.',
-                )
+                })
               }
               type="button"
             >
@@ -89,15 +116,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'HR Approve Payroll',
+                    defaultComment: 'HR has checked employee records, attendance and changes.',
+                    successMessage: 'HR review approved.',
+                    action: (workflowComments) =>
                       hrReviewPayrollRun(run.id, {
                         actorId: 'hr-manager-dev',
                         approved: true,
-                        comments: getComment('HR has checked employee records, attendance and changes.'),
+                        comments: workflowComments,
                       }),
-                    'HR review approved.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -108,15 +137,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn-secondary"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'HR Reject Payroll',
+                    defaultComment: 'Rejected by HR. Payroll requires correction.',
+                    successMessage: 'Payroll rejected by HR.',
+                    action: (workflowComments) =>
                       hrReviewPayrollRun(run.id, {
                         actorId: 'hr-manager-dev',
                         approved: false,
-                        comments: getComment('Rejected by HR. Payroll requires correction.'),
+                        comments: workflowComments,
                       }),
-                    'Payroll rejected by HR.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -130,14 +161,16 @@ export function PayrollWorkflowPanel({ run }: Props) {
               className="btn"
               disabled={saving}
               onClick={() =>
-                runWorkflowAction(
-                  () =>
+                openWorkflowModal({
+                  title: 'Submit Payroll to Finance',
+                  defaultComment: 'Submitted to Finance for deduction and total validation.',
+                  successMessage: 'Payroll submitted to Finance review.',
+                  action: (workflowComments) =>
                     submitPayrollRunToFinance(run.id, {
                       actorId: 'hr-manager-dev',
-                      comments: getComment('Submitted to Finance for deduction and total validation.'),
+                      comments: workflowComments,
                     }),
-                  'Payroll submitted to Finance review.',
-                )
+                })
               }
               type="button"
             >
@@ -151,15 +184,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'Finance Approve Payroll',
+                    defaultComment: 'Finance has validated totals, deductions and bank payment preparation.',
+                    successMessage: 'Finance review approved.',
+                    action: (workflowComments) =>
                       financeReviewPayrollRun(run.id, {
                         actorId: 'finance-manager-dev',
                         approved: true,
-                        comments: getComment('Finance has validated totals, deductions and bank payment preparation.'),
+                        comments: workflowComments,
                       }),
-                    'Finance review approved.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -170,15 +205,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn-secondary"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'Finance Reject Payroll',
+                    defaultComment: 'Rejected by Finance. Payroll requires correction.',
+                    successMessage: 'Payroll rejected by Finance.',
+                    action: (workflowComments) =>
                       financeReviewPayrollRun(run.id, {
                         actorId: 'finance-manager-dev',
                         approved: false,
-                        comments: getComment('Rejected by Finance. Payroll requires correction.'),
+                        comments: workflowComments,
                       }),
-                    'Payroll rejected by Finance.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -192,14 +229,16 @@ export function PayrollWorkflowPanel({ run }: Props) {
               className="btn"
               disabled={saving}
               onClick={() =>
-                runWorkflowAction(
-                  () =>
+                openWorkflowModal({
+                  title: 'Submit Payroll to Director',
+                  defaultComment: 'Submitted to Director for final approval.',
+                  successMessage: 'Payroll submitted to Director.',
+                  action: (workflowComments) =>
                     submitPayrollRunToDirector(run.id, {
                       actorId: 'finance-manager-dev',
-                      comments: getComment('Submitted to Director for final approval.'),
+                      comments: workflowComments,
                     }),
-                  'Payroll submitted to Director.',
-                )
+                })
               }
               type="button"
             >
@@ -213,15 +252,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'Director Approve Payroll',
+                    defaultComment: 'Director approved payroll.',
+                    successMessage: 'Director approved payroll.',
+                    action: (workflowComments) =>
                       directorApprovePayrollRun(run.id, {
                         actorId: 'director-dev',
                         approved: true,
-                        comments: getComment('Director approved payroll.'),
+                        comments: workflowComments,
                       }),
-                    'Director approved payroll.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -232,15 +273,17 @@ export function PayrollWorkflowPanel({ run }: Props) {
                 className="btn-secondary"
                 disabled={saving}
                 onClick={() =>
-                  runWorkflowAction(
-                    () =>
+                  openWorkflowModal({
+                    title: 'Director Reject Payroll',
+                    defaultComment: 'Rejected by Director. Payroll requires correction.',
+                    successMessage: 'Payroll rejected by Director.',
+                    action: (workflowComments) =>
                       directorApprovePayrollRun(run.id, {
                         actorId: 'director-dev',
                         approved: false,
-                        comments: getComment('Rejected by Director. Payroll requires correction.'),
+                        comments: workflowComments,
                       }),
-                    'Payroll rejected by Director.',
-                  )
+                  })
                 }
                 type="button"
               >
@@ -254,14 +297,16 @@ export function PayrollWorkflowPanel({ run }: Props) {
               className="btn"
               disabled={saving}
               onClick={() =>
-                runWorkflowAction(
-                  () =>
+                openWorkflowModal({
+                  title: 'Lock Payroll',
+                  defaultComment: 'Payroll locked after Director approval.',
+                  successMessage: 'Payroll locked successfully.',
+                  action: (workflowComments) =>
                     lockPayrollRun(run.id, {
                       actorId: 'payroll-officer-dev',
-                      comments: getComment('Payroll locked after Director approval.'),
+                      comments: workflowComments,
                     }),
-                  'Payroll locked successfully.',
-                )
+                })
               }
               type="button"
             >
@@ -269,7 +314,31 @@ export function PayrollWorkflowPanel({ run }: Props) {
             </button>
           )}
 
-          {status === 'LOCKED' && <span className="status-pill locked">Payroll Locked</span>}
+          {status === 'LOCKED' && (
+            <>
+              <span className="status-pill locked">Payroll Locked</span>
+
+              <button
+                className="btn"
+                disabled={saving}
+                onClick={() =>
+                  openWorkflowModal({
+                    title: 'Generate Payslips',
+                    defaultComment: 'Payslips generated after payroll lock.',
+                    successMessage: 'Payslip generation completed.',
+                    action: (workflowComments) =>
+                      generatePayslipsForRun(run.id, {
+                        actorId: 'payroll-officer-dev',
+                        comments: workflowComments,
+                      }),
+                  })
+                }
+                type="button"
+              >
+                Generate Payslips
+              </button>
+            </>
+          )}
 
           {status === 'REJECTED' && <span className="status-pill rejected">Payroll Rejected</span>}
         </div>
@@ -346,6 +415,61 @@ export function PayrollWorkflowPanel({ run }: Props) {
           </tbody>
         </table>
       </div>
+
+      {pendingAction && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="workflow-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
+            <div className="modal-header">
+              <div>
+                <h3 id="workflow-modal-title">{pendingAction.title}</h3>
+                <p className="muted">Review or amend the workflow comments before submitting.</p>
+              </div>
+
+              <button
+                className="modal-close"
+                disabled={saving}
+                onClick={() => {
+                  setPendingAction(null);
+                  setComments('');
+                }}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={submitModalAction}>
+              <label>
+                Comments
+                <textarea
+                  autoFocus
+                  rows={5}
+                  value={comments}
+                  onChange={(event) => setComments(event.target.value)}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  className="btn-secondary"
+                  disabled={saving}
+                  onClick={() => {
+                    setPendingAction(null);
+                    setComments('');
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+
+                <button className="btn" disabled={saving} type="submit">
+                  {saving ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

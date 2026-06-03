@@ -34,6 +34,11 @@ type WorkflowActionInput = {
   approved?: boolean;
 };
 
+type GeneratePayslipsInput = {
+  actorId?: string;
+  comments?: string;
+};
+
 @Injectable()
 export class PayrollService {
   constructor(private readonly prisma: PrismaService) {}
@@ -980,5 +985,127 @@ export class PayrollService {
         approvals: true,
       },
     });
+  }
+
+    async generatePayslipsForRun(id: string, input: GeneratePayslipsInput) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: true,
+            earnings: true,
+            deductions: true,
+            payslip: true,
+          },
+        },
+        approvals: true,
+      },
+    });
+
+    if (!run) {
+      throw new NotFoundException('Payroll run not found');
+    }
+
+    if (run.status !== 'LOCKED') {
+      throw new BadRequestException('Payslips can only be generated after payroll is locked');
+    }
+
+    if (run.employees.length === 0) {
+      throw new BadRequestException('Payroll run has no employees');
+    }
+
+    const uncalculatedLines = run.employees.filter((line: any) => {
+      return line.status !== 'CALCULATED' || Number(line.grossPay || 0) <= 0;
+    });
+
+    if (uncalculatedLines.length > 0) {
+      throw new BadRequestException('All payroll lines must be calculated before payslip generation');
+    }
+
+    const createdPayslips = [];
+    const skippedExistingPayslips = [];
+
+    for (const line of run.employees) {
+      if (line.payslip) {
+        skippedExistingPayslips.push(line.payslip);
+        continue;
+      }
+
+      const payslip = await this.prisma.payslip.create({
+        data: {
+          payrollRunEmployeeId: line.id,
+          employeeId: line.employeeId,
+          payrollPeriodId: run.payrollPeriodId,
+          grossPay: line.grossPay,
+          totalDeductions: line.totalDeductions,
+          netPay: line.netPay,
+          employerCost: line.employerCost,
+          status: 'GENERATED',
+        },
+        include: {
+          employee: true,
+          payrollPeriod: true,
+          payrollRunEmployee: {
+            include: {
+              earnings: true,
+              deductions: true,
+            },
+          },
+        },
+      });
+
+      createdPayslips.push(payslip);
+    }
+
+    await this.createWorkflowApproval({
+      payrollRunId: id,
+      approvalStage: 'PAYSLIP_GENERATION',
+      approverRole: 'PAYROLL_OFFICER',
+      approverId: input.actorId || null,
+      status: 'APPROVED',
+      comments: input.comments || `Payslips generated. New: ${createdPayslips.length}, Existing: ${skippedExistingPayslips.length}`,
+    });
+
+    const refreshedRun = await this.prisma.payrollRun.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        payrollPeriod: true,
+        employees: {
+          include: {
+            employee: {
+              include: {
+                department: true,
+                jobTitle: true,
+                site: true,
+                employmentType: true,
+              },
+            },
+            earnings: true,
+            deductions: true,
+            payslip: true,
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Payslip generation completed',
+      payrollRunId: id,
+      generatedCount: createdPayslips.length,
+      skippedExistingCount: skippedExistingPayslips.length,
+      generatedBy: input.actorId || null,
+      run: refreshedRun,
+    };
   }
 }

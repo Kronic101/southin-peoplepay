@@ -146,8 +146,9 @@ model Employee {
   statutoryDetails EmployeeStatutoryDetails?
   bankAccounts     EmployeeBankAccount[]
   serviceConditions EmployeeServiceCondition[]
-  contracts        EmployeeContract[]
-  payrollRuns      PayrollRunEmployee[]
+  contracts         EmployeeContract[]
+  payrollRuns       PayrollRunEmployee[]
+  payslips          Payslip[]
 
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -281,6 +282,7 @@ model PayrollPeriod {
   payDate    DateTime?
   status     String       @default("OPEN")
   runs       PayrollRun[]
+  payslips   Payslip[]
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 }
@@ -366,12 +368,17 @@ model Payslip {
   payrollRunEmployeeId String             @unique
   employeeId           String
   payrollPeriodId      String
-  fileUrl              String?
-  fileStorageProvider  String?
-  generatedAt          DateTime?
-  viewedAt             DateTime?
+  grossPay             Decimal            @db.Decimal(14, 2)
+  totalDeductions      Decimal            @db.Decimal(14, 2)
+  netPay               Decimal            @db.Decimal(14, 2)
+  employerCost         Decimal            @db.Decimal(14, 2)
+  status               String             @default("GENERATED")
+  generatedAt          DateTime           @default(now())
   payrollRunEmployee   PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
+  employee             Employee           @relation(fields: [employeeId], references: [id])
+  payrollPeriod        PayrollPeriod      @relation(fields: [payrollPeriodId], references: [id])
   createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 }
 
 model TaxYear {

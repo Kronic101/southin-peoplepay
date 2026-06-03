@@ -21,6 +21,11 @@ function shortId(value: string) {
   return `${value.slice(0, 8)}...`;
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString();
+}
+
 export function PayrollRunLinesEditor({ runId, employees }: Props) {
   const router = useRouter();
 
@@ -93,6 +98,7 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
               <th>Deductions</th>
               <th>Net</th>
               <th>Deduction Records</th>
+              <th>Payslip</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -101,13 +107,14 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
           <tbody>
             {employees.length === 0 ? (
               <tr>
-                <td colSpan={12}>No employees in this payroll run.</td>
+                <td colSpan={13}>No employees in this payroll run.</td>
               </tr>
             ) : (
               employees.map((line: any) => {
                 const deductionCount = line.deductions?.length || 0;
                 const earningCount = line.earnings?.length || 0;
                 const isExpanded = expandedLineId === line.id;
+                const isLockedOrPayslipGenerated = Boolean(line.payslip);
 
                 return (
                   <>
@@ -137,17 +144,19 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
                             min="0"
                             step="0.01"
                             defaultValue={Number(line.grossPay || 0)}
+                            disabled={isLockedOrPayslipGenerated}
                           />
 
                           <input
                             name="description"
                             placeholder="Description"
                             defaultValue="Basic salary / gross pay"
+                            disabled={isLockedOrPayslipGenerated}
                           />
 
                           <button
                             className="btn-small"
-                            disabled={savingGrossLineId === line.id}
+                            disabled={savingGrossLineId === line.id || isLockedOrPayslipGenerated}
                             type="submit"
                           >
                             {savingGrossLineId === line.id ? 'Saving...' : 'Update'}
@@ -175,13 +184,21 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
                         )}
                       </td>
 
+                      <td>
+                        {line.payslip ? (
+                          <span className="status-pill locked">Generated</span>
+                        ) : (
+                          <span className="muted">Not generated</span>
+                        )}
+                      </td>
+
                       <td>{line.status}</td>
 
                       <td>
                         <div className="action-row">
                           <button
                             className="btn-small"
-                            disabled={calculatingLineId === line.id}
+                            disabled={calculatingLineId === line.id || isLockedOrPayslipGenerated}
                             onClick={() => handleCalculateStatutory(line.id)}
                             type="button"
                           >
@@ -201,7 +218,7 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
 
                     {isExpanded && (
                       <tr key={`${line.id}-details`}>
-                        <td colSpan={12}>
+                        <td colSpan={13}>
                           <div className="payroll-breakdown">
                             <div>
                               <h4>Earnings</h4>
@@ -269,6 +286,40 @@ export function PayrollRunLinesEditor({ runId, employees }: Props) {
                                   )}
                                 </tbody>
                               </table>
+                            </div>
+
+                            <div>
+                              <h4>Payslip</h4>
+
+                              {line.payslip ? (
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>Status</th>
+                                      <th>Gross Pay</th>
+                                      <th>Deductions</th>
+                                      <th>Net Pay</th>
+                                      <th>Employer Cost</th>
+                                      <th>Generated At</th>
+                                    </tr>
+                                  </thead>
+
+                                  <tbody>
+                                    <tr>
+                                      <td>{line.payslip.status}</td>
+                                      <td>{money(line.payslip.grossPay)}</td>
+                                      <td>{money(line.payslip.totalDeductions)}</td>
+                                      <td>{money(line.payslip.netPay)}</td>
+                                      <td>{money(line.payslip.employerCost)}</td>
+                                      <td>{formatDateTime(line.payslip.generatedAt)}</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <div className="notice">
+                                  Payslip has not yet been generated for this payroll line.
+                                </div>
+                              )}
                             </div>
 
                             <div className="breakdown-summary">
