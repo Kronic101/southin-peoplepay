@@ -773,3 +773,38 @@ export async function getEmployeePayslip(id: string, token: string) {
 
   return res.json();
 }
+
+export async function requestEmployeePinReset(payload: {
+  employeeNumber: string;
+  email?: string;
+}) {
+  const res = await fetch(`${API_URL}/auth/employee/forgot-pin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to request PIN reset');
+  }
+
+  return res.json();
+}
+
+export async function employeeForgotPin(payload: { employeeNumber: string }) {
+  const res = await fetch(`${API_URL}/auth/employee/forgot-pin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to request PIN reset');
+  }
+
+  return res.json();
+}

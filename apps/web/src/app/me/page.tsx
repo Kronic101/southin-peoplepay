@@ -1,146 +1,134 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getEmployeeMe } from '@/lib/api';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { getEmployeePayslips } from '@/lib/api';
 
-export default function EmployeeMePage() {
-  const [employee, setEmployee] = useState<any>(null);
-  const [error, setError] = useState('');
+function money(value: unknown) {
+  return Number(value || 0).toFixed(2);
+}
 
-  function handleLogout() {
-    localStorage.removeItem('peoplepay_employee_token');
-    localStorage.removeItem('peoplepay_employee_number');
-    window.location.href = '/employee-login';
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString();
+}
+
+function getStoredEmployeeToken() {
+  if (typeof window === 'undefined') return null;
+
+  return (
+    localStorage.getItem('peoplepay_employee_token') ||
+    localStorage.getItem('employeeToken') ||
+    localStorage.getItem('southin_peoplepay_employee_token') ||
+    localStorage.getItem('token')
+  );
+}
+
+export default function EmployeePayslipsPage() {
+  const router = useRouter();
+
+  const [payslips, setPayslips] = useState<any[]>([]);
+  const [message, setMessage] = useState('Loading payslips...');
+
+  function handleBackToPortal() {
+    const token = getStoredEmployeeToken();
+
+    if (!token) {
+      router.push('/employee-login');
+      return;
+    }
+
+    localStorage.setItem('employeeToken', token);
+    router.push('/me');
   }
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadPayslips() {
+      const token = getStoredEmployeeToken();
+
+      if (!token) {
+        setMessage('You are not logged in. Please login again.');
+        return;
+      }
+
       try {
-        const token = localStorage.getItem('peoplepay_employee_token');
+        localStorage.setItem('employeeToken', token);
 
-        if (!token) {
-          setError('You are not signed in.');
-          return;
-        }
-
-        const profile = await getEmployeeMe(token);
-        setEmployee(profile);
+        const data = await getEmployeePayslips(token);
+        setPayslips(data);
+        setMessage('');
       } catch {
-        setError('Failed to load employee profile.');
+        setMessage('Failed to load payslips. Please login again.');
       }
     }
 
-    loadProfile();
+    loadPayslips();
   }, []);
 
-  if (error) {
-    return (
-      <main className="auth-page">
-        <section className="auth-card">
-          <h1>Employee Portal</h1>
-          <div className="notice">{error}</div>
-          <a className="btn" href="/employee-login">
-            Back to Login
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (!employee) {
-    return (
-      <main className="auth-page">
-        <section className="auth-card">
-          <h1>Employee Portal</h1>
-          <p className="muted">Loading profile...</p>
-        </section>
-      </main>
-    );
-  }
-
   return (
-    <main className="employee-portal-page">
-      <section className="employee-portal-card">
-        <div className="page-header">
-          <div>
-            <h1>Welcome, {employee.firstName}</h1>
-            <p className="muted">
-              {employee.employeeNumber} · {employee.status}
-            </p>
-          </div>
-
-          <button className="btn-secondary" onClick={handleLogout} type="button">
-            Logout
-          </button>
+    <section className="card">
+      <div className="page-header">
+        <div>
+          <h1>My Payslips</h1>
+          <p className="muted">
+            View generated payslips after payroll has been approved and locked.
+          </p>
         </div>
 
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="summary-label">PAYE</span>
-            <strong>{employee.statutoryDetails?.payeApplicable ? 'Applicable' : 'Not applicable'}</strong>
-          </div>
+        <button className="btn-secondary" onClick={handleBackToPortal} type="button">
+          Back to Portal
+        </button>
+      </div>
 
-          <div className="summary-card">
-            <span className="summary-label">NAPSA</span>
-            <strong>{employee.statutoryDetails?.napsaApplicable ? 'Applicable' : 'Not applicable'}</strong>
-          </div>
+      {message && <div className="notice">{message}</div>}
 
-          <div className="summary-card">
-            <span className="summary-label">NHIMA</span>
-            <strong>{employee.statutoryDetails?.nhimaApplicable ? 'Applicable' : 'Not applicable'}</strong>
-          </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Payroll Period</th>
+              <th>Pay Date</th>
+              <th>Gross Pay</th>
+              <th>Deductions</th>
+              <th>Net Pay</th>
+              <th>Status</th>
+              <th>Generated</th>
+              <th>Action</th>
+            </tr>
+          </thead>
 
-          <div className="summary-card">
-            <span className="summary-label">Payslips</span>
-            <strong>{employee.payslipCount}</strong>
-          </div>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <tbody>
+          <tbody>
+            {payslips.length === 0 && !message ? (
               <tr>
-                <th>Name</th>
-                <td>
-                  {employee.firstName} {employee.lastName}
-                </td>
+                <td colSpan={8}>No generated payslips are available yet.</td>
               </tr>
-              <tr>
-                <th>Phone</th>
-                <td>{employee.phone || '-'}</td>
-              </tr>
-              <tr>
-                <th>Email</th>
-                <td>{employee.email || '-'}</td>
-              </tr>
-              <tr>
-                <th>Portal Status</th>
-                <td>{employee.portalAccount?.isActive ? 'Active' : 'Inactive'}</td>
-              </tr>
-              <tr>
-                <th>PIN Change Required</th>
-                <td>{employee.portalAccount?.mustChangePin ? 'Yes' : 'No'}</td>
-              </tr>
-              <tr>
-                <th>Last Login</th>
-                <td>{employee.portalAccount?.lastLoginAt || '-'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="notice">
-          Payslip download and leave requests will be added in the next employee self-service phase.
-        </div>
-      </section>
-    </main>
-
+            ) : (
+              payslips.map((payslip) => (
+                <tr key={payslip.id}>
+                  <td>{payslip.payrollPeriod}</td>
+                  <td>{formatDate(payslip.payDate)}</td>
+                  <td>{money(payslip.grossPay)}</td>
+                  <td>{money(payslip.totalDeductions)}</td>
+                  <td>{money(payslip.netPay)}</td>
+                  <td>
+                    <span className="status-pill locked">{payslip.status}</span>
+                  </td>
+                  <td>{formatDate(payslip.generatedAt)}</td>
+                  <td>
+                    <button
+                      className="link-button"
+                      onClick={() => router.push(`/me/payslips/${payslip.id}`)}
+                      type="button"
+                    >
+                      View Payslip
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
-
-    <div className="action-row">
-      <Link className="btn" href="/me/payslips">
-        View My Payslips
-      </Link>
-    </div>
 }

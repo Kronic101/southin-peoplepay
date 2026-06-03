@@ -4,6 +4,17 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getEmployeePayslip } from '@/lib/api';
 
+function getStoredEmployeeToken() {
+  if (typeof window === 'undefined') return null;
+
+  return (
+    localStorage.getItem('employeeToken') ||
+    localStorage.getItem('southinEmployeeToken') ||
+    localStorage.getItem('southin_peoplepay_employee_token') ||
+    localStorage.getItem('token')
+  );
+}
+
 function money(value: unknown) {
   return Number(value || 0).toFixed(2);
 }
@@ -19,12 +30,14 @@ export default function EmployeePayslipDetailPage({ params }: { params: { id: st
 
   useEffect(() => {
     async function loadPayslip() {
-      const token = localStorage.getItem('employeeToken');
+      const token = getStoredEmployeeToken();
 
       if (!token) {
         setMessage('You are not logged in. Please login again.');
         return;
       }
+
+      localStorage.setItem('employeeToken', token);
 
       try {
         const data = await getEmployeePayslip(params.id, token);

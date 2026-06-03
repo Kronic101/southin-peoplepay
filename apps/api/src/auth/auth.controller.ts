@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Param, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 function decodeDevToken(authHeader?: string) {
@@ -56,5 +56,10 @@ export class AuthController {
   @Get('employee/payslips/:id')
   getEmployeePayslip(@Param('id') id: string, @Req() req: any) {
     return this.authService.getEmployeePayslip(id, req);
+  }
+
+  @Post('employee/forgot-pin')
+  employeeForgotPin(@Body() body: unknown) {
+    return this.authService.employeeForgotPin(body as any);
   }
 }

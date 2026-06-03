@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getEmployeePayslips } from '@/lib/api';
 
 function money(value: unknown) {
@@ -13,13 +14,27 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString();
 }
 
+function getStoredEmployeeToken() {
+  if (typeof window === 'undefined') return null;
+
+  return (
+    localStorage.getItem('employeeToken') ||
+    localStorage.getItem('peoplepay_employee_token') ||
+    localStorage.getItem('southinEmployeeToken') ||
+    localStorage.getItem('southin_peoplepay_employee_token') ||
+    localStorage.getItem('token')
+  );
+}
+
 export default function EmployeePayslipsPage() {
+  const router = useRouter();
+
   const [payslips, setPayslips] = useState<any[]>([]);
   const [message, setMessage] = useState('Loading payslips...');
 
   useEffect(() => {
     async function loadPayslips() {
-      const token = localStorage.getItem('employeeToken');
+      const token = getStoredEmployeeToken();
 
       if (!token) {
         setMessage('You are not logged in. Please login again.');
@@ -27,6 +42,9 @@ export default function EmployeePayslipsPage() {
       }
 
       try {
+        localStorage.setItem('employeeToken', token);
+        localStorage.setItem('peoplepay_employee_token', token);
+
         const data = await getEmployeePayslips(token);
         setPayslips(data);
         setMessage('');
@@ -38,17 +56,30 @@ export default function EmployeePayslipsPage() {
     loadPayslips();
   }, []);
 
+  function handleBackToPortal() {
+    const token = getStoredEmployeeToken();
+
+    if (!token) {
+      router.push('/employee-login');
+      return;
+    }
+
+    router.push('/me');
+  }
+
   return (
     <section className="card">
       <div className="page-header">
         <div>
           <h1>My Payslips</h1>
-          <p className="muted">View generated payslips after payroll has been approved and locked.</p>
+          <p className="muted">
+            View generated payslips after payroll has been approved and locked.
+          </p>
         </div>
 
-        <Link className="btn-secondary" href="/me">
+        <button className="btn-secondary" onClick={handleBackToPortal} type="button">
           Back to Portal
-        </Link>
+        </button>
       </div>
 
       {message && <div className="notice">{message}</div>}
