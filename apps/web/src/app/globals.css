@@ -533,3 +533,25 @@ th {
     background: white !important;
   }
 }
+
+.json-preview {
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 16px;
+  border-radius: 12px;
+  overflow: auto;
+  max-height: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #1f2937;
+}
+
+.status-pill.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.status-pill.locked {
+  background: #dcfce7;
+  color: #166534;
+}

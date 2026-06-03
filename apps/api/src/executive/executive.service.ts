@@ -20,7 +20,7 @@ export class ExecutiveService {
   constructor(private readonly prisma: PrismaService) {}
 
   private calculateRunTotals(run: any) {
-    const employees = run.employees || [];
+    const employees = run?.employees || [];
 
     const grossPay = employees.reduce(
       (sum: number, line: any) => sum + toNumber(line.grossPay),
@@ -63,13 +63,17 @@ export class ExecutiveService {
       openRuns,
     ] = await Promise.all([
       this.prisma.employee.count(),
+
       this.prisma.employee.count({
         where: { status: 'DRAFT' as any },
       }),
+
       this.prisma.employee.count({
         where: { status: 'ACTIVE' as any },
       }),
+
       this.prisma.payslip.count(),
+
       this.prisma.payrollPeriod.findMany({
         orderBy: { startDate: 'desc' },
         take: 6,
@@ -77,6 +81,7 @@ export class ExecutiveService {
           runs: true,
         },
       }),
+
       this.prisma.payrollRun.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -88,6 +93,7 @@ export class ExecutiveService {
           },
         },
       }),
+
       this.prisma.payrollRun.findMany({
         where: { status: 'LOCKED' as any },
         orderBy: { lockedAt: 'desc' },
@@ -95,9 +101,12 @@ export class ExecutiveService {
         include: {
           payrollPeriod: true,
           employees: true,
-          approvals: true,
+          approvals: {
+            orderBy: { createdAt: 'asc' },
+          },
         },
       }),
+
       this.prisma.payrollRun.count({
         where: {
           status: {
@@ -108,6 +117,7 @@ export class ExecutiveService {
     ]);
 
     const latestLockedPayroll = lockedRuns[0] || null;
+
     const latestLockedTotals = latestLockedPayroll
       ? this.calculateRunTotals(latestLockedPayroll)
       : {
@@ -118,7 +128,7 @@ export class ExecutiveService {
           employerCost: 0,
         };
 
-    const recentPayrollRuns = payrollRuns.map((run) => {
+    const recentPayrollRuns = payrollRuns.map((run: any) => {
       const totals = this.calculateRunTotals(run);
 
       return {
@@ -138,7 +148,7 @@ export class ExecutiveService {
       };
     });
 
-    const periods = payrollPeriods.map((period) => ({
+    const periods = payrollPeriods.map((period: any) => ({
       id: period.id,
       periodName: period.periodName,
       startDate: period.startDate,
@@ -160,22 +170,23 @@ export class ExecutiveService {
         lockedPayrollRuns: lockedRuns.length,
         openPayrollRuns: openRuns,
       },
-      latestLockedPayroll: latestLockedPayroll
-        ? {
-            id: latestLockedPayroll.id,
-            runName: latestLockedPayroll.runName,
-            periodName: latestLockedPayroll.payrollPeriod?.periodName || '-',
-            status: latestLockedPayroll.status,
-            lockedAt: latestLockedPayroll.lockedAt,
-            totals: latestLockedTotals,
-          }
-        : null,
       financials: {
         latestGrossPay: latestLockedTotals.grossPay,
         latestDeductions: latestLockedTotals.totalDeductions,
         latestNetPay: latestLockedTotals.netPay,
         latestEmployerCost: latestLockedTotals.employerCost,
       },
+      latestLockedPayroll: latestLockedPayroll
+        ? {
+            id: latestLockedPayroll.id,
+            runName: latestLockedPayroll.runName,
+            runType: latestLockedPayroll.runType,
+            status: latestLockedPayroll.status,
+            periodName: latestLockedPayroll.payrollPeriod?.periodName || '-',
+            lockedAt: latestLockedPayroll.lockedAt,
+            totals: latestLockedTotals,
+          }
+        : null,
       payrollPeriods: periods,
       recentPayrollRuns,
       complianceNotes: [
@@ -191,7 +202,7 @@ export class ExecutiveService {
 
     return {
       title: 'Southin PeoplePay Executive Feed',
-      generatedAt: dashboard.generatedAt,
+      generatedAt: new Date(),
       source: 'Southin PeoplePay API',
       kpis: {
         totalEmployees: dashboard.summary.totalEmployees,
@@ -205,20 +216,33 @@ export class ExecutiveService {
         latestEmployerCost: money(dashboard.financials.latestEmployerCost),
       },
       latestLockedPayroll: dashboard.latestLockedPayroll,
-      recentPayrollRuns: dashboard.recentPayrollRuns.slice(0, 5),
-      notes: dashboard.complianceNotes,
+      recentPayrollRuns: dashboard.recentPayrollRuns.map((run: any) => ({
+        id: run.id,
+        runName: run.runName,
+        periodName: run.periodName,
+        status: run.status,
+        lockedAt: run.lockedAt,
+        employeeCount: run.employeeCount,
+        grossPay: money(run.grossPay),
+        totalDeductions: money(run.totalDeductions),
+        netPay: money(run.netPay),
+        employerCost: money(run.employerCost),
+      })),
+      complianceNotes: dashboard.complianceNotes,
     };
   }
 
-  async getPayrollAudit(runId?: string) {
-    let run: any = null;
-
+  private async resolvePayrollRunForAudit(runId?: string) {
     if (runId) {
-      run = await this.prisma.payrollRun.findUnique({
+      const run = await this.prisma.payrollRun.findUnique({
         where: { id: runId },
         include: {
           payrollPeriod: true,
+          approvals: {
+            orderBy: { createdAt: 'asc' },
+          },
           employees: {
+            orderBy: { createdAt: 'asc' },
             include: {
               employee: {
                 include: {
@@ -228,13 +252,14 @@ export class ExecutiveService {
                   employmentType: true,
                 },
               },
-              earnings: true,
-              deductions: true,
+              earnings: {
+                orderBy: { createdAt: 'asc' },
+              },
+              deductions: {
+                orderBy: { createdAt: 'asc' },
+              },
               payslip: true,
             },
-          },
-          approvals: {
-            orderBy: { createdAt: 'asc' },
           },
         },
       });
@@ -242,41 +267,93 @@ export class ExecutiveService {
       if (!run) {
         throw new NotFoundException('Payroll run not found');
       }
-    } else {
-      run = await this.prisma.payrollRun.findFirst({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          payrollPeriod: true,
-          employees: {
-            include: {
-              employee: {
-                include: {
-                  department: true,
-                  jobTitle: true,
-                  site: true,
-                  employmentType: true,
-                },
+
+      return run;
+    }
+
+    const latestLocked = await this.prisma.payrollRun.findFirst({
+      where: { status: 'LOCKED' as any },
+      orderBy: { lockedAt: 'desc' },
+      include: {
+        payrollPeriod: true,
+        approvals: {
+          orderBy: { createdAt: 'asc' },
+        },
+        employees: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            employee: {
+              include: {
+                department: true,
+                jobTitle: true,
+                site: true,
+                employmentType: true,
               },
-              earnings: true,
-              deductions: true,
-              payslip: true,
             },
-          },
-          approvals: {
-            orderBy: { createdAt: 'asc' },
+            earnings: {
+              orderBy: { createdAt: 'asc' },
+            },
+            deductions: {
+              orderBy: { createdAt: 'asc' },
+            },
+            payslip: true,
           },
         },
-      });
+      },
+    });
 
-      if (!run) {
-        return {
-          generatedAt: new Date(),
-          message: 'No payroll runs found.',
-          run: null,
-          employees: [],
-          approvals: [],
-        };
-      }
+    if (latestLocked) {
+      return latestLocked;
+    }
+
+    return this.prisma.payrollRun.findFirst({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payrollPeriod: true,
+        approvals: {
+          orderBy: { createdAt: 'asc' },
+        },
+        employees: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            employee: {
+              include: {
+                department: true,
+                jobTitle: true,
+                site: true,
+                employmentType: true,
+              },
+            },
+            earnings: {
+              orderBy: { createdAt: 'asc' },
+            },
+            deductions: {
+              orderBy: { createdAt: 'asc' },
+            },
+            payslip: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getPayrollAudit(runId?: string) {
+    const run = await this.resolvePayrollRunForAudit(runId);
+
+    if (!run) {
+      return {
+        generatedAt: new Date(),
+        run: null,
+        totals: {
+          employeeCount: 0,
+          grossPay: 0,
+          totalDeductions: 0,
+          netPay: 0,
+          employerCost: 0,
+        },
+        employees: [],
+        approvals: [],
+      };
     }
 
     const totals = this.calculateRunTotals(run);
@@ -298,10 +375,13 @@ export class ExecutiveService {
         financeReviewedBy: run.financeReviewedBy,
         directorApprovedBy: run.directorApprovedBy,
         lockedAt: run.lockedAt,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
       },
       totals,
       employees: (run.employees || []).map((line: any) => ({
         lineId: line.id,
+        employeeId: line.employeeId,
         employeeNumber: line.employee?.employeeNumber || '-',
         employeeName: `${line.employee?.firstName || ''} ${line.employee?.lastName || ''}`.trim(),
         department: line.employee?.department?.name || '-',
@@ -313,9 +393,14 @@ export class ExecutiveService {
         netPay: toNumber(line.netPay),
         employerCost: toNumber(line.employerCost),
         lineStatus: line.status,
+        calculatedAt: line.calculatedAt,
         earningsCount: line.earnings?.length || 0,
         deductionsCount: line.deductions?.length || 0,
         payslipGenerated: Boolean(line.payslip),
+        payslipStatus: line.payslip?.status || null,
+        earnings: line.earnings || [],
+        deductions: line.deductions || [],
+        payslip: line.payslip || null,
       })),
       approvals: (run.approvals || []).map((approval: any) => ({
         stage: approval.approvalStage,
@@ -332,16 +417,13 @@ export class ExecutiveService {
   async exportPayrollAuditCsv(runId?: string) {
     const audit = await this.getPayrollAudit(runId);
 
-    if (!audit.run) {
-      return 'Message\n"No payroll runs found."\n';
-    }
-
     const rows = [
       [
+        'Run ID',
         'Run Name',
         'Period',
         'Status',
-        'Employee No',
+        'Employee No.',
         'Employee Name',
         'Department',
         'Job Title',
@@ -351,16 +433,17 @@ export class ExecutiveService {
         'Deductions',
         'Net Pay',
         'Employer Cost',
-        'Line Status',
         'Payslip Generated',
+        'Line Status',
       ],
     ];
 
-    for (const employee of audit.employees) {
+    for (const employee of audit.employees || []) {
       rows.push([
-        audit.run.runName,
-        audit.run.periodName,
-        audit.run.status,
+        audit.run?.id || '',
+        audit.run?.runName || '',
+        audit.run?.periodName || '',
+        audit.run?.status || '',
         employee.employeeNumber,
         employee.employeeName,
         employee.department,
@@ -371,151 +454,227 @@ export class ExecutiveService {
         money(employee.totalDeductions),
         money(employee.netPay),
         money(employee.employerCost),
-        employee.lineStatus,
         employee.payslipGenerated ? 'YES' : 'NO',
+        employee.lineStatus,
       ]);
     }
 
     return rows.map((row) => row.map(csvEscape).join(',')).join('\n');
   }
 
-    async getExecutivePagePayload() {
-    const dashboard = await this.getDashboardSummary();
+  async getExecutivePagePayload() {
+    try {
+      const dashboard = await this.getDashboardSummary();
 
-    return {
-      payloadType: 'EXECUTIVE_LEADERSHIP_PAGE',
-      generatedAt: new Date(),
-      sourceSystem: 'Southin PeoplePay',
-      target: {
-        siteName: 'Executive Leadership',
-        recommendedPageName: 'PeoplePay Executive Dashboard',
-        confidentiality: 'CONFIDENTIAL_EXECUTIVE',
-        publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
-        futureGraphTarget: {
-          sitePath: '/sites/ExecutiveLeadership',
-          pageName: 'PeoplePay Executive Dashboard.aspx',
-          status: 'PENDING_AZURE_APP_REGISTRATION',
-        },
-      },
-      pageSections: [
-        {
-          sectionKey: 'kpi_summary',
-          title: 'PeoplePay KPI Summary',
-          displayOrder: 1,
-          data: {
-            totalEmployees: dashboard.summary.totalEmployees,
-            activeEmployees: dashboard.summary.activeEmployees,
-            draftEmployees: dashboard.summary.draftEmployees,
-            payslipsGenerated: dashboard.summary.totalPayslips,
-            payrollPeriods: dashboard.summary.payrollPeriods,
-            payrollRuns: dashboard.summary.payrollRuns,
-            lockedPayrollRuns: dashboard.summary.lockedPayrollRuns,
-            openPayrollRuns: dashboard.summary.openPayrollRuns,
+      const summary = dashboard?.summary || {};
+      const financials = dashboard?.financials || {};
+      const latestLockedPayroll = dashboard?.latestLockedPayroll || null;
+      const recentPayrollRuns = dashboard?.recentPayrollRuns || [];
+      const complianceNotes = dashboard?.complianceNotes || [];
+
+      return {
+        payloadType: 'EXECUTIVE_LEADERSHIP_PAGE',
+        status: 'READY',
+        generatedAt: new Date(),
+        sourceSystem: 'Southin PeoplePay',
+        target: {
+          siteName: 'Executive Leadership',
+          recommendedPageName: 'PeoplePay Executive Dashboard',
+          confidentiality: 'CONFIDENTIAL_EXECUTIVE',
+          publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+          futureGraphTarget: {
+            sitePath: '/sites/ExecutiveLeadership',
+            pageName: 'PeoplePay Executive Dashboard.aspx',
+            status: 'PENDING_AZURE_APP_REGISTRATION',
           },
         },
-        {
-          sectionKey: 'latest_locked_payroll',
-          title: 'Latest Locked Payroll',
-          displayOrder: 2,
-          data: dashboard.latestLockedPayroll || {
-            message: 'No locked payroll available yet.',
+        pageSections: [
+          {
+            sectionKey: 'kpi_summary',
+            title: 'PeoplePay KPI Summary',
+            displayOrder: 1,
+            data: {
+              totalEmployees: Number(summary.totalEmployees || 0),
+              activeEmployees: Number(summary.activeEmployees || 0),
+              draftEmployees: Number(summary.draftEmployees || 0),
+              payslipsGenerated: Number(summary.totalPayslips || 0),
+              payrollPeriods: Number(summary.payrollPeriods || 0),
+              payrollRuns: Number(summary.payrollRuns || 0),
+              lockedPayrollRuns: Number(summary.lockedPayrollRuns || 0),
+              openPayrollRuns: Number(summary.openPayrollRuns || 0),
+            },
           },
-        },
-        {
-          sectionKey: 'latest_financial_summary',
-          title: 'Latest Payroll Financial Summary',
-          displayOrder: 3,
-          data: {
-            grossPay: money(dashboard.financials.latestGrossPay),
-            deductions: money(dashboard.financials.latestDeductions),
-            netPay: money(dashboard.financials.latestNetPay),
-            employerCost: money(dashboard.financials.latestEmployerCost),
+          {
+            sectionKey: 'latest_locked_payroll',
+            title: 'Latest Locked Payroll',
+            displayOrder: 2,
+            data: latestLockedPayroll || {
+              message: 'No locked payroll available yet.',
+            },
           },
+          {
+            sectionKey: 'latest_financial_summary',
+            title: 'Latest Payroll Financial Summary',
+            displayOrder: 3,
+            data: {
+              grossPay: money(financials.latestGrossPay || 0),
+              deductions: money(financials.latestDeductions || 0),
+              netPay: money(financials.latestNetPay || 0),
+              employerCost: money(financials.latestEmployerCost || 0),
+            },
+          },
+          {
+            sectionKey: 'recent_payroll_runs',
+            title: 'Recent Payroll Runs',
+            displayOrder: 4,
+            data: recentPayrollRuns.map((run: any) => ({
+              id: run.id,
+              runName: run.runName,
+              periodName: run.periodName,
+              runType: run.runType,
+              status: run.status,
+              employeeCount: Number(run.employeeCount || 0),
+              grossPay: money(run.grossPay || 0),
+              deductions: money(run.totalDeductions || 0),
+              netPay: money(run.netPay || 0),
+              employerCost: money(run.employerCost || 0),
+              approvalCount: Number(run.approvalCount || 0),
+              lockedAt: run.lockedAt || null,
+            })),
+          },
+          {
+            sectionKey: 'compliance_notes',
+            title: 'Compliance Notes',
+            displayOrder: 5,
+            data: complianceNotes,
+          },
+        ],
+        securityRules: [
+          'This payload may contain payroll totals and must only be published to restricted executive audiences.',
+          'Do not publish individual employee payslip, NRC, bank, PAYE, NAPSA, or NHIMA details to public sites.',
+          'Detailed payroll evidence must remain restricted to Finance and Executive Leadership.',
+        ],
+      };
+    } catch (error: any) {
+      return {
+        payloadType: 'EXECUTIVE_LEADERSHIP_PAGE',
+        status: 'ERROR',
+        generatedAt: new Date(),
+        sourceSystem: 'Southin PeoplePay',
+        error: {
+          message: error?.message || 'Failed to build executive SharePoint page payload',
         },
-        {
-          sectionKey: 'recent_payroll_runs',
-          title: 'Recent Payroll Runs',
-          displayOrder: 4,
-          data: dashboard.recentPayrollRuns.map((run: any) => ({
-            id: run.id,
-            runName: run.runName,
-            periodName: run.periodName,
-            runType: run.runType,
-            status: run.status,
-            employeeCount: run.employeeCount,
-            grossPay: money(run.grossPay),
-            deductions: money(run.totalDeductions),
-            netPay: money(run.netPay),
-            employerCost: money(run.employerCost),
-            approvalCount: run.approvalCount,
-            lockedAt: run.lockedAt,
-          })),
+        target: {
+          siteName: 'Executive Leadership',
+          recommendedPageName: 'PeoplePay Executive Dashboard',
+          confidentiality: 'CONFIDENTIAL_EXECUTIVE',
+          publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
         },
-        {
-          sectionKey: 'compliance_notes',
-          title: 'Compliance Notes',
-          displayOrder: 5,
-          data: dashboard.complianceNotes,
-        },
-      ],
-      securityRules: [
-        'This payload may contain payroll totals and must only be published to restricted executive audiences.',
-        'Do not publish individual employee payslip, NRC, bank, PAYE, NAPSA, or NHIMA details to public sites.',
-        'Detailed payroll evidence must remain restricted to Finance and Executive Leadership.',
-      ],
-    };
+        pageSections: [],
+        securityRules: [
+          'No SharePoint write operation was performed.',
+          'Resolve API payload error before enabling Microsoft Graph publishing.',
+        ],
+      };
+    }
   }
 
   async getPublicDashboardPayload() {
-    const dashboard = await this.getDashboardSummary();
+    try {
+      const dashboard = await this.getDashboardSummary();
 
-    const latestStatus = dashboard.latestLockedPayroll
-      ? dashboard.latestLockedPayroll.status
-      : 'NO_LOCKED_PAYROLL';
+      const summary = dashboard?.summary || {};
+      const latestLockedPayroll = dashboard?.latestLockedPayroll || null;
 
-    return {
-      payloadType: 'PUBLIC_DASHBOARD_SUMMARY',
-      generatedAt: new Date(),
-      sourceSystem: 'Southin PeoplePay',
-      target: {
-        siteName: 'Southin Public Dashboard',
-        recommendedPageName: 'PeoplePay Public Summary',
-        confidentiality: 'PUBLIC_SUMMARY_ONLY',
-        publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
-        futureGraphTarget: {
-          sitePath: '/sites/SouthinPublicDashboard',
-          pageName: 'PeoplePay Public Summary.aspx',
-          status: 'PENDING_AZURE_APP_REGISTRATION',
+      const latestStatus = latestLockedPayroll?.status || 'NO_LOCKED_PAYROLL';
+
+      return {
+        payloadType: 'PUBLIC_DASHBOARD_SUMMARY',
+        status: 'READY',
+        generatedAt: new Date(),
+        sourceSystem: 'Southin PeoplePay',
+        target: {
+          siteName: 'Southin Public Dashboard',
+          recommendedPageName: 'PeoplePay Public Summary',
+          confidentiality: 'PUBLIC_SUMMARY_ONLY',
+          publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+          futureGraphTarget: {
+            sitePath: '/sites/SouthinPublicDashboard',
+            pageName: 'PeoplePay Public Summary.aspx',
+            status: 'PENDING_AZURE_APP_REGISTRATION',
+          },
         },
-      },
-      publicSummary: {
-        totalEmployees: dashboard.summary.totalEmployees,
-        activeEmployees: dashboard.summary.activeEmployees,
-        payrollProcessingStatus: latestStatus,
-        lockedPayrollRuns: dashboard.summary.lockedPayrollRuns,
-        openPayrollRuns: dashboard.summary.openPayrollRuns,
-        lastUpdated: dashboard.generatedAt,
-      },
-      excludedFields: [
-        'grossPay',
-        'deductions',
-        'netPay',
-        'employerCost',
-        'employeeNames',
-        'employeeNumbers',
-        'NRC',
-        'bankDetails',
-        'PAYE',
-        'NAPSA',
-        'NHIMA',
-        'payslipDetails',
-      ],
-      securityRules: [
-        'This payload must not contain salary values.',
-        'This payload must not contain employee names or employee numbers.',
-        'This payload must not contain statutory, banking, or payslip details.',
-      ],
-    };
+        publicSummary: {
+          totalEmployees: Number(summary.totalEmployees || 0),
+          activeEmployees: Number(summary.activeEmployees || 0),
+          payrollProcessingStatus: latestStatus,
+          lockedPayrollRuns: Number(summary.lockedPayrollRuns || 0),
+          openPayrollRuns: Number(summary.openPayrollRuns || 0),
+          lastUpdated: dashboard?.generatedAt || new Date(),
+        },
+        excludedFields: [
+          'grossPay',
+          'deductions',
+          'netPay',
+          'employerCost',
+          'employeeNames',
+          'employeeNumbers',
+          'NRC',
+          'bankDetails',
+          'PAYE',
+          'NAPSA',
+          'NHIMA',
+          'payslipDetails',
+        ],
+        securityRules: [
+          'This payload must not contain salary values.',
+          'This payload must not contain employee names or employee numbers.',
+          'This payload must not contain statutory, banking, or payslip details.',
+        ],
+      };
+    } catch (error: any) {
+      return {
+        payloadType: 'PUBLIC_DASHBOARD_SUMMARY',
+        status: 'ERROR',
+        generatedAt: new Date(),
+        sourceSystem: 'Southin PeoplePay',
+        error: {
+          message: error?.message || 'Failed to build public dashboard payload',
+        },
+        target: {
+          siteName: 'Southin Public Dashboard',
+          recommendedPageName: 'PeoplePay Public Summary',
+          confidentiality: 'PUBLIC_SUMMARY_ONLY',
+          publishingMethod: 'CONTROLLED_JSON_PAYLOAD',
+        },
+        publicSummary: {
+          totalEmployees: 0,
+          activeEmployees: 0,
+          payrollProcessingStatus: 'PAYLOAD_ERROR',
+          lockedPayrollRuns: 0,
+          openPayrollRuns: 0,
+          lastUpdated: new Date(),
+        },
+        excludedFields: [
+          'grossPay',
+          'deductions',
+          'netPay',
+          'employerCost',
+          'employeeNames',
+          'employeeNumbers',
+          'NRC',
+          'bankDetails',
+          'PAYE',
+          'NAPSA',
+          'NHIMA',
+          'payslipDetails',
+        ],
+        securityRules: [
+          'No confidential payroll data is included in this error payload.',
+          'Resolve API payload error before enabling Microsoft Graph publishing.',
+        ],
+      };
+    }
   }
 
   async getFinanceAuditPayload(runId?: string) {
@@ -523,6 +682,7 @@ export class ExecutiveService {
 
     return {
       payloadType: 'FINANCE_PAYROLL_AUDIT_PACKAGE',
+      status: 'READY',
       generatedAt: new Date(),
       sourceSystem: 'Southin PeoplePay',
       target: {
@@ -562,14 +722,13 @@ export class ExecutiveService {
   }
 
   async getSharePointExportPackage() {
-    const [executivePage, publicDashboard, financeAudit] = await Promise.all([
-      this.getExecutivePagePayload(),
-      this.getPublicDashboardPayload(),
-      this.getFinanceAuditPayload(),
-    ]);
+    const executivePage = await this.getExecutivePagePayload();
+    const publicDashboard = await this.getPublicDashboardPayload();
+    const financeAudit = await this.getFinanceAuditPayload();
 
     return {
       payloadType: 'SOUTHIN_PEOPLEPAY_SHAREPOINT_EXPORT_PACKAGE',
+      status: 'READY',
       generatedAt: new Date(),
       sourceSystem: 'Southin PeoplePay',
       graphAutomationStatus: 'NOT_ENABLED_YET',
@@ -580,21 +739,25 @@ export class ExecutiveService {
           siteName: 'Executive Leadership',
           purpose: 'Confidential executive payroll dashboard summary',
           payloadEndpoint: '/api/executive/sharepoint/executive-page-payload',
+          status: executivePage.status || 'READY',
         },
         {
           siteName: 'Finance',
           purpose: 'Payroll audit reports and finance evidence',
           payloadEndpoint: '/api/executive/sharepoint/finance-audit-payload',
+          status: financeAudit.status || 'READY',
         },
         {
           siteName: 'Human Resource',
           purpose: 'Employee master validation and payroll readiness tracking',
           payloadEndpoint: '/api/employees/payroll-readiness',
+          status: 'READY',
         },
         {
           siteName: 'Southin Public Dashboard',
           purpose: 'Non-confidential employee and payroll processing status only',
           payloadEndpoint: '/api/executive/sharepoint/public-dashboard-payload',
+          status: publicDashboard.status || 'READY',
         },
       ],
       payloads: {

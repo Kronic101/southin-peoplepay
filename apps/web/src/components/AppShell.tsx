@@ -15,6 +15,7 @@ const links = [
   ['Executive', '/executive/dashboard'],
   ['Admin', '/admin'],
   ['Payroll Audit', '/reports/payroll-audit'],
+  ['SharePoint Integration', '/admin/sharepoint-integration'],
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
