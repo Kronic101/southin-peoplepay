@@ -8,6 +8,7 @@ import { PayrollModule } from './payroll/payroll.module';
 import { StatutoryModule } from './statutory/statutory.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ExecutiveModule } from './executive/executive.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { IntegrationsModule } from './integrations/integrations.module';
     PayrollModule,
     StatutoryModule,
     DashboardModule,
-    IntegrationsModule
+    IntegrationsModule,
+    ExecutiveModule,
   ]
 })
 export class AppModule {}

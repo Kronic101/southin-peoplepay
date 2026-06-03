@@ -808,3 +808,49 @@ export async function employeeForgotPin(payload: { employeeNumber: string }) {
 
   return res.json();
 }
+
+export async function getExecutiveDashboard() {
+  const res = await fetch(`${API_URL}/executive/dashboard`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load executive dashboard');
+  }
+
+  return res.json();
+}
+
+export async function getExecutiveSharePointFeed() {
+  const res = await fetch(`${API_URL}/executive/sharepoint-feed`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load SharePoint executive feed');
+  }
+
+  return res.json();
+}
+
+export async function getPayrollAudit(runId?: string) {
+  const url = runId
+    ? `${API_URL}/executive/payroll-audit?runId=${runId}`
+    : `${API_URL}/executive/payroll-audit`;
+
+  const res = await fetch(url, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll audit');
+  }
+
+  return res.json();
+}
+
+export function getPayrollAuditCsvUrl(runId?: string) {
+  return runId
+    ? `${API_URL}/executive/payroll-audit.csv?runId=${runId}`
+    : `${API_URL}/executive/payroll-audit.csv`;
+}
