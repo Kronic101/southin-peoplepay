@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSharePointExportPackage } from '@/lib/api';
+import { getSharePointExportPackage, getSharePointExportLogs, getSharePointGraphStatus } from '@/lib/api';
 import { SharePointExportTester } from './sharepoint-export-tester';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +54,22 @@ async function safeLoadExportPackage() {
   }
 }
 
+async function safeLoadGraphStatus() {
+  try {
+    return await getSharePointGraphStatus();
+  } catch {
+    return null;
+  }
+}
+
+async function safeLoadExportLogs() {
+  try {
+    return await getSharePointExportLogs();
+  } catch {
+    return { logs: [] };
+  }
+}
+
 export default async function SharePointIntegrationStatusPage() {
   const exportPackageResult = await safeLoadExportPackage();
   const exportPackage = exportPackageResult.data;
@@ -85,6 +101,11 @@ export default async function SharePointIntegrationStatusPage() {
 
   const readyPayloads = controlledPayloads.filter((payload) => isReady(payload)).length;
 
+  const [graphStatus, exportLogs] = await Promise.all([
+    safeLoadGraphStatus(),
+    safeLoadExportLogs(),
+  ]);
+  
   const endpoints = [
     {
       name: 'Full SharePoint Export Package',
@@ -529,6 +550,87 @@ export default async function SharePointIntegrationStatusPage() {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="table-wrap">
+        <h3>SharePoint Graph Configuration Status</h3>
+
+        <div className="summary-grid">
+          <div className="summary-card">
+            <span className="summary-label">Graph Enabled</span>
+            <strong>{graphStatus?.graphEnabled ? 'Yes' : 'No'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Mode</span>
+            <strong>{graphStatus?.mode || 'DISABLED_DEV_MODE'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Azure Tenant ID</span>
+            <strong>{graphStatus?.requiredConfig?.AZURE_TENANT_ID ? 'Configured' : 'Missing'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Client ID</span>
+            <strong>{graphStatus?.requiredConfig?.AZURE_CLIENT_ID ? 'Configured' : 'Missing'}</strong>
+          </div>
+        </div>
+
+        <div className="notice">
+          {graphStatus?.message ||
+            'Microsoft Graph publishing is disabled. Export requests will be logged only.'}
+        </div>
+      </div>
+
+      <div className="table-wrap">
+        <h3>Recent SharePoint Export Logs</h3>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Target Site</th>
+              <th>Target Page / Library</th>
+              <th>Payload</th>
+              <th>Status</th>
+              <th>Requested By</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {(exportLogs?.logs || []).length === 0 ? (
+              <tr>
+                <td colSpan={6}>No SharePoint export logs yet.</td>
+              </tr>
+            ) : (
+              exportLogs.logs.map((log: any) => (
+                <tr key={log.id}>
+                  <td>{formatDateTime(log.createdAt)}</td>
+                  <td>{log.targetSite}</td>
+                  <td>{log.targetPage || log.targetLibrary || '-'}</td>
+                  <td>
+                    <code>{log.payloadEndpoint}</code>
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        log.graphStatus === 'SUCCESS'
+                          ? 'status-pill locked'
+                          : log.graphStatus === 'FAILED'
+                            ? 'status-pill warning'
+                            : 'status-pill'
+                      }
+                    >
+                      {log.graphStatus}
+                    </span>
+                  </td>
+                  <td>{log.requestedBy || '-'}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

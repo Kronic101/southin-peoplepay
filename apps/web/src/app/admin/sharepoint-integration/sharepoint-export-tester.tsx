@@ -1,89 +1,110 @@
 'use client';
 
 import { useState } from 'react';
-import { logSharePointExportRequest } from '@/lib/api';
+import { publishToSharePoint } from '@/lib/api';
+
+type PublishTarget = {
+  label: string;
+  targetSite: string;
+  targetPage?: string;
+  targetLibrary?: string;
+  payloadEndpoint: string;
+  payloadType: string;
+  confidentiality: string;
+};
+
+const targets: PublishTarget[] = [
+  {
+    label: 'Publish Executive Dashboard Payload',
+    targetSite: 'Executive Leadership',
+    targetPage: 'PeoplePay Executive Dashboard',
+    payloadEndpoint: '/api/executive/sharepoint/executive-page-payload',
+    payloadType: 'EXECUTIVE_LEADERSHIP_PAGE',
+    confidentiality: 'CONFIDENTIAL_EXECUTIVE',
+  },
+  {
+    label: 'Publish Finance Audit Payload',
+    targetSite: 'Finance',
+    targetLibrary: 'Payroll Audit Reports',
+    payloadEndpoint: '/api/executive/sharepoint/finance-audit-payload',
+    payloadType: 'FINANCE_PAYROLL_AUDIT_PACKAGE',
+    confidentiality: 'CONFIDENTIAL_FINANCE',
+  },
+  {
+    label: 'Publish Public Dashboard Payload',
+    targetSite: 'Southin Public Dashboard',
+    targetPage: 'PeoplePay Public Summary',
+    payloadEndpoint: '/api/executive/sharepoint/public-dashboard-payload',
+    payloadType: 'PUBLIC_DASHBOARD_SUMMARY',
+    confidentiality: 'PUBLIC_SUMMARY_ONLY',
+  },
+];
 
 export function SharePointExportTester() {
+  const [loadingTarget, setLoadingTarget] = useState('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
 
-  async function testExportLog(targetSite: string, targetPage: string, payloadEndpoint: string) {
+  async function handlePublish(target: PublishTarget) {
     setMessage('');
-    setLoading(true);
+    setLastResult(null);
+    setLoadingTarget(target.label);
 
     try {
-      const result = await logSharePointExportRequest({
-        targetSite,
-        targetPage,
-        payloadEndpoint,
+      const result = await publishToSharePoint({
+        targetSite: target.targetSite,
+        targetPage: target.targetPage,
+        targetLibrary: target.targetLibrary,
+        payloadEndpoint: target.payloadEndpoint,
+        payloadType: target.payloadType,
+        confidentiality: target.confidentiality,
         requestedBy: 'dev-admin',
-        notes: 'Testing SharePoint export logging before Microsoft Graph integration.',
+        notes:
+          'Controlled SharePoint publish test. In dev mode this logs only and does not write to SharePoint.',
       });
 
-      setMessage(result.message || 'Development export log created.');
+      setLastResult(result);
+      setMessage(
+        `Export logged successfully. Status: ${result.graphAutomationStatus}. Log ID: ${result.exportLogId}`,
+      );
     } catch {
-      setMessage('Failed to create development export log. Check the API.');
+      setMessage('Failed to log SharePoint export request. Check API and database connection.');
     } finally {
-      setLoading(false);
+      setLoadingTarget('');
     }
   }
 
   return (
     <div className="table-wrap">
-      <div className="page-header">
-        <div>
-          <h3>Development Export Test</h3>
-          <p className="muted">
-            These buttons only call the development log endpoint. They do not write to SharePoint yet.
-          </p>
-        </div>
+      <h3>SharePoint Publish Test</h3>
+
+      <p className="muted">
+        These buttons log export attempts now. They will publish through Microsoft Graph later after
+        Azure App Registration is ready.
+      </p>
+
+      <div className="action-row">
+        {targets.map((target) => (
+          <button
+            key={target.label}
+            className={target.confidentiality === 'PUBLIC_SUMMARY_ONLY' ? 'btn-secondary' : 'btn'}
+            type="button"
+            disabled={loadingTarget === target.label}
+            onClick={() => handlePublish(target)}
+          >
+            {loadingTarget === target.label ? 'Logging...' : target.label}
+          </button>
+        ))}
       </div>
 
       {message && <div className="notice">{message}</div>}
 
-      <div className="action-row">
-        <button
-          className="btn"
-          disabled={loading}
-          onClick={() =>
-            testExportLog(
-              'Executive Leadership',
-              'PeoplePay Executive Dashboard',
-              '/api/executive/sharepoint/executive-page-payload',
-            )
-          }
-        >
-          {loading ? 'Testing...' : 'Test Executive Export Log'}
-        </button>
-
-        <button
-          className="btn-secondary"
-          disabled={loading}
-          onClick={() =>
-            testExportLog(
-              'Finance',
-              'Payroll Audit Reports',
-              '/api/executive/sharepoint/finance-audit-payload',
-            )
-          }
-        >
-          Test Finance Export Log
-        </button>
-
-        <button
-          className="btn-secondary"
-          disabled={loading}
-          onClick={() =>
-            testExportLog(
-              'Southin Public Dashboard',
-              'PeoplePay Public Summary',
-              '/api/executive/sharepoint/public-dashboard-payload',
-            )
-          }
-        >
-          Test Public Dashboard Export Log
-        </button>
-      </div>
+      {lastResult && (
+        <details>
+          <summary>Last export log response</summary>
+          <pre className="json-preview">{JSON.stringify(lastResult, null, 2)}</pre>
+        </details>
+      )}
     </div>
   );
 }

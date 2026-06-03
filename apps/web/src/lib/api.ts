@@ -933,3 +933,52 @@ export async function logSharePointExportRequest(payload: {
 
   return res.json();
 }
+
+  export async function getSharePointExportLogs() {
+    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to load SharePoint export logs');
+    }
+
+    return res.json();
+  }
+
+  export async function getSharePointGraphStatus() {
+    const res = await fetch(`${API_URL}/executive/sharepoint/graph-status`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to load SharePoint Graph status');
+    }
+
+    return res.json();
+  }
+
+  export async function publishToSharePoint(payload: {
+    targetSite: string;
+    targetPage?: string;
+    targetLibrary?: string;
+    payloadEndpoint: string;
+    payloadType?: string;
+    confidentiality?: string;
+    requestedBy?: string;
+    notes?: string;
+  }) {
+    const res = await fetch(`${API_URL}/executive/sharepoint/publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to publish/log SharePoint export request');
+    }
+
+    return res.json();
+  }

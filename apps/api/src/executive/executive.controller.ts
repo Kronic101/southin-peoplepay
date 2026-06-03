@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Post, Query, Res } from '@nestjs/common';
 import { ExecutiveService } from './executive.service';
 
 @Controller('executive')
@@ -51,4 +51,19 @@ export class ExecutiveController {
   logSharePointExportRequest(@Body() body: any) {
     return this.executiveService.logSharePointExportRequest(body);
   }
+
+  @Get('sharepoint/export-logs')
+    getSharePointExportLogs() {
+      return this.executiveService.getSharePointExportLogs();
+    }
+
+    @Get('sharepoint/graph-status')
+    getSharePointGraphStatus() {
+      return this.executiveService.getSharePointGraphStatus();
+    }
+
+    @Post('sharepoint/publish')
+    publishToSharePoint(@Body() body: any) {
+      return this.executiveService.logSharePointExportRequest(body);
+    }
 }

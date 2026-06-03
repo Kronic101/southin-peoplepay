@@ -426,6 +426,24 @@ model SharePointPublishLog {
   createdAt   DateTime @default(now())
 }
 
+model SharePointExportLog {
+  id                String                 @id @default(uuid())
+  targetSite        String
+  targetPage        String?
+  targetLibrary     String?
+  payloadEndpoint   String
+  payloadType       String?
+  confidentiality   String?
+  requestedBy       String?
+  graphEnabled      Boolean                @default(false)
+  graphStatus       SharePointExportStatus @default(DISABLED_DEV_MODE)
+  requestPayload    Json?
+  responsePayload   Json?
+  errorMessage      String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+}
+
 enum EmployeeStatus {
   DRAFT
   ACTIVE
@@ -464,4 +482,11 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum SharePointExportStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  DISABLED_DEV_MODE
 }

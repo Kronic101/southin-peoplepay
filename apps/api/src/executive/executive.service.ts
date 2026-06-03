@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SharePointGraphService } from './sharepoint-graph.service';
 
 function toNumber(value: unknown) {
   if (value === null || value === undefined) return 0;
@@ -17,7 +18,10 @@ function csvEscape(value: unknown) {
 
 @Injectable()
 export class ExecutiveService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sharePointGraphService: SharePointGraphService,
+  ) {}
 
   private calculateRunTotals(run: any) {
     const employees = run?.employees || [];
@@ -779,14 +783,69 @@ export class ExecutiveService {
   }
 
   async logSharePointExportRequest(body: any) {
+    const targetSite = body?.targetSite || 'Unknown SharePoint Site';
+    const targetPage = body?.targetPage || null;
+    const targetLibrary = body?.targetLibrary || null;
+    const payloadEndpoint = body?.payloadEndpoint || '/api/executive/sharepoint/export-package';
+    const requestedBy = body?.requestedBy || 'dev-admin';
+
+    const graphResult = await this.sharePointGraphService.publish({
+      targetSite,
+      targetPage,
+      targetLibrary,
+      payloadEndpoint,
+      payloadType: body?.payloadType || null,
+      confidentiality: body?.confidentiality || null,
+      requestedBy,
+      payload: body,
+    });
+
+    const log = await this.prisma.sharePointExportLog.create({
+      data: {
+        targetSite,
+        targetPage,
+        targetLibrary,
+        payloadEndpoint,
+        payloadType: body?.payloadType || null,
+        confidentiality: body?.confidentiality || null,
+        requestedBy,
+        graphEnabled: Boolean(graphResult.graphEnabled),
+        graphStatus: graphResult.graphStatus as any,
+        requestPayload: body || {},
+        responsePayload: graphResult || {},
+        errorMessage:
+          graphResult.graphStatus === 'FAILED'
+            ? graphResult.message || 'SharePoint Graph publishing failed'
+            : null,
+      },
+    });
+
     return {
-      message:
-        'SharePoint export request received in development mode. No Microsoft Graph write operation was performed.',
-      graphAutomationStatus: 'DISABLED_DEV_MODE',
-      receivedAt: new Date(),
+      message: graphResult.message,
+      graphAutomationStatus: graphResult.graphStatus,
+      receivedAt: log.createdAt,
+      exportLogId: log.id,
       receivedPayload: body,
+      graphResult,
       nextStep:
         'Enable Microsoft Graph only after Azure App Registration, permissions, site IDs, and library IDs are configured.',
     };
+  }
+
+  async getSharePointExportLogs() {
+    const logs = await this.prisma.sharePointExportLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return {
+      generatedAt: new Date(),
+      totalReturned: logs.length,
+      logs,
+    };
+  }
+
+  getSharePointGraphStatus() {
+    return this.sharePointGraphService.getStatus();
   }
 }
