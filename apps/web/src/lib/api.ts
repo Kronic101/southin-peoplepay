@@ -896,14 +896,6 @@ export async function getPublicDashboardPayload() {
   );
 }
 
-export async function getFinanceAuditPayload(runId?: string) {
-  const url = runId
-    ? `${API_URL}/executive/sharepoint/finance-audit-payload?runId=${runId}`
-    : `${API_URL}/executive/sharepoint/finance-audit-payload`;
-
-  return fetchJsonOrThrow(url, 'Failed to load finance audit SharePoint payload');
-}
-
 export async function logSharePointExportRequest(payload: {
   targetSite: string;
   targetPage: string;
@@ -941,6 +933,18 @@ export async function logSharePointExportRequest(payload: {
 
     if (!res.ok) {
       throw new Error('Failed to load SharePoint export log');
+    }
+
+    return res.json();
+  }
+
+  export async function getSharePointExportLogs() {
+    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to load SharePoint export logs');
     }
 
     return res.json();
@@ -1052,6 +1056,22 @@ export async function getSharePointDiscoveryPreview(input: any) {
 
   if (!res.ok) {
     throw new Error('Failed to generate SharePoint discovery preview');
+  }
+
+  return res.json();
+}
+
+export async function getFinanceAuditPayload(runId?: string) {
+  const url = runId
+    ? `${API_URL}/executive/sharepoint/finance-audit-payload?runId=${encodeURIComponent(runId)}`
+    : `${API_URL}/executive/sharepoint/finance-audit-payload`;
+
+  const res = await fetch(url, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load finance audit SharePoint payload');
   }
 
   return res.json();

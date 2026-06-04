@@ -9,13 +9,20 @@ const links = [
 
   ['Attendance', '/attendance'],
   ['Leave', '/leave'],
+
   ['Payroll', '/payroll'],
   ['Statutory', '/statutory'],
+
   ['Finance', '/finance/dashboard'],
   ['Executive', '/executive/dashboard'],
-  ['Admin', '/admin'],
+
+  ['Reports Centre', '/reports'],
   ['Payroll Audit', '/reports/payroll-audit'],
+
   ['SharePoint Integration', '/admin/sharepoint-integration'],
+  ['Graph Setup Guide', '/admin/sharepoint-graph-setup'],
+
+  ['Admin', '/admin'],
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
