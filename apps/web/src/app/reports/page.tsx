@@ -199,6 +199,18 @@ export default async function PayrollReportsCentrePage() {
             </tr>
 
             <tr>
+              <td>Public Dashboard Safe Summary</td>
+              <td>Non-confidential payroll processing summary for the public SharePoint dashboard.</td>
+              <td>Public Dashboard / Admin</td>
+              <td>Web / JSON</td>
+              <td>
+                <Link className="link-action" href="/reports/public-summary">
+                  Open Summary
+                </Link>
+              </td>
+            </tr>
+
+            <tr>
               <td>SharePoint Export Logs</td>
               <td>Evidence of attempted SharePoint publish operations.</td>
               <td>Admin / Executive</td>

@@ -890,11 +890,17 @@ export async function getExecutivePagePayload() {
 }
 
 export async function getPublicDashboardPayload() {
-  return fetchJsonOrThrow(
-    `${API_URL}/executive/sharepoint/public-dashboard-payload`,
-    'Failed to load public dashboard SharePoint payload',
-  );
+  const res = await fetch(`${API_URL}/executive/sharepoint/public-dashboard-payload`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load public dashboard payload');
+  }
+
+  return res.json();
 }
+
 
 export async function logSharePointExportRequest(payload: {
   targetSite: string;
