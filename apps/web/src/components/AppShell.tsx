@@ -20,6 +20,7 @@ const links = [
   ['Payroll Audit', '/reports/payroll-audit'],
   ['Finance Evidence', '/reports/finance-evidence'],
   ['Bank Payment Prep', '/reports/bank-payment-preparation'],
+  ['Payment Batches', '/reports/payment-batches'],
   ['Public Summary', '/reports/public-summary'],
 
   ['SharePoint Integration', '/admin/sharepoint-integration'],

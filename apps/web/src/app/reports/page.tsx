@@ -199,6 +199,18 @@ export default async function PayrollReportsCentrePage() {
             </tr>
 
             <tr>
+              <td>Payment Batches</td>
+              <td>Finance workflow records for payment batch preparation and manual approval.</td>
+              <td>Finance / Executive</td>
+              <td>Web / JSON</td>
+              <td>
+                <Link className="link-action" href="/reports/payment-batches">
+                  Open Batches
+                </Link>
+              </td>
+            </tr>
+
+            <tr>
               <td>Executive Dashboard Feed</td>
               <td>Executive summary for headcount, totals, approvals, and payroll status.</td>
               <td>Executive</td>

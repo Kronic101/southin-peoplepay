@@ -1082,3 +1082,125 @@ export async function getFinanceAuditPayload(runId?: string) {
 
   return res.json();
 }
+
+export async function getPaymentBatches() {
+  const res = await fetch(`${API_URL}/payment-batches`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payment batches');
+  }
+
+  return res.json();
+}
+
+export async function getPaymentBatch(id: string) {
+  const res = await fetch(`${API_URL}/payment-batches/${id}`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payment batch');
+  }
+
+  return res.json();
+}
+
+export async function createPaymentBatchFromPayrollRun(
+  payrollRunId: string,
+  payload: {
+    batchName?: string;
+    preparedBy?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payment-batches/from-payroll-run/${payrollRunId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to create payment batch');
+  }
+
+  return res.json();
+}
+
+export async function validatePaymentBatchBankDetails(
+  id: string,
+  payload: {
+    items: Array<{
+      id: string;
+      bankName?: string;
+      bankBranch?: string;
+      bankAccountNumber?: string;
+      bankDetailsStatus?: string;
+      validationNotes?: string;
+    }>;
+  },
+) {
+  const res = await fetch(`${API_URL}/payment-batches/${id}/validate-bank-details`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to validate bank details');
+  }
+
+  return res.json();
+}
+
+export async function preparePaymentBatch(
+  id: string,
+  payload: {
+    preparedBy?: string;
+    evidenceNotes?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payment-batches/${id}/prepare`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to prepare payment batch');
+  }
+
+  return res.json();
+}
+
+export async function approvePaymentBatch(
+  id: string,
+  payload: {
+    approvedBy?: string;
+    evidenceNotes?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payment-batches/${id}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to approve payment batch');
+  }
+
+  return res.json();
+}
