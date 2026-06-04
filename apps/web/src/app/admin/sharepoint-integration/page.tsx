@@ -200,6 +200,10 @@ export default async function SharePointIntegrationStatusPage() {
             Executive Dashboard
           </Link>
 
+          <Link className="btn-secondary" href="/admin/sharepoint-graph-setup">
+            Graph Setup Guide
+          </Link>
+
           <Link className="btn" href="/reports/payroll-audit">
             Payroll Audit Report
           </Link>
@@ -567,7 +571,11 @@ export default async function SharePointIntegrationStatusPage() {
             ) : (
               exportLogs.logs.map((log: any) => (
                 <tr key={log.id}>
-                  <td>{formatDateTime(log.createdAt)}</td>
+                  <td>
+                    <Link href={`/admin/sharepoint-integration/export-logs/${log.id}`}>
+                      {formatDateTime(log.createdAt)}
+                    </Link>
+                  </td>
                   <td>{log.targetSite}</td>
                   <td>{log.targetPage || log.targetLibrary || '-'}</td>
                   <td>

@@ -934,13 +934,13 @@ export async function logSharePointExportRequest(payload: {
   return res.json();
 }
 
-  export async function getSharePointExportLogs() {
-    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs`, {
+  export async function getSharePointExportLog(id: string) {
+    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs/${id}`, {
       cache: 'no-store',
     });
 
     if (!res.ok) {
-      throw new Error('Failed to load SharePoint export logs');
+      throw new Error('Failed to load SharePoint export log');
     }
 
     return res.json();
@@ -1012,6 +1012,18 @@ export async function validateSharePointTarget(payload: {
 
   if (!res.ok) {
     throw new Error('Failed to validate SharePoint target');
+  }
+
+  return res.json();
+}
+
+export async function getSharePointSetupGuide() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/setup-guide`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load SharePoint Graph setup guide');
   }
 
   return res.json();

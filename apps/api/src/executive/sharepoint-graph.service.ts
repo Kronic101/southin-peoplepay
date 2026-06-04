@@ -103,48 +103,96 @@ export class SharePointGraphService {
     };
   }
 
-  async publish(input: SharePointPublishInput) {
+  private assertGraphWriteAllowed() {
     const graphEnabled = this.isGraphEnabled();
-    const targetValidation = this.validateTarget(input);
-    const missingConfig = getMissingGraphConfig();
 
     if (!graphEnabled) {
       return {
-        graphEnabled: false,
+        allowed: false,
         graphStatus: 'DISABLED_DEV_MODE',
+        reason:
+          'Microsoft Graph publishing is disabled. This request will only be logged for audit and testing.',
+      };
+    }
+
+    const status = this.getStatus();
+
+    if (!status.readyForGraphWrites) {
+      return {
+        allowed: false,
+        graphStatus: 'FAILED',
+        reason:
+          'Microsoft Graph publishing is enabled, but required configuration values are missing.',
+        missingConfig: status.missingConfig,
+      };
+    }
+
+    return {
+      allowed: true,
+      graphStatus: 'READY',
+      reason: 'Microsoft Graph configuration appears ready for write operations.',
+    };
+  }
+
+  private async uploadJsonToSharePointPlaceholder(input: SharePointPublishInput) {
+    return {
+      operation: 'UPLOAD_JSON_PLACEHOLDER',
+      performed: false,
+      message:
+        'Placeholder only. Real Microsoft Graph JSON upload will be implemented after Azure App Registration is configured.',
+      targetSite: input.targetSite,
+      targetPage: input.targetPage || null,
+      targetLibrary: input.targetLibrary || null,
+      payloadEndpoint: input.payloadEndpoint,
+    };
+  }
+
+  private async updateSharePointPagePlaceholder(input: SharePointPublishInput) {
+    return {
+      operation: 'UPDATE_PAGE_PLACEHOLDER',
+      performed: false,
+      message:
+        'Placeholder only. Real SharePoint page update will be implemented after Microsoft Graph permissions are approved.',
+      targetSite: input.targetSite,
+      targetPage: input.targetPage || null,
+      payloadEndpoint: input.payloadEndpoint,
+    };
+  }
+
+  async publish(input: SharePointPublishInput) {
+    const targetValidation = this.validateTarget(input);
+    const writeCheck = this.assertGraphWriteAllowed();
+
+    if (!writeCheck.allowed) {
+      return {
+        graphEnabled: this.isGraphEnabled(),
+        graphStatus: writeCheck.graphStatus,
         message:
-          'SharePoint export request logged only. No Microsoft Graph write operation was performed.',
+          writeCheck.graphStatus === 'DISABLED_DEV_MODE'
+            ? 'SharePoint export request logged only. No Microsoft Graph write operation was performed.'
+            : 'Microsoft Graph write operation blocked because configuration is incomplete.',
+        writeCheck,
         targetValidation,
         targetSite: input.targetSite,
         targetPage: input.targetPage || null,
         targetLibrary: input.targetLibrary || null,
         payloadEndpoint: input.payloadEndpoint,
         nextStep:
-          'Enable SHAREPOINT_GRAPH_ENABLED=true only after Azure App Registration, permissions, site IDs, and drive/list IDs are configured.',
+          'Enable Microsoft Graph only after Azure App Registration, permissions, site IDs, and library/list IDs are configured.',
       };
     }
 
-    if (missingConfig.length > 0 || !targetValidation.valid || !targetValidation.targetReady) {
-      return {
-        graphEnabled: true,
-        graphStatus: 'FAILED',
-        message:
-          'Microsoft Graph publishing is enabled, but required configuration is incomplete. No SharePoint write was performed.',
-        missingConfig,
-        targetValidation,
-        targetSite: input.targetSite,
-        targetPage: input.targetPage || null,
-        targetLibrary: input.targetLibrary || null,
-        payloadEndpoint: input.payloadEndpoint,
-      };
-    }
+    const uploadPlaceholder = await this.uploadJsonToSharePointPlaceholder(input);
+    const pagePlaceholder = await this.updateSharePointPagePlaceholder(input);
 
     return {
       graphEnabled: true,
       graphStatus: 'FAILED',
       message:
-        'Graph configuration is ready, but the real Microsoft Graph upload/write client has not been implemented yet.',
+        'Graph configuration is ready, but real Microsoft Graph write operations are still intentionally blocked.',
       targetValidation,
+      uploadPlaceholder,
+      pagePlaceholder,
       targetSite: input.targetSite,
       targetPage: input.targetPage || null,
       targetLibrary: input.targetLibrary || null,

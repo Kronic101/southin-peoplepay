@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
 import { ExecutiveService } from './executive.service';
 
 @Controller('executive')
@@ -47,33 +47,43 @@ export class ExecutiveController {
     return this.executiveService.getFinanceAuditPayload(runId);
   }
 
+  @Get('sharepoint/setup-guide')
+  getSharePointSetupGuide() {
+    return this.executiveService.getSharePointSetupGuide();
+  }
+
+  @Get('sharepoint/export-logs')
+  getSharePointExportLogs() {
+    return this.executiveService.getSharePointExportLogs();
+  }
+
+  @Get('sharepoint/export-logs/:id')
+  getSharePointExportLog(@Param('id') id: string) {
+    return this.executiveService.getSharePointExportLog(id);
+  }
+
+  @Get('sharepoint/graph-status')
+  getSharePointGraphStatus() {
+    return this.executiveService.getSharePointGraphStatus();
+  }
+
+  @Get('sharepoint/targets')
+  getSharePointGraphTargets() {
+    return this.executiveService.getSharePointGraphTargets();
+  }
+
+  @Post('sharepoint/validate-target')
+  validateSharePointTarget(@Body() body: any) {
+    return this.executiveService.validateSharePointTarget(body);
+  }
+
   @Post('sharepoint/export-dev-log')
   logSharePointExportRequest(@Body() body: any) {
     return this.executiveService.logSharePointExportRequest(body);
   }
 
-  @Get('sharepoint/export-logs')
-    getSharePointExportLogs() {
-      return this.executiveService.getSharePointExportLogs();
-    }
-
-    @Get('sharepoint/graph-status')
-    getSharePointGraphStatus() {
-      return this.executiveService.getSharePointGraphStatus();
-    }
-
-    @Post('sharepoint/publish')
-    publishToSharePoint(@Body() body: any) {
-      return this.executiveService.logSharePointExportRequest(body);
-    }
-
-    @Get('sharepoint/targets')
-    getSharePointGraphTargets() {
-      return this.executiveService.getSharePointGraphTargets();
-    }
-
-    @Post('sharepoint/validate-target')
-    validateSharePointTarget(@Body() body: any) {
-      return this.executiveService.validateSharePointTarget(body);
-    }
+  @Post('sharepoint/publish')
+  publishToSharePoint(@Body() body: any) {
+    return this.executiveService.logSharePointExportRequest(body);
+  }
 }
