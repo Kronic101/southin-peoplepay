@@ -187,6 +187,18 @@ export default async function PayrollReportsCentrePage() {
             </tr>
 
             <tr>
+              <td>Bank Payment Preparation</td>
+              <td>Finance-controlled payment preparation placeholder before bank integration.</td>
+              <td>Finance / Executive</td>
+              <td>Web / JSON</td>
+              <td>
+                <Link className="link-action" href="/reports/bank-payment-preparation">
+                  Open Payment Prep
+                </Link>
+              </td>
+            </tr>
+
+            <tr>
               <td>Executive Dashboard Feed</td>
               <td>Executive summary for headcount, totals, approvals, and payroll status.</td>
               <td>Executive</td>
