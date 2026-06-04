@@ -982,3 +982,37 @@ export async function logSharePointExportRequest(payload: {
 
     return res.json();
   }
+
+  export async function getSharePointTargets() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/targets`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load SharePoint targets');
+  }
+
+  return res.json();
+}
+
+export async function validateSharePointTarget(payload: {
+  targetKey?: string;
+  targetSite: string;
+  targetPage?: string;
+  targetLibrary?: string;
+  payloadEndpoint: string;
+}) {
+  const res = await fetch(`${API_URL}/executive/sharepoint/validate-target`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to validate SharePoint target');
+  }
+
+  return res.json();
+}

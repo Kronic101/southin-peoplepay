@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSharePointExportPackage, getSharePointExportLogs, getSharePointGraphStatus } from '@/lib/api';
+import { getSharePointExportPackage, getSharePointExportLogs, getSharePointGraphStatus, getSharePointTargets } from '@/lib/api';
 import { SharePointExportTester } from './sharepoint-export-tester';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +54,14 @@ async function safeLoadExportPackage() {
   }
 }
 
+async function safeLoadTargets() {
+  try {
+    return await getSharePointTargets();
+  } catch {
+    return { targets: [] };
+  }
+}
+
 async function safeLoadGraphStatus() {
   try {
     return await getSharePointGraphStatus();
@@ -101,9 +109,10 @@ export default async function SharePointIntegrationStatusPage() {
 
   const readyPayloads = controlledPayloads.filter((payload) => isReady(payload)).length;
 
-  const [graphStatus, exportLogs] = await Promise.all([
+  const [graphStatus, sharePointTargets, exportLogs] = await Promise.all([
     safeLoadGraphStatus(),
     safeLoadExportLogs(),
+    safeLoadTargets(),
   ]);
   
   const endpoints = [
@@ -477,6 +486,166 @@ export default async function SharePointIntegrationStatusPage() {
                 </tr>
               );
             })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="table-wrap">
+        <h3>SharePoint Graph Configuration Status</h3>
+
+        <div className="summary-grid">
+          <div className="summary-card">
+            <span className="summary-label">Graph Enabled</span>
+            <strong>{graphStatus?.graphEnabled ? 'Yes' : 'No'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Mode</span>
+            <strong>{graphStatus?.mode || 'DISABLED_DEV_MODE'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Ready for Graph Writes</span>
+            <strong>{graphStatus?.readyForGraphWrites ? 'Yes' : 'No'}</strong>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-label">Missing Config Items</span>
+            <strong>{graphStatus?.missingConfig?.length || 0}</strong>
+          </div>
+        </div>
+
+        <div className="notice">
+          {graphStatus?.message ||
+            'Microsoft Graph publishing is disabled. Export requests will be logged only.'}
+        </div>
+      </div>
+
+      <div className="table-wrap">
+        <h3>Registered SharePoint Targets</h3>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Target Key</th>
+              <th>Site</th>
+              <th>Page / Library</th>
+              <th>Payload Endpoint</th>
+              <th>Operation</th>
+              <th>Site ID</th>
+              <th>Drive ID</th>
+              <th>List ID</th>
+              <th>Ready</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {(sharePointTargets?.targets || []).length === 0 ? (
+              <tr>
+                <td colSpan={9}>No SharePoint targets registered.</td>
+              </tr>
+            ) : (
+              sharePointTargets.targets.map((target: any) => {
+                const siteReady = Boolean(target.configured?.siteId);
+                const driveReady =
+                  target.configured?.driveId === null ? true : Boolean(target.configured?.driveId);
+                const listReady =
+                  target.configured?.listId === null ? true : Boolean(target.configured?.listId);
+                const targetReady = siteReady && driveReady && listReady;
+
+                return (
+                  <tr key={target.key}>
+                    <td>
+                      <code>{target.key}</code>
+                    </td>
+                    <td>{target.siteName}</td>
+                    <td>{target.pageName || target.libraryName || '-'}</td>
+                    <td>
+                      <code>{target.payloadEndpoint}</code>
+                    </td>
+                    <td>{target.allowedOperation}</td>
+                    <td>
+                      <span className={siteReady ? 'status-pill locked' : 'status-pill warning'}>
+                        {siteReady ? 'Configured' : 'Missing'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={driveReady ? 'status-pill locked' : 'status-pill warning'}>
+                        {target.configured?.driveId === null
+                          ? 'N/A'
+                          : driveReady
+                            ? 'Configured'
+                            : 'Missing'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={listReady ? 'status-pill locked' : 'status-pill warning'}>
+                        {target.configured?.listId === null
+                          ? 'N/A'
+                          : listReady
+                            ? 'Configured'
+                            : 'Missing'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={targetReady ? 'status-pill locked' : 'status-pill warning'}>
+                        {targetReady ? 'Ready' : 'Pending IDs'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="table-wrap">
+        <h3>Recent SharePoint Export Logs</h3>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Target Site</th>
+              <th>Target Page / Library</th>
+              <th>Payload</th>
+              <th>Status</th>
+              <th>Requested By</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {(exportLogs?.logs || []).length === 0 ? (
+              <tr>
+                <td colSpan={6}>No SharePoint export logs yet.</td>
+              </tr>
+            ) : (
+              exportLogs.logs.map((log: any) => (
+                <tr key={log.id}>
+                  <td>{formatDateTime(log.createdAt)}</td>
+                  <td>{log.targetSite}</td>
+                  <td>{log.targetPage || log.targetLibrary || '-'}</td>
+                  <td>
+                    <code>{log.payloadEndpoint}</code>
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        log.graphStatus === 'SUCCESS'
+                          ? 'status-pill locked'
+                          : log.graphStatus === 'FAILED'
+                            ? 'status-pill warning'
+                            : 'status-pill'
+                      }
+                    >
+                      {log.graphStatus}
+                    </span>
+                  </td>
+                  <td>{log.requestedBy || '-'}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

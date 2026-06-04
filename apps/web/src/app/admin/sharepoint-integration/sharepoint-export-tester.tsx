@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { publishToSharePoint } from '@/lib/api';
 
 type PublishTarget = {
   label: string;
+  targetKey: string;
   targetSite: string;
   targetPage?: string;
   targetLibrary?: string;
@@ -16,6 +18,7 @@ type PublishTarget = {
 const targets: PublishTarget[] = [
   {
     label: 'Publish Executive Dashboard Payload',
+    targetKey: 'EXECUTIVE_DASHBOARD',
     targetSite: 'Executive Leadership',
     targetPage: 'PeoplePay Executive Dashboard',
     payloadEndpoint: '/api/executive/sharepoint/executive-page-payload',
@@ -24,6 +27,7 @@ const targets: PublishTarget[] = [
   },
   {
     label: 'Publish Finance Audit Payload',
+    targetKey: 'FINANCE_AUDIT_REPORTS',
     targetSite: 'Finance',
     targetLibrary: 'Payroll Audit Reports',
     payloadEndpoint: '/api/executive/sharepoint/finance-audit-payload',
@@ -32,6 +36,7 @@ const targets: PublishTarget[] = [
   },
   {
     label: 'Publish Public Dashboard Payload',
+    targetKey: 'PUBLIC_DASHBOARD',
     targetSite: 'Southin Public Dashboard',
     targetPage: 'PeoplePay Public Summary',
     payloadEndpoint: '/api/executive/sharepoint/public-dashboard-payload',
@@ -41,6 +46,7 @@ const targets: PublishTarget[] = [
 ];
 
 export function SharePointExportTester() {
+  const router = useRouter();
   const [loadingTarget, setLoadingTarget] = useState('');
   const [message, setMessage] = useState('');
   const [lastResult, setLastResult] = useState<any>(null);
@@ -52,6 +58,7 @@ export function SharePointExportTester() {
 
     try {
       const result = await publishToSharePoint({
+        targetKey: target.targetKey,
         targetSite: target.targetSite,
         targetPage: target.targetPage,
         targetLibrary: target.targetLibrary,
@@ -67,6 +74,8 @@ export function SharePointExportTester() {
       setMessage(
         `Export logged successfully. Status: ${result.graphAutomationStatus}. Log ID: ${result.exportLogId}`,
       );
+
+      router.refresh();
     } catch {
       setMessage('Failed to log SharePoint export request. Check API and database connection.');
     } finally {
@@ -86,7 +95,7 @@ export function SharePointExportTester() {
       <div className="action-row">
         {targets.map((target) => (
           <button
-            key={target.label}
+            key={target.targetKey}
             className={target.confidentiality === 'PUBLIC_SUMMARY_ONLY' ? 'btn-secondary' : 'btn'}
             type="button"
             disabled={loadingTarget === target.label}

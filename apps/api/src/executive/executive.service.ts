@@ -848,4 +848,12 @@ export class ExecutiveService {
   getSharePointGraphStatus() {
     return this.sharePointGraphService.getStatus();
   }
+
+  getSharePointGraphTargets() {
+  return this.sharePointGraphService.getTargets();
+  }
+
+  validateSharePointTarget(body: any) {
+    return this.sharePointGraphService.validateTarget(body);
+  }
 }

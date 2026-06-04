@@ -66,4 +66,14 @@ export class ExecutiveController {
     publishToSharePoint(@Body() body: any) {
       return this.executiveService.logSharePointExportRequest(body);
     }
+
+    @Get('sharepoint/targets')
+    getSharePointGraphTargets() {
+      return this.executiveService.getSharePointGraphTargets();
+    }
+
+    @Post('sharepoint/validate-target')
+    validateSharePointTarget(@Body() body: any) {
+      return this.executiveService.validateSharePointTarget(body);
+    }
 }
