@@ -22,7 +22,16 @@ function formatDateTime(value?: string | null) {
 function statusClass(status?: string | null) {
   if (!status) return 'status-pill';
 
-  if (['APPROVED', 'PREPARED', 'DRAFT', 'READY_FOR_PAYMENT', 'APPROVED_FOR_MANUAL_PAYMENT'].includes(status)) {
+  if (
+    [
+      'APPROVED',
+      'PREPARED',
+      'DRAFT',
+      'READY_FOR_PAYMENT',
+      'APPROVED_FOR_MANUAL_PAYMENT',
+      'VALIDATED',
+    ].includes(status)
+  ) {
     return 'status-pill locked';
   }
 
@@ -41,8 +50,13 @@ function statusClass(status?: string | null) {
   return 'status-pill';
 }
 
-export default async function PaymentBatchDetailPage({ params }: { params: { id: string } }) {
-  const batch = await getPaymentBatch(params.id);
+export default async function PaymentBatchDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const batch = await getPaymentBatch(id);
   const items = batch?.items || [];
 
   const readyItems = items.filter((item: any) =>
@@ -50,10 +64,11 @@ export default async function PaymentBatchDetailPage({ params }: { params: { id:
   );
 
   const blockedItems = items.filter((item: any) =>
-    ['BLOCKED_PAYSLIP_MISSING', 'PENDING'].includes(item.paymentStatus),
+    ['BLOCKED_PAYSLIP_MISSING', 'PENDING', 'PENDING_VALIDATION'].includes(item.paymentStatus),
   );
 
   return (
+    
     <section className="card">
       <div className="page-header">
         <div>

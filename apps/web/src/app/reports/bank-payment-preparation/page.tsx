@@ -1,5 +1,11 @@
 import Link from 'next/link';
-import { getPayrollAudit, getPayrollAuditCsvUrl, getFinanceAuditPayload } from '@/lib/api';
+import {
+  getFinanceAuditPayload,
+  getPaymentBatches,
+  getPayrollAudit,
+  getPayrollAuditCsvUrl,
+} from '@/lib/api';
+import { CreatePaymentBatchButton } from './CreatePaymentBatchButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,13 +40,22 @@ function statusClass(status?: string | null) {
 
 export default async function BankPaymentPreparationPage() {
   const audit = await getPayrollAudit();
-  const runId = audit?.run?.id;
-  const financePayload = await getFinanceAuditPayload(runId);
+  const runId = audit?.run?.id || null;
+
+  const [financePayload, paymentBatchData] = await Promise.all([
+    getFinanceAuditPayload(runId || undefined),
+    getPaymentBatches(),
+  ]);
 
   const run = audit?.run || {};
   const totals = audit?.totals || {};
   const employees = audit?.employees || [];
   const financeControls = financePayload?.financeControls || [];
+  const paymentBatches = paymentBatchData?.batches || [];
+
+  const existingBatch = runId
+    ? paymentBatches.find((batch: any) => batch.payrollRunId === runId)
+    : null;
 
   const paymentRows = employees.map((employee: any) => ({
     lineId: employee.lineId,
@@ -48,14 +63,24 @@ export default async function BankPaymentPreparationPage() {
     employeeName: employee.employeeName,
     department: employee.department,
     netPay: employee.netPay,
-    paymentStatus: employee.payslipGenerated ? 'READY_FOR_PAYMENT_PREPARATION' : 'PAYSLIP_MISSING',
+    payslipGenerated: employee.payslipGenerated,
+    paymentStatus: employee.payslipGenerated
+      ? 'READY_FOR_PAYMENT_PREPARATION'
+      : 'PAYSLIP_MISSING',
   }));
 
   const readyPayments = paymentRows.filter(
     (row: any) => row.paymentStatus === 'READY_FOR_PAYMENT_PREPARATION',
   );
 
-  const blockedPayments = paymentRows.filter((row: any) => row.paymentStatus !== 'READY_FOR_PAYMENT_PREPARATION');
+  const blockedPayments = paymentRows.filter(
+    (row: any) => row.paymentStatus !== 'READY_FOR_PAYMENT_PREPARATION',
+  );
+
+  const defaultBatchName =
+    run?.periodName && run?.runName
+      ? `${run.periodName} - ${run.runName} - Payment Batch`
+      : 'Payment Batch';
 
   return (
     <section className="card">
@@ -73,11 +98,15 @@ export default async function BankPaymentPreparationPage() {
             Reports Centre
           </Link>
 
+          <Link className="btn-secondary" href="/reports/payment-batches">
+            Payment Batches
+          </Link>
+
           <Link className="btn-secondary" href="/reports/finance-evidence">
             Finance Evidence
           </Link>
 
-          <a className="btn" href={getPayrollAuditCsvUrl(runId)}>
+          <a className="btn" href={getPayrollAuditCsvUrl(runId || undefined)}>
             Download Payroll Audit CSV
           </a>
         </div>
@@ -125,6 +154,38 @@ export default async function BankPaymentPreparationPage() {
           <span className="summary-label">Blocked Payments</span>
           <strong>{blockedPayments.length}</strong>
         </div>
+      </div>
+
+      <div className="table-wrap">
+        <div className="page-header">
+          <div>
+            <h3>Payment Batch Creation</h3>
+            <p className="muted">
+              Create or open the Finance payment batch for this locked payroll run.
+            </p>
+          </div>
+
+          <div className="action-row">
+            <CreatePaymentBatchButton
+              payrollRunId={runId}
+              defaultBatchName={defaultBatchName}
+              existingBatchId={existingBatch?.id || null}
+            />
+          </div>
+        </div>
+
+        {existingBatch ? (
+          <div className="notice">
+            Existing payment batch found:{' '}
+            <strong>{existingBatch.batchName}</strong> · Status:{' '}
+            <strong>{existingBatch.status}</strong>
+          </div>
+        ) : (
+          <div className="notice">
+            No payment batch has been created yet for this payroll run. Finance can create it from
+            this page.
+          </div>
+        )}
       </div>
 
       <div className="notice">
@@ -203,6 +264,7 @@ export default async function BankPaymentPreparationPage() {
               <th>Name</th>
               <th>Department</th>
               <th>Net Pay</th>
+              <th>Payslip</th>
               <th>Payment Status</th>
               <th>Bank Details</th>
             </tr>
@@ -211,7 +273,7 @@ export default async function BankPaymentPreparationPage() {
           <tbody>
             {paymentRows.length === 0 ? (
               <tr>
-                <td colSpan={6}>No employees found in the selected payroll audit.</td>
+                <td colSpan={7}>No employees found in the selected payroll audit.</td>
               </tr>
             ) : (
               paymentRows.map((row: any) => (
@@ -220,6 +282,15 @@ export default async function BankPaymentPreparationPage() {
                   <td>{row.employeeName}</td>
                   <td>{row.department}</td>
                   <td>{money(row.netPay)}</td>
+                  <td>
+                    <span
+                      className={
+                        row.payslipGenerated ? 'status-pill locked' : 'status-pill warning'
+                      }
+                    >
+                      {row.payslipGenerated ? 'GENERATED' : 'MISSING'}
+                    </span>
+                  </td>
                   <td>
                     <span
                       className={
@@ -338,6 +409,7 @@ export default async function BankPaymentPreparationPage() {
             {
               generatedAt: new Date().toISOString(),
               phase: 'BANK_PAYMENT_PREPARATION_PLACEHOLDER',
+              existingBatchId: existingBatch?.id || null,
               payrollRun: {
                 id: run.id,
                 runName: run.runName,
@@ -362,9 +434,8 @@ export default async function BankPaymentPreparationPage() {
       </details>
 
       <div className="notice">
-        Next build phase can add a controlled payment batch database model. After that, Finance can
-        create payment batches, mark bank details as validated, attach bank evidence, and later export
-        the payment package to SharePoint.
+        Next build phase will allow Finance to refresh blocked batches after payslips are generated,
+        then validate bank details and prepare the batch.
       </div>
     </section>
   );
