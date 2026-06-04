@@ -40,6 +40,20 @@ export class PaymentService {
         },
         items: {
           orderBy: { employeeNumber: 'asc' },
+          include: {
+            employee: {
+              include: {
+                bankAccounts: {
+                  orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+                },
+              },
+            },
+            payrollRunEmployee: {
+              include: {
+                payslip: true,
+              },
+            },
+          },
         },
       },
     });
@@ -58,12 +72,15 @@ export class PaymentService {
         payrollPeriod: true,
         employees: {
           include: {
+            payslip: true,
             employee: {
               include: {
                 department: true,
+                bankAccounts: {
+                  orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+                },
               },
             },
-            payslip: true,
           },
         },
       },
@@ -77,10 +94,6 @@ export class PaymentService {
       throw new BadRequestException('Payment batch can only be created from a LOCKED payroll run.');
     }
 
-    if (!payrollRun.employees.length) {
-      throw new BadRequestException('Payroll run has no employees.');
-    }
-
     const existingBatch = await this.prisma.paymentBatch.findFirst({
       where: { payrollRunId },
     });
@@ -89,17 +102,45 @@ export class PaymentService {
       throw new BadRequestException('A payment batch already exists for this payroll run.');
     }
 
-    const payableLines = payrollRun.employees.filter((line: any) => Number(line.netPay || 0) > 0);
+    const payableLines = payrollRun.employees.filter((line: any) => toNumber(line.netPay) > 0);
 
     if (!payableLines.length) {
       throw new BadRequestException('No payable payroll employees found.');
     }
 
-    const missingPayslips = payableLines.filter((line: any) => !line.payslip);
-
     const totalNetPay = payableLines.reduce((sum: number, line: any) => {
       return sum + toNumber(line.netPay);
     }, 0);
+
+    const blockedPayslipCount = payableLines.filter((line: any) => !line.payslip).length;
+
+    const pendingBankValidationCount = payableLines.filter((line: any) => {
+      const bank = this.resolvePrimaryBank(line.employee);
+
+      return (
+        Boolean(line.payslip) &&
+        !(
+          bank &&
+          bank.approvalStatus === 'APPROVED' &&
+          bank.bankName &&
+          bank.accountNumber &&
+          bank.accountName
+        ) &&
+        !(
+          line.employee.bankDetailsStatus === 'VALIDATED' &&
+          line.employee.bankName &&
+          line.employee.bankAccountNumber &&
+          line.employee.bankAccountName
+        )
+      );
+    }).length;
+
+    const batchStatus =
+      blockedPayslipCount > 0
+        ? 'BLOCKED_PAYSLIPS_MISSING'
+        : pendingBankValidationCount > 0
+          ? 'PENDING_BANK_VALIDATION'
+          : 'DRAFT';
 
     const batchName =
       input?.batchName ||
@@ -109,183 +150,84 @@ export class PaymentService {
       data: {
         payrollRunId,
         batchName,
-        status: missingPayslips.length > 0 ? 'BLOCKED_PAYSLIPS_MISSING' : 'DRAFT',
+        status: batchStatus,
         totalEmployees: payableLines.length,
         totalNetPay,
-        preparedBy: input?.preparedBy || null,
+        preparedBy: input?.preparedBy || 'finance-manager-dev',
         evidenceNotes:
-          missingPayslips.length > 0
-            ? 'Payment batch created but blocked because one or more payslips are missing.'
-            : 'Payment batch created for Finance preparation.',
-        items: {
-          create: payableLines.map((line: any) => ({
-            payrollRunEmployeeId: line.id,
-            employeeId: line.employeeId,
-            employeeNumber: line.employee?.employeeNumber || '',
-            employeeName: `${line.employee?.firstName || ''} ${line.employee?.lastName || ''}`.trim(),
-            department: line.employee?.department?.name || null,
-            netPay: line.netPay,
-            bankDetailsStatus: 'PENDING_VALIDATION',
-            paymentStatus: line.payslip ? 'PENDING' : 'BLOCKED_PAYSLIP_MISSING',
-            validationNotes: line.payslip
-              ? 'Pending Finance bank detail validation.'
-              : 'Payslip must be generated before payment preparation.',
-          })),
-        },
-      },
-      include: {
-        payrollRun: {
-          include: {
-            payrollPeriod: true,
-          },
-        },
-        items: true,
+          blockedPayslipCount > 0
+            ? `Payment batch created but blocked because ${blockedPayslipCount} payslip(s) are missing.`
+            : pendingBankValidationCount > 0
+              ? `Payment batch created. ${pendingBankValidationCount} employee bank detail record(s) require Finance validation.`
+              : 'Payment batch created. Payslips and bank details are ready for Finance preparation.',
       },
     });
 
-    return {
-      message: 'Payment batch created.',
-      warning:
-        missingPayslips.length > 0
-          ? 'One or more employees are blocked because payslips are missing.'
-          : null,
-      batch,
-    };
-  }
+    for (const line of payableLines) {
+      const employee = line.employee;
+      const primaryBank = this.resolvePrimaryBank(employee);
 
-  async validateBankDetails(id: string, input: any) {
-    const batch = await this.prisma.paymentBatch.findUnique({
-      where: { id },
-      include: { items: true },
-    });
+      const bankName = primaryBank?.bankName || employee.bankName || null;
+      const bankBranch = primaryBank?.branchName || employee.bankBranch || null;
+      const bankAccountNumber = primaryBank?.accountNumber || employee.bankAccountNumber || null;
+      const bankAccountName = primaryBank?.accountName || employee.bankAccountName || null;
 
-    if (!batch) {
-      throw new NotFoundException('Payment batch not found');
-    }
+      const hasPayslip = Boolean(line.payslip);
 
-    const itemUpdates = input?.items || [];
+      const hasValidatedBankDetails =
+        Boolean(primaryBank && primaryBank.approvalStatus === 'APPROVED') ||
+        Boolean(
+          employee.bankDetailsStatus === 'VALIDATED' &&
+            bankName &&
+            bankAccountNumber &&
+            bankAccountName,
+        );
 
-    if (!Array.isArray(itemUpdates) || itemUpdates.length === 0) {
-      throw new BadRequestException('items array is required.');
-    }
+      const paymentStatus = !hasPayslip
+        ? 'BLOCKED_PAYSLIP_MISSING'
+        : hasValidatedBankDetails
+          ? 'READY_FOR_PAYMENT'
+          : 'PENDING_BANK_VALIDATION';
 
-    for (const item of itemUpdates) {
-      await this.prisma.paymentBatchItem.update({
-        where: { id: item.id },
+      const bankDetailsStatus = hasValidatedBankDetails
+        ? 'VALIDATED'
+        : employee.bankDetailsStatus || 'PENDING_VALIDATION';
+
+      const validationNotes = !hasPayslip
+        ? 'Payslip missing. Generate payslip before payment preparation.'
+        : hasValidatedBankDetails
+          ? 'Payslip generated and employee bank details validated.'
+          : 'Payslip generated. Employee bank details require Finance validation.';
+
+      await this.prisma.paymentBatchItem.create({
         data: {
-          bankName: item.bankName || null,
-          bankBranch: item.bankBranch || null,
-          bankAccountNumber: item.bankAccountNumber || null,
-          bankDetailsStatus: item.bankDetailsStatus || 'VALIDATED',
-          validationNotes: item.validationNotes || 'Bank details validated by Finance.',
-          paymentStatus:
-            item.bankDetailsStatus === 'VALIDATED' || !item.bankDetailsStatus
-              ? 'READY_FOR_PAYMENT'
-              : 'PENDING',
+          paymentBatchId: batch.id,
+          payrollRunEmployeeId: line.id,
+          employeeId: employee.id,
+          employeeNumber: employee.employeeNumber,
+          employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+          department: employee.department?.name || null,
+          netPay: line.netPay,
+          bankName,
+          bankBranch,
+          bankAccountNumber,
+          bankAccountName,
+          bankDetailsStatus,
+          paymentStatus,
+          validationNotes,
         },
       });
     }
 
-    const updatedBatch = await this.getPaymentBatch(id);
-
     return {
-      message: 'Bank detail validation updated.',
-      batch: updatedBatch,
-    };
-  }
-
-  async preparePaymentBatch(id: string, input: any) {
-    const batch = await this.prisma.paymentBatch.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-
-    if (!batch) {
-      throw new NotFoundException('Payment batch not found');
-    }
-
-    if (batch.status === 'APPROVED') {
-      throw new BadRequestException('Approved payment batch cannot be prepared again.');
-    }
-
-    const blockedItems = batch.items.filter((item: any) =>
-      ['BLOCKED_PAYSLIP_MISSING', 'PENDING'].includes(item.paymentStatus),
-    );
-
-    if (blockedItems.length > 0) {
-      throw new BadRequestException(
-        'Payment batch cannot be prepared while items are blocked or pending validation.',
-      );
-    }
-
-    const updated = await this.prisma.paymentBatch.update({
-      where: { id },
-      data: {
-        status: 'PREPARED',
-        preparedBy: input?.preparedBy || 'finance-manager-dev',
-        preparedAt: new Date(),
-        evidenceNotes: input?.evidenceNotes || 'Payment batch prepared by Finance.',
-      },
-      include: {
-        payrollRun: {
-          include: {
-            payrollPeriod: true,
-          },
-        },
-        items: true,
-      },
-    });
-
-    return {
-      message: 'Payment batch prepared. No real bank file has been generated.',
-      batch: updated,
-    };
-  }
-
-  async approvePaymentBatch(id: string, input: any) {
-    const batch = await this.prisma.paymentBatch.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-
-    if (!batch) {
-      throw new NotFoundException('Payment batch not found');
-    }
-
-    if (batch.status !== 'PREPARED') {
-      throw new BadRequestException('Only a PREPARED payment batch can be approved.');
-    }
-
-    const updated = await this.prisma.paymentBatch.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        approvedBy: input?.approvedBy || 'director-dev',
-        approvedAt: new Date(),
-        evidenceNotes:
-          input?.evidenceNotes ||
-          'Payment batch approved. Manual bank payment evidence must be stored separately.',
-      },
-      include: {
-        payrollRun: {
-          include: {
-            payrollPeriod: true,
-          },
-        },
-        items: true,
-      },
-    });
-
-    await this.prisma.paymentBatchItem.updateMany({
-      where: { paymentBatchId: id },
-      data: {
-        paymentStatus: 'APPROVED_FOR_MANUAL_PAYMENT',
-      },
-    });
-
-    return {
-      message: 'Payment batch approved for manual payment processing.',
-      batch: await this.getPaymentBatch(id),
+      message: 'Payment batch created.',
+      warning:
+        blockedPayslipCount > 0
+          ? 'One or more employees are blocked because payslips are missing.'
+          : pendingBankValidationCount > 0
+            ? 'One or more employees require Finance bank detail validation.'
+            : null,
+      batch: await this.getPaymentBatch(batch.id),
     };
   }
 
@@ -295,6 +237,13 @@ export class PaymentService {
       include: {
         items: {
           include: {
+            employee: {
+              include: {
+                bankAccounts: {
+                  orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+                },
+              },
+            },
             payrollRunEmployee: {
               include: {
                 payslip: true,
@@ -315,38 +264,75 @@ export class PaymentService {
 
     let refreshedCount = 0;
     let stillBlockedCount = 0;
+    let pendingBankValidationCount = 0;
 
     for (const item of batch.items) {
       const hasPayslip = Boolean(item.payrollRunEmployee?.payslip);
+      const employee = item.employee;
+      const primaryBank = this.resolvePrimaryBank(employee);
 
-      if (hasPayslip) {
+      const bankName = primaryBank?.bankName || employee.bankName || null;
+      const bankBranch = primaryBank?.branchName || employee.bankBranch || null;
+      const bankAccountNumber = primaryBank?.accountNumber || employee.bankAccountNumber || null;
+      const bankAccountName = primaryBank?.accountName || employee.bankAccountName || null;
+
+      const hasValidatedBankDetails =
+        Boolean(primaryBank && primaryBank.approvalStatus === 'APPROVED') ||
+        Boolean(
+          employee.bankDetailsStatus === 'VALIDATED' &&
+            bankName &&
+            bankAccountNumber &&
+            bankAccountName,
+        );
+
+      if (!hasPayslip) {
         await this.prisma.paymentBatchItem.update({
           where: { id: item.id },
           data: {
-            paymentStatus:
-              item.bankDetailsStatus === 'VALIDATED' ? 'READY_FOR_PAYMENT' : 'PENDING',
-            validationNotes:
-              item.bankDetailsStatus === 'VALIDATED'
-                ? 'Payslip found. Bank details already validated. Ready for payment preparation.'
-                : 'Payslip found. Pending Finance bank detail validation.',
-          },
-        });
-
-        refreshedCount += 1;
-      } else {
-        await this.prisma.paymentBatchItem.update({
-          where: { id: item.id },
-          data: {
+            bankName,
+            bankBranch,
+            bankAccountNumber,
+            bankAccountName,
+            bankDetailsStatus: employee.bankDetailsStatus || 'PENDING_VALIDATION',
             paymentStatus: 'BLOCKED_PAYSLIP_MISSING',
             validationNotes: 'Payslip still missing. Generate payslip before payment preparation.',
           },
         });
 
         stillBlockedCount += 1;
+        continue;
+      }
+
+      await this.prisma.paymentBatchItem.update({
+        where: { id: item.id },
+        data: {
+          bankName,
+          bankBranch,
+          bankAccountNumber,
+          bankAccountName,
+          bankDetailsStatus: hasValidatedBankDetails
+            ? 'VALIDATED'
+            : employee.bankDetailsStatus || 'PENDING_VALIDATION',
+          paymentStatus: hasValidatedBankDetails ? 'READY_FOR_PAYMENT' : 'PENDING_BANK_VALIDATION',
+          validationNotes: hasValidatedBankDetails
+            ? 'Payslip found and employee bank details validated. Ready for Finance preparation.'
+            : 'Payslip found. Employee bank details require Finance validation.',
+        },
+      });
+
+      if (hasValidatedBankDetails) {
+        refreshedCount += 1;
+      } else {
+        pendingBankValidationCount += 1;
       }
     }
 
-    const newStatus = stillBlockedCount > 0 ? 'BLOCKED_PAYSLIPS_MISSING' : 'DRAFT';
+    const newStatus =
+      stillBlockedCount > 0
+        ? 'BLOCKED_PAYSLIPS_MISSING'
+        : pendingBankValidationCount > 0
+          ? 'PENDING_BANK_VALIDATION'
+          : 'DRAFT';
 
     await this.prisma.paymentBatch.update({
       where: { id },
@@ -357,9 +343,13 @@ export class PaymentService {
             ? `Payslip recheck completed by ${
                 input?.checkedBy || 'finance-manager-dev'
               }. ${stillBlockedCount} item(s) still blocked.`
-            : `Payslip recheck completed by ${
-                input?.checkedBy || 'finance-manager-dev'
-              }. All payment items now have payslips and can proceed to bank validation.`,
+            : pendingBankValidationCount > 0
+              ? `Payslip recheck completed by ${
+                  input?.checkedBy || 'finance-manager-dev'
+                }. ${pendingBankValidationCount} employee bank record(s) need validation.`
+              : `Payslip recheck completed by ${
+                  input?.checkedBy || 'finance-manager-dev'
+                }. All items are ready for Finance preparation.`,
       },
     });
 
@@ -367,11 +357,161 @@ export class PaymentService {
       message:
         stillBlockedCount > 0
           ? 'Payslip recheck completed. Some items are still blocked.'
-          : 'Payslip recheck completed. Payment batch is now ready for Finance validation.',
+          : pendingBankValidationCount > 0
+            ? 'Payslip recheck completed. Bank validation is still required.'
+            : 'Payslip recheck completed. Payment batch is ready for Finance preparation.',
       refreshedCount,
       stillBlockedCount,
+      pendingBankValidationCount,
       batch: await this.getPaymentBatch(id),
     };
   }
 
+  async validateBankDetails(id: string, input: any) {
+    const batch = await this.getPaymentBatch(id);
+
+    if (batch.status === 'APPROVED') {
+      throw new BadRequestException('Approved batch cannot be changed.');
+    }
+
+    let validatedCount = 0;
+    let blockedCount = 0;
+
+    for (const item of batch.items) {
+      if (item.paymentStatus === 'BLOCKED_PAYSLIP_MISSING') {
+        blockedCount += 1;
+        continue;
+      }
+
+      if (!item.bankName || !item.bankAccountNumber || !item.bankAccountName) {
+        await this.prisma.paymentBatchItem.update({
+          where: { id: item.id },
+          data: {
+            bankDetailsStatus: 'PENDING_VALIDATION',
+            paymentStatus: 'PENDING_BANK_VALIDATION',
+            validationNotes: 'Bank details are incomplete. Finance must update employee bank details.',
+          },
+        });
+
+        blockedCount += 1;
+        continue;
+      }
+
+      await this.prisma.paymentBatchItem.update({
+        where: { id: item.id },
+        data: {
+          bankDetailsStatus: 'VALIDATED',
+          paymentStatus: 'READY_FOR_PAYMENT',
+          validationNotes:
+            input?.notes || 'Bank details validated by Finance for payment preparation.',
+        },
+      });
+
+      validatedCount += 1;
+    }
+
+    const refreshedBatch = await this.getPaymentBatch(id);
+    const notReady = refreshedBatch.items.filter(
+      (item: any) => item.paymentStatus !== 'READY_FOR_PAYMENT',
+    ).length;
+
+    await this.prisma.paymentBatch.update({
+      where: { id },
+      data: {
+        status: notReady > 0 ? 'PENDING_BANK_VALIDATION' : 'DRAFT',
+        reviewedBy: input?.reviewedBy || 'finance-manager-dev',
+        reviewedAt: new Date(),
+        evidenceNotes:
+          notReady > 0
+            ? 'Bank validation completed with pending items.'
+            : 'All bank details validated. Batch is ready for preparation.',
+      },
+    });
+
+    return {
+      message:
+        notReady > 0
+          ? 'Bank validation completed with pending items.'
+          : 'Bank validation completed. Batch is ready for preparation.',
+      validatedCount,
+      blockedCount,
+      batch: await this.getPaymentBatch(id),
+    };
+  }
+
+  async preparePaymentBatch(id: string, input: any) {
+    const batch = await this.getPaymentBatch(id);
+
+    const notReady = batch.items.filter((item: any) => item.paymentStatus !== 'READY_FOR_PAYMENT');
+
+    if (notReady.length > 0) {
+      throw new BadRequestException(
+        'Payment batch cannot be prepared until all items are ready for payment.',
+      );
+    }
+
+    await this.prisma.paymentBatch.update({
+      where: { id },
+      data: {
+        status: 'PREPARED',
+        preparedAt: new Date(),
+        preparedBy: input?.preparedBy || batch.preparedBy || 'finance-manager-dev',
+        evidenceNotes:
+          input?.notes || 'Payment batch prepared for manual Finance payment approval.',
+      },
+    });
+
+    await this.prisma.paymentBatchItem.updateMany({
+      where: { paymentBatchId: id },
+      data: {
+        paymentStatus: 'READY_FOR_PAYMENT',
+      },
+    });
+
+    return {
+      message: 'Payment batch prepared.',
+      batch: await this.getPaymentBatch(id),
+    };
+  }
+
+  async approvePaymentBatch(id: string, input: any) {
+    const batch = await this.getPaymentBatch(id);
+
+    if (batch.status !== 'PREPARED') {
+      throw new BadRequestException('Only PREPARED payment batches can be approved.');
+    }
+
+    await this.prisma.paymentBatch.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedBy: input?.approvedBy || 'finance-manager-dev',
+        approvedAt: new Date(),
+        evidenceNotes:
+          input?.notes || 'Payment batch approved for manual payment processing.',
+      },
+    });
+
+    await this.prisma.paymentBatchItem.updateMany({
+      where: { paymentBatchId: id },
+      data: {
+        paymentStatus: 'APPROVED_FOR_MANUAL_PAYMENT',
+      },
+    });
+
+    return {
+      message: 'Payment batch approved for manual payment processing.',
+      batch: await this.getPaymentBatch(id),
+    };
+  }
+
+  private resolvePrimaryBank(employee: any) {
+    if (!employee?.bankAccounts?.length) {
+      return null;
+    }
+
+    return (
+      employee.bankAccounts.find((account: any) => account.isPrimary) || employee.bankAccounts[0]
+    );
+  }
 }

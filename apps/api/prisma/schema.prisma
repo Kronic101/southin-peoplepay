@@ -102,7 +102,18 @@ model Employee {
   site              Site?                      @relation(fields: [siteId], references: [id])
   supervisor        Employee?                  @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
   directReports     Employee[]                 @relation("EmployeeSupervisor")
+
   bankAccounts      EmployeeBankAccount[]
+  bankName              String?
+  bankBranch            String?
+  bankAccountNumber     String?
+  bankAccountName       String?
+  bankSortCode          String?
+  bankDetailsStatus     String?   @default("PENDING_VALIDATION")
+  bankDetailsReviewedBy String?
+  bankDetailsReviewedAt DateTime?
+  bankDetailsNotes      String?
+  
   contracts         EmployeeContract[]
   portalAccount     EmployeePortalAccount?
   serviceConditions EmployeeServiceCondition[]
@@ -348,26 +359,29 @@ model PaymentBatch {
 }
 
 model PaymentBatchItem {
-  id                   String        @id @default(uuid())
+  id                   String   @id @default(uuid())
   paymentBatchId        String
   payrollRunEmployeeId  String
   employeeId            String
   employeeNumber        String
   employeeName          String
   department            String?
-  netPay                Decimal       @default(0) @db.Decimal(18, 2)
+  netPay                Decimal  @default(0) @db.Decimal(18, 2)
+
   bankName              String?
   bankBranch            String?
   bankAccountNumber     String?
-  bankDetailsStatus     String        @default("PENDING_VALIDATION")
-  paymentStatus         String        @default("PENDING")
-  validationNotes       String?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  bankAccountName       String?
+  bankDetailsStatus     String   @default("PENDING_VALIDATION")
 
-  paymentBatch          PaymentBatch  @relation(fields: [paymentBatchId], references: [id])
+  paymentStatus         String   @default("PENDING")
+  validationNotes       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  paymentBatch          PaymentBatch        @relation(fields: [paymentBatchId], references: [id])
   payrollRunEmployee    PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
-  employee              Employee      @relation(fields: [employeeId], references: [id])
+  employee              Employee           @relation(fields: [employeeId], references: [id])
 
   @@index([paymentBatchId])
   @@index([employeeId])

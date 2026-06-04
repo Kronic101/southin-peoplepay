@@ -5,24 +5,19 @@ import { EmployeesService } from './employees.service';
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
-  @Get('lookups/setup')
-  getSetupLookups() {
-    return this.employeesService.getSetupLookups();
-  }
-
   @Get()
   findAll() {
     return this.employeesService.findAll();
   }
 
-  @Post()
-  create(@Body() body: unknown) {
-    return this.employeesService.create(body as any);
-  }
-
   @Get('payroll-readiness')
   getPayrollReadiness() {
     return this.employeesService.getPayrollReadiness();
+  }
+
+  @Post()
+  create(@Body() body: any) {
+    return this.employeesService.create(body);
   }
 
   @Get(':id')
@@ -31,48 +26,31 @@ export class EmployeesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: unknown) {
-    return this.employeesService.update(id, body as any);
+  update(@Param('id') id: string, @Body() body: any) {
+    return this.employeesService.update(id, body);
   }
 
-  @Patch(':id/statutory-details')
-  updateStatutoryDetails(@Param('id') id: string, @Body() body: unknown) {
-    return this.employeesService.updateStatutoryDetails(id, body as any);
+  @Post(':id/portal-account')
+  createPortalAccount(@Param('id') id: string, @Body() body: any) {
+    return this.employeesService.createPortalAccount(id, body);
   }
 
   @Post(':id/bank-accounts')
-  createBankAccount(@Param('id') id: string, @Body() body: unknown) {
-    return this.employeesService.createBankAccount(id, body as any);
-  }
-
-  @Post(':id/contracts')
-  createContract(@Param('id') id: string, @Body() body: unknown) {
-    return this.employeesService.createContract(id, body as any);
-  }
-
-  @Post(':id/service-conditions/assign')
-  assignServiceCondition(@Param('id') id: string, @Body() body: unknown) {
-    return this.employeesService.assignServiceCondition(id, body as any);
+  createBankAccount(@Param('id') id: string, @Body() body: any) {
+    return this.employeesService.createBankAccount(id, body);
   }
 
   @Post(':id/bank-accounts/:bankAccountId/approve')
   approveBankAccount(
     @Param('id') id: string,
     @Param('bankAccountId') bankAccountId: string,
+    @Body() body: any,
   ) {
-    return this.employeesService.approveBankAccount(id, bankAccountId);
+    return this.employeesService.approveBankAccount(id, bankAccountId, body);
   }
 
-  @Post(':id/service-conditions/:conditionId/approve')
-  approveServiceCondition(
-    @Param('id') id: string,
-    @Param('conditionId') conditionId: string,
-  ) {
-    return this.employeesService.approveServiceCondition(id, conditionId);
-  }
-
-  @Post(':id/portal-account')
-  createPortalAccount(@Param('id') id: string) {
-    return this.employeesService.createPortalAccount(id);
+  @Post(':id/validate-bank-details')
+  validateBankDetails(@Param('id') id: string, @Body() body: any) {
+    return this.employeesService.validateBankDetails(id, body);
   }
 }

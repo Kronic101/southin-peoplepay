@@ -171,24 +171,25 @@ export default async function PaymentBatchDetailPage({
 
         <table>
           <thead>
-            <tr>
-              <th>Employee No.</th>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Net Pay</th>
-              <th>Bank Name</th>
-              <th>Branch</th>
-              <th>Account</th>
-              <th>Bank Status</th>
-              <th>Payment Status</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
+          <tr>
+            <th>Employee No.</th>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Net Pay</th>
+            <th>Account Name</th>
+            <th>Bank Name</th>
+            <th>Branch</th>
+            <th>Account</th>
+            <th>Bank Status</th>
+            <th>Payment Status</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
 
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={10}>No payment batch items found.</td>
+                <td colSpan={11}>No payment batch items found.</td>
               </tr>
             ) : (
               items.map((item: any) => (
@@ -197,16 +198,19 @@ export default async function PaymentBatchDetailPage({
                   <td>{item.employeeName}</td>
                   <td>{item.department || '-'}</td>
                   <td>{money(item.netPay)}</td>
+                  <td>{item.bankAccountName || '-'}</td>
                   <td>{item.bankName || '-'}</td>
                   <td>{item.bankBranch || '-'}</td>
                   <td>{item.bankAccountNumber || '-'}</td>
                   <td>
                     <span className={statusClass(item.bankDetailsStatus)}>
-                      {item.bankDetailsStatus}
+                      {item.bankDetailsStatus || 'PENDING_VALIDATION'}
                     </span>
                   </td>
                   <td>
-                    <span className={statusClass(item.paymentStatus)}>{item.paymentStatus}</span>
+                    <span className={statusClass(item.paymentStatus)}>
+                      {item.paymentStatus}
+                    </span>
                   </td>
                   <td>{item.validationNotes || '-'}</td>
                 </tr>

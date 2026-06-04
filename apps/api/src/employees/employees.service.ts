@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomInt, createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -16,11 +16,31 @@ type CreateEmployeeInput = {
   jobTitleId?: string;
   siteId?: string;
   employmentTypeId?: string;
+  supervisorId?: string;
   startDate?: string;
+  endDate?: string;
+
+  bankName?: string;
+  bankBranch?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+  bankSortCode?: string;
+  bankDetailsStatus?: string;
+  bankDetailsReviewedBy?: string;
+  bankDetailsReviewedAt?: string;
+  bankDetailsNotes?: string;
 };
 
 type UpdateEmployeeInput = Partial<CreateEmployeeInput> & {
-  status?: 'DRAFT' | 'ACTIVE' | 'ON_PROBATION' | 'SUSPENDED' | 'ON_LEAVE' | 'CONTRACT_EXPIRING' | 'TERMINATED' | 'ARCHIVED';
+  status?:
+    | 'DRAFT'
+    | 'ACTIVE'
+    | 'ON_PROBATION'
+    | 'SUSPENDED'
+    | 'ON_LEAVE'
+    | 'CONTRACT_EXPIRING'
+    | 'TERMINATED'
+    | 'ARCHIVED';
 };
 
 @Injectable()
@@ -30,22 +50,21 @@ export class EmployeesService {
   async findAll() {
     return this.prisma.employee.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        portalAccount: {
-          select: {
-            id: true,
-            isActive: true,
-            mustChangePin: true,
-            lastLoginAt: true,
-          },
-        },
-        statutoryDetails: true,
-      },
+      include: this.employeeInclude(),
     });
+  }
+
+  async findOne(id: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id },
+      include: this.employeeInclude(),
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    return employee;
   }
 
   async create(input: CreateEmployeeInput) {
@@ -66,8 +85,23 @@ export class EmployeesService {
         jobTitleId: input.jobTitleId || null,
         siteId: input.siteId || null,
         employmentTypeId: input.employmentTypeId || null,
+        supervisorId: input.supervisorId || null,
         startDate: input.startDate ? new Date(input.startDate) : null,
+        endDate: input.endDate ? new Date(input.endDate) : null,
         status: 'DRAFT',
+
+        bankName: input.bankName || null,
+        bankBranch: input.bankBranch || null,
+        bankAccountNumber: input.bankAccountNumber || null,
+        bankAccountName: input.bankAccountName || null,
+        bankSortCode: input.bankSortCode || null,
+        bankDetailsStatus: input.bankDetailsStatus || 'PENDING_VALIDATION',
+        bankDetailsReviewedBy: input.bankDetailsReviewedBy || null,
+        bankDetailsReviewedAt: input.bankDetailsReviewedAt
+          ? new Date(input.bankDetailsReviewedAt)
+          : null,
+        bankDetailsNotes: input.bankDetailsNotes || null,
+
         statutoryDetails: {
           create: {
             payeApplicable: true,
@@ -76,48 +110,158 @@ export class EmployeesService {
           },
         },
       },
-      include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        statutoryDetails: true,
-      },
+      include: this.employeeInclude(),
     });
   }
 
-  async findOne(id: string) {
+  async update(id: string, input: UpdateEmployeeInput) {
+    const existing = await this.prisma.employee.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    return this.prisma.employee.update({
+      where: { id },
+      data: {
+        employeeNumber: input.employeeNumber ?? undefined,
+        firstName: input.firstName ?? undefined,
+        middleName: input.middleName ?? undefined,
+        lastName: input.lastName ?? undefined,
+        gender: input.gender ?? undefined,
+        dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
+        nrcNumber: input.nrcNumber ?? undefined,
+        email: input.email ?? undefined,
+        phone: input.phone ?? undefined,
+        departmentId: input.departmentId ?? undefined,
+        jobTitleId: input.jobTitleId ?? undefined,
+        siteId: input.siteId ?? undefined,
+        employmentTypeId: input.employmentTypeId ?? undefined,
+        supervisorId: input.supervisorId ?? undefined,
+        startDate: input.startDate ? new Date(input.startDate) : undefined,
+        endDate: input.endDate ? new Date(input.endDate) : undefined,
+        status: input.status ?? undefined,
+
+        bankName: input.bankName ?? undefined,
+        bankBranch: input.bankBranch ?? undefined,
+        bankAccountNumber: input.bankAccountNumber ?? undefined,
+        bankAccountName: input.bankAccountName ?? undefined,
+        bankSortCode: input.bankSortCode ?? undefined,
+        bankDetailsStatus: input.bankDetailsStatus ?? undefined,
+        bankDetailsReviewedBy: input.bankDetailsReviewedBy ?? undefined,
+        bankDetailsReviewedAt: input.bankDetailsReviewedAt
+          ? new Date(input.bankDetailsReviewedAt)
+          : undefined,
+        bankDetailsNotes: input.bankDetailsNotes ?? undefined,
+      },
+      include: this.employeeInclude(),
+    });
+  }
+
+  async createBankAccount(employeeId: string, input: any) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: {
+        bankAccounts: true,
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    if (!input?.bankName || !input?.accountNumber || !input?.accountName) {
+      throw new BadRequestException('Bank name, account number, and account name are required.');
+    }
+
+    const makePrimary = Boolean(input?.isPrimary) || employee.bankAccounts.length === 0;
+
+    if (makePrimary) {
+      await this.prisma.employeeBankAccount.updateMany({
+        where: { employeeId },
+        data: { isPrimary: false },
+      });
+    }
+
+    const bankAccount = await this.prisma.employeeBankAccount.create({
+      data: {
+        employeeId,
+        bankName: input.bankName,
+        branchName: input.branchName || null,
+        accountNumber: input.accountNumber,
+        accountName: input.accountName,
+        isPrimary: makePrimary,
+        approvalStatus: input.approvalStatus || 'PENDING',
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+      },
+    });
+
+    if (makePrimary) {
+      await this.syncEmployeePrimaryBankFields(employeeId);
+    }
+
+    return {
+      message: 'Employee bank account added.',
+      bankAccount,
+      employee: await this.findOne(employeeId),
+    };
+  }
+
+  async approveBankAccount(employeeId: string, bankAccountId: string, input: any) {
+    const bankAccount = await this.prisma.employeeBankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        employeeId,
+      },
+    });
+
+    if (!bankAccount) {
+      throw new NotFoundException('Employee bank account not found');
+    }
+
+    await this.prisma.employeeBankAccount.updateMany({
+      where: { employeeId },
+      data: { isPrimary: false },
+    });
+
+    const updatedBankAccount = await this.prisma.employeeBankAccount.update({
+      where: { id: bankAccountId },
+      data: {
+        approvalStatus: 'APPROVED',
+        isPrimary: true,
+      },
+    });
+
+    await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        bankName: updatedBankAccount.bankName,
+        bankBranch: updatedBankAccount.branchName,
+        bankAccountNumber: updatedBankAccount.accountNumber,
+        bankAccountName: updatedBankAccount.accountName,
+        bankDetailsStatus: 'VALIDATED',
+        bankDetailsReviewedBy: input?.reviewedBy || 'finance-manager-dev',
+        bankDetailsReviewedAt: new Date(),
+        bankDetailsNotes:
+          input?.notes || 'Primary bank account approved and validated by Finance.',
+      },
+    });
+
+    return {
+      message: 'Employee bank account approved and set as primary.',
+      bankAccount: updatedBankAccount,
+      employee: await this.findOne(employeeId),
+    };
+  }
+
+  async validateBankDetails(id: string, input: any) {
     const employee = await this.prisma.employee.findUnique({
       where: { id },
       include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        supervisor: true,
-        portalAccount: {
-          select: {
-            id: true,
-            employeeNumber: true,
-            mustChangePin: true,
-            isActive: true,
-            lastLoginAt: true,
-            failedAttempts: true,
-            lockedUntil: true,
-            createdAt: true,
-          },
-        },
-        statutoryDetails: true,
-        bankAccounts: true,
-        serviceConditions: {
-          include: {
-            template: true,
-          },
-        },
-        contracts: {
-          include: {
-            contractType: true,
-          },
+        bankAccounts: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
         },
       },
     });
@@ -126,421 +270,52 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    return employee;
-  }
+    const primaryBank =
+      employee.bankAccounts.find((account) => account.isPrimary) || employee.bankAccounts[0];
 
-  async update(id: string, input: UpdateEmployeeInput) {
-    await this.ensureEmployeeExists(id);
-
-    return this.prisma.employee.update({
-      where: { id },
-      data: {
-        firstName: input.firstName,
-        middleName: input.middleName,
-        lastName: input.lastName,
-        gender: input.gender,
-        dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
-        nrcNumber: input.nrcNumber,
-        email: input.email,
-        phone: input.phone,
-        departmentId: input.departmentId,
-        jobTitleId: input.jobTitleId,
-        siteId: input.siteId,
-        employmentTypeId: input.employmentTypeId,
-        startDate: input.startDate ? new Date(input.startDate) : undefined,
-        status: input.status,
-      },
-      include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        statutoryDetails: true,
-      },
-    });
-  }
-
-  async createPortalAccount(id: string) {
-    const employee = await this.ensureEmployeeExists(id);
-
-    if (employee.portalAccount) {
-      return {
-        message: 'Portal account already exists',
-        employeeNumber: employee.employeeNumber,
-        temporaryPin: null,
-        account: {
-          id: employee.portalAccount.id,
-          isActive: employee.portalAccount.isActive,
-          mustChangePin: employee.portalAccount.mustChangePin,
-        },
-      };
+    if (!primaryBank && (!employee.bankName || !employee.bankAccountNumber || !employee.bankAccountName)) {
+      throw new BadRequestException(
+        'Bank name, account number, and account name are required before validation.',
+      );
     }
 
-    const temporaryPin = this.generateTemporaryPin();
-    const pinHash = this.hashPin(temporaryPin);
-
-    const account = await this.prisma.employeePortalAccount.create({
-      data: {
-        employeeId: employee.id,
-        employeeNumber: employee.employeeNumber,
-        pinHash,
-        mustChangePin: true,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        employeeNumber: true,
-        mustChangePin: true,
-        isActive: true,
-        createdAt: true,
-      },
-    });
-
-    return {
-      message: 'Portal account created. Give the temporary PIN to the employee securely.',
-      employeeNumber: employee.employeeNumber,
-      temporaryPin,
-      account,
-    };
-  }
-
-    async getSetupLookups() {
-    const [departments, jobTitles, sites, employmentTypes, contractTypes, serviceConditionTemplates] =
-      await Promise.all([
-        this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
-        this.prisma.jobTitle.findMany({ orderBy: { name: 'asc' } }),
-        this.prisma.site.findMany({ orderBy: { name: 'asc' } }),
-        this.prisma.employmentType.findMany({ orderBy: { name: 'asc' } }),
-        this.prisma.contractType.findMany({ orderBy: { name: 'asc' } }),
-        this.prisma.serviceConditionTemplate.findMany({
-          where: { isActive: true },
-          orderBy: { name: 'asc' },
-        }),
-      ]);
-
-    return {
-      departments,
-      jobTitles,
-      sites,
-      employmentTypes,
-      contractTypes,
-      serviceConditionTemplates,
-    };
-  }
-
-  async updateStatutoryDetails(
-    id: string,
-    input: {
-      tpin?: string;
-      napsaNumber?: string;
-      nhimaNumber?: string;
-      payeApplicable?: boolean;
-      napsaApplicable?: boolean;
-      nhimaApplicable?: boolean;
-    },
-  ) {
-    await this.ensureEmployeeExists(id);
-
-    return this.prisma.employeeStatutoryDetails.upsert({
-      where: { employeeId: id },
-      create: {
-        employeeId: id,
-        tpin: input.tpin || null,
-        napsaNumber: input.napsaNumber || null,
-        nhimaNumber: input.nhimaNumber || null,
-        payeApplicable: input.payeApplicable ?? true,
-        napsaApplicable: input.napsaApplicable ?? true,
-        nhimaApplicable: input.nhimaApplicable ?? true,
-      },
-      update: {
-        tpin: input.tpin || null,
-        napsaNumber: input.napsaNumber || null,
-        nhimaNumber: input.nhimaNumber || null,
-        payeApplicable: input.payeApplicable ?? true,
-        napsaApplicable: input.napsaApplicable ?? true,
-        nhimaApplicable: input.nhimaApplicable ?? true,
-      },
-    });
-  }
-
-  async createBankAccount(
-    id: string,
-    input: {
-      bankName: string;
-      branchName?: string;
-      accountNumber: string;
-      accountName: string;
-      isPrimary?: boolean;
-      effectiveFrom?: string;
-    },
-  ) {
-    await this.ensureEmployeeExists(id);
-
-    if (input.isPrimary) {
+    if (primaryBank) {
       await this.prisma.employeeBankAccount.updateMany({
         where: { employeeId: id },
         data: { isPrimary: false },
       });
+
+      await this.prisma.employeeBankAccount.update({
+        where: { id: primaryBank.id },
+        data: {
+          isPrimary: true,
+          approvalStatus: 'APPROVED',
+        },
+      });
     }
 
-    return this.prisma.employeeBankAccount.create({
+    await this.prisma.employee.update({
+      where: { id },
       data: {
-        employeeId: id,
-        bankName: input.bankName,
-        branchName: input.branchName || null,
-        accountNumber: input.accountNumber,
-        accountName: input.accountName,
-        isPrimary: input.isPrimary ?? true,
-        approvalStatus: 'PENDING',
-        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+        bankName: primaryBank?.bankName || employee.bankName,
+        bankBranch: primaryBank?.branchName || employee.bankBranch,
+        bankAccountNumber: primaryBank?.accountNumber || employee.bankAccountNumber,
+        bankAccountName: primaryBank?.accountName || employee.bankAccountName,
+        bankDetailsStatus: 'VALIDATED',
+        bankDetailsReviewedBy: input?.reviewedBy || 'finance-manager-dev',
+        bankDetailsReviewedAt: new Date(),
+        bankDetailsNotes:
+          input?.notes || 'Employee bank details validated by Finance before payment processing.',
       },
     });
-  }
-
-    async createContract(
-    id: string,
-    input: {
-      contractTypeId: string;
-      contractNumber?: string;
-      startDate: string;
-      endDate?: string;
-      probationEndDate?: string;
-      noticePeriod?: string;
-      status?: string;
-    },
-  ) {
-    await this.ensureEmployeeExists(id);
-
-    const generatedContractNumber =
-      input.contractNumber && input.contractNumber.trim().length > 0
-        ? input.contractNumber.trim()
-        : await this.generateContractNumber();
-
-    return this.prisma.employeeContract.create({
-      data: {
-        employeeId: id,
-        contractTypeId: input.contractTypeId,
-        contractNumber: generatedContractNumber,
-        startDate: new Date(input.startDate),
-        endDate: input.endDate ? new Date(input.endDate) : null,
-        probationEnd: input.probationEndDate ? new Date(input.probationEndDate) : null,
-        noticePeriod: String(input.noticePeriod || '30 days'),
-        status: input.status || 'DRAFT',
-      },
-      include: {
-        contractType: true,
-      },
-    });
-  }
-
-  async assignServiceCondition(
-    id: string,
-    input: {
-      templateId: string;
-      effectiveFrom: string;
-      effectiveTo?: string;
-    },
-  ) {
-    await this.ensureEmployeeExists(id);
-
-    await this.prisma.employeeServiceCondition.updateMany({
-      where: {
-        employeeId: id,
-        status: 'APPROVED',
-        effectiveTo: null,
-      },
-      data: {
-        effectiveTo: new Date(input.effectiveFrom),
-      },
-    });
-
-    return this.prisma.employeeServiceCondition.create({
-      data: {
-        employeeId: id,
-        templateId: input.templateId,
-        effectiveFrom: new Date(input.effectiveFrom),
-        effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
-        status: 'PENDING',
-      },
-      include: {
-        template: true,
-      },
-    });
-  }
-
-    async getPayrollReadiness() {
-    const employees = await this.prisma.employee.findMany({
-      orderBy: { employeeNumber: 'asc' },
-      include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        statutoryDetails: true,
-        bankAccounts: true,
-        contracts: true,
-        serviceConditions: {
-          include: {
-            template: true,
-          },
-        },
-        portalAccount: {
-          select: {
-            id: true,
-            isActive: true,
-            mustChangePin: true,
-            lastLoginAt: true,
-          },
-        },
-      },
-    });
-
-    const rows = employees.map((employee) => {
-      const hasBankAccount = employee.bankAccounts.length > 0;
-      const hasApprovedBankAccount = employee.bankAccounts.some(
-        (account) => account.approvalStatus === 'APPROVED',
-      );
-
-      const hasContract = employee.contracts.length > 0;
-
-      const hasConditionOfService = employee.serviceConditions.length > 0;
-      const hasApprovedConditionOfService = employee.serviceConditions.some(
-        (condition) => condition.status === 'APPROVED',
-      );
-
-      const checks = {
-        department: Boolean(employee.departmentId),
-        jobTitle: Boolean(employee.jobTitleId),
-        site: Boolean(employee.siteId),
-        employmentType: Boolean(employee.employmentTypeId),
-        tpin: Boolean(employee.statutoryDetails?.tpin),
-        napsaNumber: Boolean(employee.statutoryDetails?.napsaNumber),
-        nhimaNumber: Boolean(employee.statutoryDetails?.nhimaNumber),
-        bankAccount: hasBankAccount,
-        approvedBankAccount: hasApprovedBankAccount,
-        contract: hasContract,
-        conditionOfService: hasConditionOfService,
-        approvedConditionOfService: hasApprovedConditionOfService,
-        portalAccess: Boolean(employee.portalAccount?.isActive),
-      };
-
-      const missingItems = Object.entries(checks)
-        .filter(([, passed]) => !passed)
-        .map(([key]) => key);
-
-      const requiredCheckCount = Object.keys(checks).length;
-      const passedCheckCount = Object.values(checks).filter(Boolean).length;
-
-      return {
-        employeeId: employee.id,
-        employeeNumber: employee.employeeNumber,
-        name: `${employee.firstName} ${employee.lastName}`,
-        status: employee.status,
-        department: employee.department?.name || null,
-        jobTitle: employee.jobTitle?.name || null,
-        site: employee.site?.name || null,
-        employmentType: employee.employmentType?.name || null,
-        checks,
-        missingItems,
-        passedCheckCount,
-        requiredCheckCount,
-        readinessPercentage: Math.round((passedCheckCount / requiredCheckCount) * 100),
-        payrollReady: missingItems.length === 0,
-      };
-    });
-
-    const totalEmployees = rows.length;
-    const payrollReady = rows.filter((row) => row.payrollReady).length;
-    const notReady = totalEmployees - payrollReady;
 
     return {
-      summary: {
-        totalEmployees,
-        payrollReady,
-        notReady,
-        readinessPercentage:
-          totalEmployees === 0 ? 0 : Math.round((payrollReady / totalEmployees) * 100),
-      },
-      rows,
+      message: 'Employee bank details validated.',
+      employee: await this.findOne(id),
     };
   }
 
-    async approveBankAccount(id: string, bankAccountId: string) {
-    await this.ensureEmployeeExists(id);
-
-    const bankAccount = await this.prisma.employeeBankAccount.findFirst({
-      where: {
-        id: bankAccountId,
-        employeeId: id,
-      },
-    });
-
-    if (!bankAccount) {
-      throw new NotFoundException('Bank account not found');
-    }
-
-    await this.prisma.employeeBankAccount.updateMany({
-      where: {
-        employeeId: id,
-      },
-      data: {
-        isPrimary: false,
-      },
-    });
-
-    return this.prisma.employeeBankAccount.update({
-      where: {
-        id: bankAccountId,
-      },
-      data: {
-        approvalStatus: 'APPROVED',
-        isPrimary: true,
-      },
-    });
-  }
-
-    async approveServiceCondition(id: string, conditionId: string) {
-    await this.ensureEmployeeExists(id);
-
-    const condition = await this.prisma.employeeServiceCondition.findFirst({
-      where: {
-        id: conditionId,
-        employeeId: id,
-      },
-    });
-
-    if (!condition) {
-      throw new NotFoundException('Condition of service not found');
-    }
-
-    await this.prisma.employeeServiceCondition.updateMany({
-      where: {
-        employeeId: id,
-        status: 'APPROVED',
-        NOT: {
-          id: conditionId,
-        },
-      },
-      data: {
-        status: 'REJECTED',
-        effectiveTo: new Date(),
-      },
-    });
-
-    return this.prisma.employeeServiceCondition.update({
-      where: {
-        id: conditionId,
-      },
-      data: {
-        status: 'APPROVED',
-      },
-      include: {
-        template: true,
-      },
-    });
-  }
-
-  private async ensureEmployeeExists(id: string) {
+  async createPortalAccount(id: string, input: any) {
     const employee = await this.prisma.employee.findUnique({
       where: { id },
       include: {
@@ -552,7 +327,108 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    return employee;
+    if (employee.portalAccount) {
+      return {
+        message: 'Employee already has a portal account.',
+        temporaryPin: input?.devReturnPin ? null : undefined,
+        employee,
+      };
+    }
+
+    const temporaryPin = String(input?.temporaryPin || randomInt(100000, 999999));
+    const pinHash = this.hashPin(temporaryPin);
+
+    const portalAccount = await this.prisma.employeePortalAccount.create({
+      data: {
+        employeeId: employee.id,
+        employeeNumber: employee.employeeNumber,
+        pinHash,
+        mustChangePin: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      message: 'Employee portal account created.',
+      temporaryPin: input?.devReturnPin ? temporaryPin : undefined,
+      portalAccount,
+      employee: await this.findOne(id),
+    };
+  }
+
+  async getPayrollReadiness() {
+    const employees = await this.prisma.employee.findMany({
+      orderBy: { employeeNumber: 'asc' },
+      include: this.employeeInclude(),
+    });
+
+    const readiness = employees.map((employee) => {
+      const hasCoreProfile = Boolean(
+        employee.firstName &&
+          employee.lastName &&
+          employee.departmentId &&
+          employee.jobTitleId &&
+          employee.siteId &&
+          employee.employmentTypeId,
+      );
+
+      const hasStatutoryDetails = Boolean(employee.statutoryDetails);
+      const hasPortalAccount = Boolean(employee.portalAccount);
+      const hasApprovedBankAccount =
+        employee.bankDetailsStatus === 'VALIDATED' ||
+        employee.bankAccounts.some((account) => account.approvalStatus === 'APPROVED');
+
+      const payrollReady =
+        hasCoreProfile && hasStatutoryDetails && hasPortalAccount && hasApprovedBankAccount;
+
+      return {
+        employeeId: employee.id,
+        employeeNumber: employee.employeeNumber,
+        name: `${employee.firstName} ${employee.lastName}`.trim(),
+        department: employee.department?.name || '-',
+        jobTitle: employee.jobTitle?.name || '-',
+        site: employee.site?.name || '-',
+        employmentType: employee.employmentType?.name || '-',
+        status: employee.status,
+        checks: {
+          hasCoreProfile,
+          hasStatutoryDetails,
+          hasPortalAccount,
+          hasApprovedBankAccount,
+        },
+        payrollReady,
+      };
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      totalEmployees: readiness.length,
+      payrollReadyEmployees: readiness.filter((item) => item.payrollReady).length,
+      employees: readiness,
+    };
+  }
+
+  private async syncEmployeePrimaryBankFields(employeeId: string) {
+    const primaryBank = await this.prisma.employeeBankAccount.findFirst({
+      where: { employeeId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    if (!primaryBank) {
+      return;
+    }
+
+    await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        bankName: primaryBank.bankName,
+        bankBranch: primaryBank.branchName,
+        bankAccountNumber: primaryBank.accountNumber,
+        bankAccountName: primaryBank.accountName,
+        bankDetailsStatus:
+          primaryBank.approvalStatus === 'APPROVED' ? 'VALIDATED' : 'PENDING_VALIDATION',
+      },
+    });
   }
 
   private async generateEmployeeNumber() {
@@ -560,26 +436,34 @@ export class EmployeesService {
     return `STH-${String(count + 1).padStart(6, '0')}`;
   }
 
-    private async generateContractNumber() {
-    const year = new Date().getFullYear();
+  private hashPin(pin: string) {
+    return createHash('sha256').update(pin).digest('hex');
+  }
 
-    const count = await this.prisma.employeeContract.count({
-      where: {
-        contractNumber: {
-          startsWith: `CNT-${year}-`,
+  private employeeInclude() {
+    return {
+      department: true,
+      jobTitle: true,
+      site: true,
+      employmentType: true,
+      supervisor: true,
+      directReports: true,
+      statutoryDetails: true,
+      bankAccounts: {
+        orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'desc' as const }],
+      },
+      portalAccount: {
+        select: {
+          id: true,
+          isActive: true,
+          mustChangePin: true,
+          lastLoginAt: true,
+          failedAttempts: true,
+          lockedUntil: true,
         },
       },
-    });
-
-    return `CNT-${year}-${String(count + 1).padStart(6, '0')}`;
-  }
-
-  private generateTemporaryPin() {
-    return String(randomInt(100000, 999999));
-  }
-
-  private hashPin(pin: string) {
-    const salt = process.env.EMPLOYEE_PIN_SALT || 'southin-peoplepay-dev-salt';
-    return createHash('sha256').update(`${pin}:${salt}`).digest('hex');
+      contracts: true,
+      serviceConditions: true,
+    };
   }
 }
