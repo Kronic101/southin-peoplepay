@@ -30,6 +30,11 @@ export class PaymentController {
     return this.paymentService.validateBankDetails(id, body);
   }
 
+  @Post(':id/recheck-payslips')
+  recheckPayslips(@Param('id') id: string, @Body() body: any) {
+    return this.paymentService.recheckPayslips(id, body);
+  }
+
   @Post(':id/approve')
   approvePaymentBatch(@Param('id') id: string, @Body() body: any) {
     return this.paymentService.approvePaymentBatch(id, body);

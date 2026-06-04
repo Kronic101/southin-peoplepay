@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   approvePaymentBatch,
   preparePaymentBatch,
+  recheckPaymentBatchPayslips,  
   validatePaymentBatchBankDetails,
 } from '@/lib/api';
 
@@ -83,6 +84,27 @@ export function PaymentBatchActions({ batch }: Props) {
     }
   }
 
+  async function handleRecheckPayslips() {
+    setMessage('');
+    setLoadingAction('recheck');
+
+    try {
+      const result = await recheckPaymentBatchPayslips(batch.id, {
+        checkedBy: 'finance-manager-dev',
+      });
+
+      setMessage(
+        `${result.message} Refreshed: ${result.refreshedCount}. Still blocked: ${result.stillBlockedCount}.`,
+      );
+
+      router.refresh();
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to recheck payslips.');
+    } finally {
+      setLoadingAction('');
+    }
+  }
+
   const isApproved = batch.status === 'APPROVED';
   const canPrepare = !isApproved;
   const canApprove = batch.status === 'PREPARED';
@@ -98,6 +120,15 @@ export function PaymentBatchActions({ batch }: Props) {
         </div>
 
         <div className="action-row">
+          <button
+            className="btn-secondary"
+            type="button"
+            disabled={loadingAction === 'recheck' || isApproved}
+            onClick={handleRecheckPayslips}
+          >
+            {loadingAction === 'recheck' ? 'Rechecking...' : 'Recheck Payslips'}
+          </button>
+
           <button
             className="btn-secondary"
             type="button"
@@ -131,9 +162,8 @@ export function PaymentBatchActions({ batch }: Props) {
 
       {batch.status === 'BLOCKED_PAYSLIPS_MISSING' && (
         <div className="notice">
-          This batch is blocked because payslips are missing. Generate payslips from the locked
-          payroll run, then create a new payment batch or update this workflow later to re-check
-          payslip status.
+          This batch is blocked because one or more payslips are missing. Generate payslips from the
+          locked payroll run, then click <strong>Recheck Payslips</strong> to refresh this payment batch.
         </div>
       )}
     </div>

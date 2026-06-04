@@ -288,4 +288,90 @@ export class PaymentService {
       batch: await this.getPaymentBatch(id),
     };
   }
+
+  async recheckPayslips(id: string, input: any) {
+    const batch = await this.prisma.paymentBatch.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            payrollRunEmployee: {
+              include: {
+                payslip: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!batch) {
+      throw new NotFoundException('Payment batch not found');
+    }
+
+    if (batch.status === 'APPROVED') {
+      throw new BadRequestException('Approved payment batch cannot be refreshed.');
+    }
+
+    let refreshedCount = 0;
+    let stillBlockedCount = 0;
+
+    for (const item of batch.items) {
+      const hasPayslip = Boolean(item.payrollRunEmployee?.payslip);
+
+      if (hasPayslip) {
+        await this.prisma.paymentBatchItem.update({
+          where: { id: item.id },
+          data: {
+            paymentStatus:
+              item.bankDetailsStatus === 'VALIDATED' ? 'READY_FOR_PAYMENT' : 'PENDING',
+            validationNotes:
+              item.bankDetailsStatus === 'VALIDATED'
+                ? 'Payslip found. Bank details already validated. Ready for payment preparation.'
+                : 'Payslip found. Pending Finance bank detail validation.',
+          },
+        });
+
+        refreshedCount += 1;
+      } else {
+        await this.prisma.paymentBatchItem.update({
+          where: { id: item.id },
+          data: {
+            paymentStatus: 'BLOCKED_PAYSLIP_MISSING',
+            validationNotes: 'Payslip still missing. Generate payslip before payment preparation.',
+          },
+        });
+
+        stillBlockedCount += 1;
+      }
+    }
+
+    const newStatus = stillBlockedCount > 0 ? 'BLOCKED_PAYSLIPS_MISSING' : 'DRAFT';
+
+    await this.prisma.paymentBatch.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        evidenceNotes:
+          stillBlockedCount > 0
+            ? `Payslip recheck completed by ${
+                input?.checkedBy || 'finance-manager-dev'
+              }. ${stillBlockedCount} item(s) still blocked.`
+            : `Payslip recheck completed by ${
+                input?.checkedBy || 'finance-manager-dev'
+              }. All payment items now have payslips and can proceed to bank validation.`,
+      },
+    });
+
+    return {
+      message:
+        stillBlockedCount > 0
+          ? 'Payslip recheck completed. Some items are still blocked.'
+          : 'Payslip recheck completed. Payment batch is now ready for Finance validation.',
+      refreshedCount,
+      stillBlockedCount,
+      batch: await this.getPaymentBatch(id),
+    };
+  }
+
 }

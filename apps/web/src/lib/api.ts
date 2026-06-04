@@ -1204,3 +1204,25 @@ export async function approvePaymentBatch(
 
   return res.json();
 }
+
+export async function recheckPaymentBatchPayslips(
+  id: string,
+  payload: {
+    checkedBy?: string;
+  },
+) {
+  const res = await fetch(`${API_URL}/payment-batches/${id}/recheck-payslips`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to recheck payment batch payslips');
+  }
+
+  return res.json();
+}
