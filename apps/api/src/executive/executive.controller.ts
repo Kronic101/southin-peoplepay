@@ -86,4 +86,14 @@ export class ExecutiveController {
   publishToSharePoint(@Body() body: any) {
     return this.executiveService.logSharePointExportRequest(body);
   }
+
+  @Get('sharepoint/discovery-guide')
+  getSharePointDiscoveryGuide() {
+    return this.executiveService.getSharePointDiscoveryGuide();
+  }
+
+  @Post('sharepoint/discovery-preview')
+  getSharePointDiscoveryPreview(@Body() body: any) {
+    return this.executiveService.getSharePointDiscoveryPreview(body);
+  }
 }

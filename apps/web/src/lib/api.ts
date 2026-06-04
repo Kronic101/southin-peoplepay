@@ -1028,3 +1028,31 @@ export async function getSharePointSetupGuide() {
 
   return res.json();
 }
+
+export async function getSharePointDiscoveryGuide() {
+  const res = await fetch(`${API_URL}/executive/sharepoint/discovery-guide`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load SharePoint discovery guide');
+  }
+
+  return res.json();
+}
+
+export async function getSharePointDiscoveryPreview(input: any) {
+  const res = await fetch(`${API_URL}/executive/sharepoint/discovery-preview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to generate SharePoint discovery preview');
+  }
+
+  return res.json();
+}

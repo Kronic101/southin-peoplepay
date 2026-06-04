@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getSharePointSetupGuide } from '@/lib/api';
+import { SharePointDiscoveryPreview } from './SharePointDiscoveryPreview';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,6 +72,8 @@ export default async function SharePointGraphSetupPage() {
         {guide.message} Keep Graph disabled until Azure App Registration, permissions, site IDs, and
         library/list IDs are ready.
       </div>
+
+      <SharePointDiscoveryPreview />
 
       <div className="table-wrap">
         <h3>Setup Phases</h3>

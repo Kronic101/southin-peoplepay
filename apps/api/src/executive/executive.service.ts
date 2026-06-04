@@ -873,127 +873,239 @@ export class ExecutiveService {
   }
 
   getSharePointSetupGuide() {
-  const graphStatus = this.sharePointGraphService.getStatus();
-  const targets = this.sharePointGraphService.getTargets();
+    const graphStatus = this.sharePointGraphService.getStatus();
+    const targets = this.sharePointGraphService.getTargets();
 
-  return {
-    generatedAt: new Date(),
-    title: 'Southin PeoplePay Microsoft Graph Setup Guide',
-    currentMode: graphStatus.mode,
-    graphEnabled: graphStatus.graphEnabled,
-    readyForGraphWrites: graphStatus.readyForGraphWrites,
-    message: graphStatus.message,
-    setupPhases: [
-      {
-        phase: 1,
-        name: 'Create Azure App Registration',
-        status: graphStatus.requiredConfig.AZURE_TENANT_ID ? 'DONE_OR_PARTIAL' : 'PENDING',
-        actions: [
-          'Go to Microsoft Entra admin center.',
-          'Create a new App Registration for Southin PeoplePay.',
-          'Record Tenant ID, Client ID, and create a Client Secret.',
-          'Do not enable SHAREPOINT_GRAPH_ENABLED=true yet.',
-        ],
-        envKeys: ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'],
-      },
-      {
-        phase: 2,
-        name: 'Grant Microsoft Graph Permissions',
-        status: 'PENDING',
-        actions: [
-          'Add Microsoft Graph Application permissions.',
-          'Recommended initial permissions: Sites.Read.All for discovery.',
-          'Later add Sites.ReadWrite.All only when publishing is ready.',
-          'Grant admin consent using a Global Admin account.',
-        ],
-        warning:
-          'Do not give write permissions until payloads, logs, and target IDs are fully validated.',
-      },
-      {
-        phase: 3,
-        name: 'Resolve SharePoint Site IDs',
-        status:
-          targets.targets.every((target: any) => target.configured?.siteId) === true
-            ? 'DONE'
-            : 'PENDING',
-        actions: [
-          'Resolve the Executive Leadership site ID.',
-          'Resolve the Finance site ID.',
-          'Resolve the Human Resource site ID.',
-          'Resolve the Southin Public Dashboard site ID.',
-          'Store the IDs in .env.',
-        ],
-        envKeys: [
-          'SHAREPOINT_EXECUTIVE_SITE_ID',
-          'SHAREPOINT_FINANCE_SITE_ID',
-          'SHAREPOINT_HR_SITE_ID',
-          'SHAREPOINT_PUBLIC_DASHBOARD_SITE_ID',
-        ],
-      },
-      {
-        phase: 4,
-        name: 'Resolve SharePoint Page/List/Drive IDs',
-        status:
-          targets.targets.every((target: any) => {
-            const siteReady = Boolean(target.configured?.siteId);
-            const driveReady =
-              target.configured?.driveId === null ? true : Boolean(target.configured?.driveId);
-            const listReady =
-              target.configured?.listId === null ? true : Boolean(target.configured?.listId);
+    return {
+      generatedAt: new Date(),
+      title: 'Southin PeoplePay Microsoft Graph Setup Guide',
+      currentMode: graphStatus.mode,
+      graphEnabled: graphStatus.graphEnabled,
+      readyForGraphWrites: graphStatus.readyForGraphWrites,
+      message: graphStatus.message,
+      setupPhases: [
+        {
+          phase: 1,
+          name: 'Create Azure App Registration',
+          status: graphStatus.requiredConfig.AZURE_TENANT_ID ? 'DONE_OR_PARTIAL' : 'PENDING',
+          actions: [
+            'Go to Microsoft Entra admin center.',
+            'Create a new App Registration for Southin PeoplePay.',
+            'Record Tenant ID, Client ID, and create a Client Secret.',
+            'Do not enable SHAREPOINT_GRAPH_ENABLED=true yet.',
+          ],
+          envKeys: ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'],
+        },
+        {
+          phase: 2,
+          name: 'Grant Microsoft Graph Permissions',
+          status: 'PENDING',
+          actions: [
+            'Add Microsoft Graph Application permissions.',
+            'Recommended initial permissions: Sites.Read.All for discovery.',
+            'Later add Sites.ReadWrite.All only when publishing is ready.',
+            'Grant admin consent using a Global Admin account.',
+          ],
+          warning:
+            'Do not give write permissions until payloads, logs, and target IDs are fully validated.',
+        },
+        {
+          phase: 3,
+          name: 'Resolve SharePoint Site IDs',
+          status:
+            targets.targets.every((target: any) => target.configured?.siteId) === true
+              ? 'DONE'
+              : 'PENDING',
+          actions: [
+            'Resolve the Executive Leadership site ID.',
+            'Resolve the Finance site ID.',
+            'Resolve the Human Resource site ID.',
+            'Resolve the Southin Public Dashboard site ID.',
+            'Store the IDs in .env.',
+          ],
+          envKeys: [
+            'SHAREPOINT_EXECUTIVE_SITE_ID',
+            'SHAREPOINT_FINANCE_SITE_ID',
+            'SHAREPOINT_HR_SITE_ID',
+            'SHAREPOINT_PUBLIC_DASHBOARD_SITE_ID',
+          ],
+        },
+        {
+          phase: 4,
+          name: 'Resolve SharePoint Page/List/Drive IDs',
+          status:
+            targets.targets.every((target: any) => {
+              const siteReady = Boolean(target.configured?.siteId);
+              const driveReady =
+                target.configured?.driveId === null ? true : Boolean(target.configured?.driveId);
+              const listReady =
+                target.configured?.listId === null ? true : Boolean(target.configured?.listId);
 
-            return siteReady && driveReady && listReady;
-          }) === true
-            ? 'DONE'
-            : 'PENDING',
-        actions: [
-          'Resolve Executive Leadership Site Pages list ID.',
-          'Resolve Southin Public Dashboard Site Pages list ID.',
-          'Resolve Finance Payroll Audit Reports document library drive ID.',
-          'Store the IDs in .env.',
-        ],
-        envKeys: [
-          'SHAREPOINT_EXECUTIVE_PAGE_LIST_ID',
-          'SHAREPOINT_PUBLIC_PAGE_LIST_ID',
-          'SHAREPOINT_FINANCE_AUDIT_DRIVE_ID',
-        ],
+              return siteReady && driveReady && listReady;
+            }) === true
+              ? 'DONE'
+              : 'PENDING',
+          actions: [
+            'Resolve Executive Leadership Site Pages list ID.',
+            'Resolve Southin Public Dashboard Site Pages list ID.',
+            'Resolve Finance Payroll Audit Reports document library drive ID.',
+            'Store the IDs in .env.',
+          ],
+          envKeys: [
+            'SHAREPOINT_EXECUTIVE_PAGE_LIST_ID',
+            'SHAREPOINT_PUBLIC_PAGE_LIST_ID',
+            'SHAREPOINT_FINANCE_AUDIT_DRIVE_ID',
+          ],
+        },
+        {
+          phase: 5,
+          name: 'Enable Controlled Graph Publishing',
+          status: graphStatus.readyForGraphWrites ? 'READY_TO_TEST' : 'BLOCKED',
+          actions: [
+            'Confirm export logs are working.',
+            'Confirm all payloads show READY.',
+            'Confirm target IDs are configured.',
+            'Only then set SHAREPOINT_GRAPH_ENABLED=true.',
+            'Test with one non-critical payload first.',
+          ],
+          warning:
+            'Do not enable live Graph publishing until Executive, Finance, HR, and Public data separation is confirmed.',
+        },
+      ],
+      envTemplate: {
+        SHAREPOINT_GRAPH_ENABLED: 'false',
+        AZURE_TENANT_ID: '',
+        AZURE_CLIENT_ID: '',
+        AZURE_CLIENT_SECRET: '',
+        SHAREPOINT_EXECUTIVE_SITE_ID: '',
+        SHAREPOINT_EXECUTIVE_PAGE_LIST_ID: '',
+        SHAREPOINT_FINANCE_SITE_ID: '',
+        SHAREPOINT_FINANCE_AUDIT_DRIVE_ID: '',
+        SHAREPOINT_HR_SITE_ID: '',
+        SHAREPOINT_PUBLIC_DASHBOARD_SITE_ID: '',
+        SHAREPOINT_PUBLIC_PAGE_LIST_ID: '',
       },
-      {
-        phase: 5,
-        name: 'Enable Controlled Graph Publishing',
-        status: graphStatus.readyForGraphWrites ? 'READY_TO_TEST' : 'BLOCKED',
-        actions: [
-          'Confirm export logs are working.',
-          'Confirm all payloads show READY.',
-          'Confirm target IDs are configured.',
-          'Only then set SHAREPOINT_GRAPH_ENABLED=true.',
-          'Test with one non-critical payload first.',
-        ],
-        warning:
-          'Do not enable live Graph publishing until Executive, Finance, HR, and Public data separation is confirmed.',
-      },
-    ],
-    envTemplate: {
-      SHAREPOINT_GRAPH_ENABLED: 'false',
-      AZURE_TENANT_ID: '',
-      AZURE_CLIENT_ID: '',
-      AZURE_CLIENT_SECRET: '',
-      SHAREPOINT_EXECUTIVE_SITE_ID: '',
-      SHAREPOINT_EXECUTIVE_PAGE_LIST_ID: '',
-      SHAREPOINT_FINANCE_SITE_ID: '',
-      SHAREPOINT_FINANCE_AUDIT_DRIVE_ID: '',
-      SHAREPOINT_HR_SITE_ID: '',
-      SHAREPOINT_PUBLIC_DASHBOARD_SITE_ID: '',
-      SHAREPOINT_PUBLIC_PAGE_LIST_ID: '',
-    },
-    targets: targets.targets,
-    missingConfig: graphStatus.missingConfig,
-    safetyRules: [
-      'Keep SHAREPOINT_GRAPH_ENABLED=false until all IDs and permissions are confirmed.',
-      'Public dashboard must never contain pay values, employee names, NRC, bank details, or payslip details.',
-      'Finance audit exports must stay in the Finance site or Executive Leadership site only.',
-      'Every export attempt must be recorded in SharePointExportLog.',
-      'Graph publishing must fail closed if any required ID is missing.',
-    ],
-  };
+      targets: targets.targets,
+      missingConfig: graphStatus.missingConfig,
+      safetyRules: [
+        'Keep SHAREPOINT_GRAPH_ENABLED=false until all IDs and permissions are confirmed.',
+        'Public dashboard must never contain pay values, employee names, NRC, bank details, or payslip details.',
+        'Finance audit exports must stay in the Finance site or Executive Leadership site only.',
+        'Every export attempt must be recorded in SharePointExportLog.',
+        'Graph publishing must fail closed if any required ID is missing.',
+      ],
+    };
 }
+
+  getSharePointDiscoveryGuide() {
+    const graphStatus = this.sharePointGraphService.getStatus();
+    const targets = this.sharePointGraphService.getTargets();
+
+    return {
+      generatedAt: new Date(),
+      title: 'SharePoint Graph Discovery Guide',
+      graphEnabled: graphStatus.graphEnabled,
+      mode: graphStatus.mode,
+      message:
+        'This discovery guide prepares the API for Microsoft Graph site/list/drive ID resolution. In dev mode, no Microsoft Graph request is made.',
+      tenantHost: 'southingcontracting.sharepoint.com',
+      discoverySteps: [
+        {
+          step: 1,
+          name: 'Confirm SharePoint tenant host',
+          example: 'southingcontracting.sharepoint.com',
+          requiredFor: ['All SharePoint discovery requests'],
+        },
+        {
+          step: 2,
+          name: 'Resolve site ID by site path',
+          graphTemplate:
+            'GET https://graph.microsoft.com/v1.0/sites/{tenantHost}:/sites/{sitePath}',
+          examples: [
+            '/sites/ExecutiveLeadership',
+            '/sites/Finance',
+            '/sites/HumanResource',
+            '/sites/SouthinPublicDashboard',
+          ],
+        },
+        {
+          step: 3,
+          name: 'Resolve document libraries / drives',
+          graphTemplate: 'GET https://graph.microsoft.com/v1.0/sites/{siteId}/drives',
+          requiredFor: ['Finance Payroll Audit Reports document library'],
+        },
+        {
+          step: 4,
+          name: 'Resolve site pages list',
+          graphTemplate: 'GET https://graph.microsoft.com/v1.0/sites/{siteId}/lists',
+          requiredFor: [
+            'Executive Leadership PeoplePay Executive Dashboard page',
+            'Southin Public Dashboard PeoplePay Public Summary page',
+          ],
+        },
+        {
+          step: 5,
+          name: 'Store resolved IDs in .env',
+          envKeys: [
+            'SHAREPOINT_EXECUTIVE_SITE_ID',
+            'SHAREPOINT_EXECUTIVE_PAGE_LIST_ID',
+            'SHAREPOINT_FINANCE_SITE_ID',
+            'SHAREPOINT_FINANCE_AUDIT_DRIVE_ID',
+            'SHAREPOINT_HR_SITE_ID',
+            'SHAREPOINT_PUBLIC_DASHBOARD_SITE_ID',
+            'SHAREPOINT_PUBLIC_PAGE_LIST_ID',
+          ],
+        },
+      ],
+      targets: targets.targets,
+      safetyRules: [
+        'Discovery must begin with read-only Microsoft Graph permissions.',
+        'Do not enable Sites.ReadWrite.All until write payloads have been validated.',
+        'Do not publish public payroll values to Southin Public Dashboard.',
+        'Keep SHAREPOINT_GRAPH_ENABLED=false until IDs are confirmed.',
+      ],
+    };
+  }
+
+  getSharePointDiscoveryPreview(body: any) {
+    const tenantHost = body?.tenantHost || 'southingcontracting.sharepoint.com';
+    const targetKey = body?.targetKey || null;
+    const sitePath = body?.sitePath || null;
+    const siteId = body?.siteId || null;
+
+    const validation = this.sharePointGraphService.validateTarget({
+      targetKey,
+      targetSite: body?.targetSite,
+      payloadEndpoint: body?.payloadEndpoint,
+    });
+
+    const graphEnabled = String(process.env.SHAREPOINT_GRAPH_ENABLED || 'false').toLowerCase() === 'true';
+
+    return {
+      generatedAt: new Date(),
+      mode: graphEnabled ? 'GRAPH_ENABLED' : 'DISABLED_DEV_MODE',
+      graphRequestPerformed: false,
+      message:
+        'Discovery preview generated only. No Microsoft Graph request was made in this phase.',
+      input: {
+        tenantHost,
+        targetKey,
+        sitePath,
+        siteId,
+      },
+      targetValidation: validation,
+      previewUrls: {
+        resolveSiteId: sitePath
+          ? `https://graph.microsoft.com/v1.0/sites/${tenantHost}:/sites/${sitePath.replace(/^\/?sites\//, '')}`
+          : null,
+        listDrives: siteId ? `https://graph.microsoft.com/v1.0/sites/${siteId}/drives` : null,
+        listLists: siteId ? `https://graph.microsoft.com/v1.0/sites/${siteId}/lists` : null,
+        sitePagesHint: siteId
+          ? `Use /sites/${siteId}/lists and identify the Site Pages list for page publishing.`
+          : null,
+      },
+      requiredNextStep:
+        'After Azure App Registration is ready, replace this preview with real Microsoft Graph discovery calls using application permissions.',
+    };
+  }
 }
