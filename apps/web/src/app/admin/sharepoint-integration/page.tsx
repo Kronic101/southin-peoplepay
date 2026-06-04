@@ -1,5 +1,10 @@
 import Link from 'next/link';
-import { getSharePointExportPackage, getSharePointExportLogs, getSharePointGraphStatus, getSharePointTargets } from '@/lib/api';
+import {
+  getSharePointExportPackage,
+  getSharePointExportLogs,
+  getSharePointGraphStatus,
+  getSharePointTargets,
+} from '@/lib/api';
 import { SharePointExportTester } from './sharepoint-export-tester';
 
 export const dynamic = 'force-dynamic';
@@ -54,19 +59,19 @@ async function safeLoadExportPackage() {
   }
 }
 
-async function safeLoadTargets() {
-  try {
-    return await getSharePointTargets();
-  } catch {
-    return { targets: [] };
-  }
-}
-
 async function safeLoadGraphStatus() {
   try {
     return await getSharePointGraphStatus();
   } catch {
     return null;
+  }
+}
+
+async function safeLoadTargets() {
+  try {
+    return await getSharePointTargets();
+  } catch {
+    return { targets: [] };
   }
 }
 
@@ -81,6 +86,12 @@ async function safeLoadExportLogs() {
 export default async function SharePointIntegrationStatusPage() {
   const exportPackageResult = await safeLoadExportPackage();
   const exportPackage = exportPackageResult.data;
+
+  const [graphStatus, sharePointTargets, exportLogs] = await Promise.all([
+    safeLoadGraphStatus(),
+    safeLoadTargets(),
+    safeLoadExportLogs(),
+  ]);
 
   const executivePayload = exportPackage?.payloads?.executiveLeadership || null;
   const financePayload = exportPackage?.payloads?.financeAudit || null;
@@ -100,21 +111,9 @@ export default async function SharePointIntegrationStatusPage() {
   const financeAudit = financePayload?.auditPackage || null;
   const publicSummary = publicPayload?.publicSummary || {};
 
-  const controlledPayloads = [
-    exportPackage,
-    executivePayload,
-    financePayload,
-    publicPayload,
-  ];
-
+  const controlledPayloads = [exportPackage, executivePayload, financePayload, publicPayload];
   const readyPayloads = controlledPayloads.filter((payload) => isReady(payload)).length;
 
-  const [graphStatus, sharePointTargets, exportLogs] = await Promise.all([
-    safeLoadGraphStatus(),
-    safeLoadExportLogs(),
-    safeLoadTargets(),
-  ]);
-  
   const endpoints = [
     {
       name: 'Full SharePoint Export Package',
@@ -191,7 +190,8 @@ export default async function SharePointIntegrationStatusPage() {
           <h1>SharePoint Integration Status</h1>
           <p className="muted">
             Controlled PeoplePay export payloads for Executive Leadership, Finance, Human Resource,
-            and Southin Public Dashboard. Microsoft Graph publishing will be enabled after Azure App Registration.
+            and Southin Public Dashboard. Microsoft Graph publishing will be enabled after Azure App
+            Registration.
           </p>
         </div>
 
@@ -209,7 +209,7 @@ export default async function SharePointIntegrationStatusPage() {
       <div className="summary-grid">
         <div className="summary-card">
           <span className="summary-label">Graph Automation</span>
-          <strong>{exportPackage?.graphAutomationStatus || 'NOT ENABLED YET'}</strong>
+          <strong>{exportPackage?.graphAutomationStatus || 'NOT_ENABLED_YET'}</strong>
         </div>
 
         <div className="summary-card">
@@ -259,7 +259,7 @@ export default async function SharePointIntegrationStatusPage() {
 
           <div className="summary-card">
             <span className="summary-label">Payslips Generated</span>
-            <strong>{kpis.payslipsGenerated ?? '-'}</strong>
+            <strong>{kpis.totalPayslips ?? '-'}</strong>
           </div>
 
           <div className="summary-card">
@@ -433,64 +433,6 @@ export default async function SharePointIntegrationStatusPage() {
       </div>
 
       <div className="table-wrap">
-        <h3>SharePoint Export Endpoints</h3>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Feed</th>
-              <th>Target Site</th>
-              <th>Purpose</th>
-              <th>Endpoint</th>
-              <th>Confidentiality</th>
-              <th>Status</th>
-              <th>Open</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {endpoints.map((item) => {
-              const ready = item.status === 'READY';
-
-              return (
-                <tr key={item.endpoint}>
-                  <td>{item.name}</td>
-                  <td>{item.site}</td>
-                  <td>
-                    {item.purpose}
-                    {item.error && (
-                      <div className="muted">
-                        Error: <code>{item.error}</code>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <code>{item.endpoint}</code>
-                  </td>
-                  <td>{item.confidentiality}</td>
-                  <td>
-                    <span className={ready ? 'status-pill locked' : 'status-pill warning'}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td>
-                    <a
-                      className="link-button"
-                      href={`http://localhost:4000${item.endpoint}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open JSON
-                    </a>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="table-wrap">
         <h3>SharePoint Graph Configuration Status</h3>
 
         <div className="summary-grid">
@@ -600,6 +542,8 @@ export default async function SharePointIntegrationStatusPage() {
         </table>
       </div>
 
+      <SharePointExportTester />
+
       <div className="table-wrap">
         <h3>Recent SharePoint Export Logs</h3>
 
@@ -650,7 +594,63 @@ export default async function SharePointIntegrationStatusPage() {
         </table>
       </div>
 
-      <SharePointExportTester />
+      <div className="table-wrap">
+        <h3>SharePoint Export Endpoints</h3>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Feed</th>
+              <th>Target Site</th>
+              <th>Purpose</th>
+              <th>Endpoint</th>
+              <th>Confidentiality</th>
+              <th>Status</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {endpoints.map((item) => {
+              const ready = item.status === 'READY';
+
+              return (
+                <tr key={item.endpoint}>
+                  <td>{item.name}</td>
+                  <td>{item.site}</td>
+                  <td>
+                    {item.purpose}
+                    {item.error && (
+                      <div className="muted">
+                        Error: <code>{item.error}</code>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <code>{item.endpoint}</code>
+                  </td>
+                  <td>{item.confidentiality}</td>
+                  <td>
+                    <span className={ready ? 'status-pill locked' : 'status-pill warning'}>
+                      {item.status}
+                    </span>
+                  </td>
+                  <td>
+                    <a
+                      className="link-button"
+                      href={`http://localhost:4000${item.endpoint}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open JSON
+                    </a>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="table-wrap">
         <h3>Target SharePoint Structure</h3>
@@ -723,130 +723,26 @@ export default async function SharePointIntegrationStatusPage() {
         </table>
       </div>
 
-      <div className="table-wrap">
-        <h3>SharePoint Graph Configuration Status</h3>
+      <details>
+        <summary>Developer Payload Preview</summary>
 
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="summary-label">Graph Enabled</span>
-            <strong>{graphStatus?.graphEnabled ? 'Yes' : 'No'}</strong>
-          </div>
+        <h4>Full Export Package JSON</h4>
+        <JsonPreview data={exportPackage} />
 
-          <div className="summary-card">
-            <span className="summary-label">Mode</span>
-            <strong>{graphStatus?.mode || 'DISABLED_DEV_MODE'}</strong>
-          </div>
+        <h4>Executive Leadership Payload JSON</h4>
+        <JsonPreview data={executivePayload} />
 
-          <div className="summary-card">
-            <span className="summary-label">Azure Tenant ID</span>
-            <strong>{graphStatus?.requiredConfig?.AZURE_TENANT_ID ? 'Configured' : 'Missing'}</strong>
-          </div>
+        <h4>Finance Audit Payload JSON</h4>
+        <JsonPreview data={financePayload} />
 
-          <div className="summary-card">
-            <span className="summary-label">Client ID</span>
-            <strong>{graphStatus?.requiredConfig?.AZURE_CLIENT_ID ? 'Configured' : 'Missing'}</strong>
-          </div>
-        </div>
-
-        <div className="notice">
-          {graphStatus?.message ||
-            'Microsoft Graph publishing is disabled. Export requests will be logged only.'}
-        </div>
-      </div>
-
-      <div className="table-wrap">
-        <h3>Recent SharePoint Export Logs</h3>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Created</th>
-              <th>Target Site</th>
-              <th>Target Page / Library</th>
-              <th>Payload</th>
-              <th>Status</th>
-              <th>Requested By</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {(exportLogs?.logs || []).length === 0 ? (
-              <tr>
-                <td colSpan={6}>No SharePoint export logs yet.</td>
-              </tr>
-            ) : (
-              exportLogs.logs.map((log: any) => (
-                <tr key={log.id}>
-                  <td>{formatDateTime(log.createdAt)}</td>
-                  <td>{log.targetSite}</td>
-                  <td>{log.targetPage || log.targetLibrary || '-'}</td>
-                  <td>
-                    <code>{log.payloadEndpoint}</code>
-                  </td>
-                  <td>
-                    <span
-                      className={
-                        log.graphStatus === 'SUCCESS'
-                          ? 'status-pill locked'
-                          : log.graphStatus === 'FAILED'
-                            ? 'status-pill warning'
-                            : 'status-pill'
-                      }
-                    >
-                      {log.graphStatus}
-                    </span>
-                  </td>
-                  <td>{log.requestedBy || '-'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="table-wrap">
-        <h3>Developer Payload Preview</h3>
-
-        <details>
-          <summary>Full Export Package JSON</summary>
-          {exportPackage ? (
-            <JsonPreview data={exportPackage} />
-          ) : (
-            <div className="notice">{exportPackageResult.error}</div>
-          )}
-        </details>
-
-        <details>
-          <summary>Executive Leadership Payload JSON</summary>
-          {executivePayload ? (
-            <JsonPreview data={executivePayload} />
-          ) : (
-            <div className="notice">Executive payload was not returned in the export package.</div>
-          )}
-        </details>
-
-        <details>
-          <summary>Finance Audit Payload JSON</summary>
-          {financePayload ? (
-            <JsonPreview data={financePayload} />
-          ) : (
-            <div className="notice">Finance audit payload was not returned in the export package.</div>
-          )}
-        </details>
-
-        <details>
-          <summary>Public Dashboard Payload JSON</summary>
-          {publicPayload ? (
-            <JsonPreview data={publicPayload} />
-          ) : (
-            <div className="notice">Public dashboard payload was not returned in the export package.</div>
-          )}
-        </details>
-      </div>
+        <h4>Public Dashboard Payload JSON</h4>
+        <JsonPreview data={publicPayload} />
+      </details>
 
       <div className="notice">
-        This page now renders the SharePoint export package as readable admin sections. The raw JSON is
-        still available below for API testing and future Microsoft Graph publishing validation.
+        This page uses the controlled export package, target registry, Graph readiness status, and
+        SharePoint export log table. Actual Microsoft Graph publishing must remain disabled until the
+        Azure App Registration and SharePoint target IDs are configured.
       </div>
     </section>
   );
