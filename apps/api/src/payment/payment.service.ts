@@ -65,6 +65,143 @@ export class PaymentService {
     return batch;
   }
 
+  async getPaymentBatchEvidence(id: string) {
+    const batch = await this.getPaymentBatch(id);
+
+    const readyItems = batch.items.filter((item: any) =>
+      ['READY_FOR_PAYMENT', 'APPROVED_FOR_MANUAL_PAYMENT'].includes(item.paymentStatus),
+    );
+
+    const blockedItems = batch.items.filter((item: any) =>
+      ['BLOCKED_PAYSLIP_MISSING', 'PENDING_BANK_VALIDATION', 'PENDING_VALIDATION'].includes(
+        item.paymentStatus,
+      ),
+    );
+
+    return {
+      generatedAt: new Date().toISOString(),
+      evidenceType: 'PAYMENT_BATCH_EVIDENCE',
+      confidentiality: 'CONFIDENTIAL_FINANCE',
+      targetSharePoint: {
+        siteName: 'Finance',
+        libraryName: 'Payroll Audit Reports',
+        recommendedFolder: `${batch.payrollRun?.payrollPeriod?.periodName || 'Payroll'} / Payment Evidence`,
+      },
+      batch: {
+        id: batch.id,
+        batchName: batch.batchName,
+        status: batch.status,
+        payrollRunName: batch.payrollRun?.runName,
+        periodName: batch.payrollRun?.payrollPeriod?.periodName,
+        totalEmployees: batch.totalEmployees,
+        totalNetPay: batch.totalNetPay,
+        preparedBy: batch.preparedBy,
+        preparedAt: batch.preparedAt,
+        reviewedBy: batch.reviewedBy,
+        reviewedAt: batch.reviewedAt,
+        approvedBy: batch.approvedBy,
+        approvedAt: batch.approvedAt,
+        evidenceNotes: batch.evidenceNotes,
+      },
+      readiness: {
+        readyItems: readyItems.length,
+        blockedItems: blockedItems.length,
+        canExportForManualPayment: blockedItems.length === 0 && batch.status === 'APPROVED',
+        warning:
+          batch.status !== 'APPROVED'
+            ? 'Payment batch has not been approved yet.'
+            : blockedItems.length > 0
+              ? 'Payment batch still contains blocked or pending items.'
+              : null,
+      },
+      items: batch.items.map((item: any) => ({
+        employeeNumber: item.employeeNumber,
+        employeeName: item.employeeName,
+        department: item.department,
+        netPay: item.netPay,
+        bankName: item.bankName,
+        bankBranch: item.bankBranch,
+        bankAccountName: item.bankAccountName,
+        bankAccountNumberMasked: this.maskAccountNumber(item.bankAccountNumber),
+        bankDetailsStatus: item.bankDetailsStatus,
+        paymentStatus: item.paymentStatus,
+        validationNotes: item.validationNotes,
+      })),
+      controls: [
+        'This evidence file is for Finance-controlled payment preparation only.',
+        'This file does not trigger a bank transfer.',
+        'Bank account numbers are masked in the evidence JSON.',
+        'Full payment banking evidence must remain restricted to Finance.',
+        'Payment batch must be approved before live bank integration is enabled.',
+      ],
+    };
+  }
+
+  async exportPaymentBatchEvidenceCsv(id: string) {
+    const batch = await this.getPaymentBatch(id);
+
+    const headers = [
+      'Batch Name',
+      'Payroll Run',
+      'Period',
+      'Batch Status',
+      'Employee No.',
+      'Employee Name',
+      'Department',
+      'Net Pay',
+      'Bank Name',
+      'Branch',
+      'Account Name',
+      'Account Number Masked',
+      'Bank Status',
+      'Payment Status',
+      'Validation Notes',
+    ];
+
+    const rows = batch.items.map((item: any) => [
+      batch.batchName,
+      batch.payrollRun?.runName || '',
+      batch.payrollRun?.payrollPeriod?.periodName || '',
+      batch.status,
+      item.employeeNumber,
+      item.employeeName,
+      item.department || '',
+      Number(item.netPay || 0).toFixed(2),
+      item.bankName || '',
+      item.bankBranch || '',
+      item.bankAccountName || '',
+      this.maskAccountNumber(item.bankAccountNumber),
+      item.bankDetailsStatus || '',
+      item.paymentStatus || '',
+      item.validationNotes || '',
+    ]);
+
+    return [headers, ...rows]
+      .map((row) =>
+        row
+          .map((value) => {
+            const escaped = String(value ?? '').replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(','),
+      )
+      .join('\n');
+  }
+
+  private maskAccountNumber(accountNumber?: string | null) {
+    if (!accountNumber) {
+      return '';
+    }
+
+    const value = String(accountNumber);
+
+    if (value.length <= 4) {
+      return '****';
+    }
+
+    return `${'*'.repeat(Math.max(value.length - 4, 4))}${value.slice(-4)}`;
+  }
+
   async createPaymentBatchFromPayrollRun(payrollRunId: string, input: any) {
     const payrollRun = await this.prisma.payrollRun.findUnique({
       where: { id: payrollRunId },

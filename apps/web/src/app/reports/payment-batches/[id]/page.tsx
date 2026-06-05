@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getPaymentBatch } from '@/lib/api';
 import { PaymentBatchActions } from './PaymentBatchActions';
+import { getPaymentBatchEvidenceCsvUrl } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -90,6 +91,10 @@ export default async function PaymentBatchDetailPage({
           <Link className="btn" href="/reports/finance-evidence">
             Finance Evidence
           </Link>
+
+          <a className="btn" href={getPaymentBatchEvidenceCsvUrl(id)}>
+            Download Evidence CSV
+          </a>
         </div>
       </div>
 

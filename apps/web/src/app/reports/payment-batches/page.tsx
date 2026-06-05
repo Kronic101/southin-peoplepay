@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getPaymentBatches } from '@/lib/api';
+import { PaymentBatchListActions } from './PaymentBatchListActions';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -58,6 +59,10 @@ export default async function PaymentBatchesPage() {
 
           <Link className="btn" href="/reports/finance-evidence">
             Finance Evidence
+          </Link>
+
+          <Link className="btn-secondary" href={`/reports/payment-batches/${id}/evidence`}>
+            View Evidence
           </Link>
         </div>
       </div>
@@ -128,9 +133,9 @@ export default async function PaymentBatchesPage() {
                   <td>{batch.preparedBy || '-'}</td>
                   <td>{formatDateTime(batch.createdAt)}</td>
                   <td>
-                    <Link className="link-action" href={`/reports/payment-batches/${batch.id}`}>
-                      Open Batch
-                    </Link>
+                    <td>
+                      <PaymentBatchListActions batchId={batch.id} />
+                    </td>
                   </td>
                 </tr>
               ))

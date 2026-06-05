@@ -1206,12 +1206,12 @@ export async function approvePaymentBatch(
 }
 
 export async function recheckPaymentBatchPayslips(
-  id: string,
+  batchId: string,
   payload: {
     checkedBy?: string;
   },
 ) {
-  const res = await fetch(`${API_URL}/payment-batches/${id}/recheck-payslips`, {
+  const res = await fetch(`${API_URL}/payment-batches/${batchId}/recheck-payslips`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1227,3 +1227,19 @@ export async function recheckPaymentBatchPayslips(
   return res.json();
 }
 
+export async function getPaymentBatchEvidence(batchId: string) {
+  const res = await fetch(`${API_URL}/payment-batches/${batchId}/evidence`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to load payment batch evidence');
+  }
+
+  return res.json();
+}
+
+export function getPaymentBatchEvidenceCsvUrl(batchId: string) {
+  return `${API_URL}/payment-batches/${batchId}/evidence.csv`;
+}

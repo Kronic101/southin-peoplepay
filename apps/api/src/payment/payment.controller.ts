@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 
 @Controller('payment-batches')
@@ -38,5 +38,17 @@ export class PaymentController {
   @Post(':id/approve')
   approvePaymentBatch(@Param('id') id: string, @Body() body: any) {
     return this.paymentService.approvePaymentBatch(id, body);
+  }
+
+  @Get(':id/evidence')
+  getPaymentBatchEvidence(@Param('id') id: string) {
+    return this.paymentService.getPaymentBatchEvidence(id);
+  }
+
+  @Get(':id/evidence.csv')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="payment-batch-evidence.csv"')
+  exportPaymentBatchEvidenceCsv(@Param('id') id: string) {
+    return this.paymentService.exportPaymentBatchEvidenceCsv(id);
   }
 }
