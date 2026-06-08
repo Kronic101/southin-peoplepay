@@ -6,6 +6,7 @@ const links = [
 
   ['HR Dashboard', '/hr/dashboard'],
   ['Payroll Readiness', '/hr/payroll-readiness'],
+  ['Readiness Gates', '/hr/payroll-readiness-gates'],
 
   ['Attendance', '/attendance'],
   ['Leave', '/leave'],
@@ -25,6 +26,7 @@ const links = [
 
   ['SharePoint Integration', '/admin/sharepoint-integration'],
   ['Graph Setup Guide', '/admin/sharepoint-graph-setup'],
+
 
   ['Admin', '/admin'],
 ];

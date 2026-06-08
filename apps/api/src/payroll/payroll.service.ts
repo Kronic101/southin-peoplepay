@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PayrollRunType } from '@prisma/client';
+import { PayrollReadinessGatesService } from './payroll-readiness-gates.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type CreatePayrollPeriodInput = {
@@ -13,6 +14,7 @@ type CreatePayrollRunInput = {
   payrollPeriodId: string;
   runName: string;
   runType?: PayrollRunType;
+  strictReadiness?: boolean;
 };
 
 type UpdatePayrollLineGrossPayInput = {
@@ -41,7 +43,10 @@ type GeneratePayslipsInput = {
 
 @Injectable()
 export class PayrollService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payrollReadinessGatesService: PayrollReadinessGatesService,
+  ) {}
 
   async getPayrollPeriods() {
     return this.prisma.payrollPeriod.findMany({
@@ -71,62 +76,23 @@ export class PayrollService {
   }
 
   async getPayrollReadyEmployees() {
-    const employees = await this.prisma.employee.findMany({
-      orderBy: {
-        employeeNumber: 'asc',
-      },
-      include: {
-        department: true,
-        jobTitle: true,
-        site: true,
-        employmentType: true,
-        statutoryDetails: true,
-        bankAccounts: true,
-        contracts: true,
-        serviceConditions: true,
-        portalAccount: true,
-      },
-    });
+    const readiness = await this.payrollReadinessGatesService.evaluatePayrollRunCreationReadiness();
 
-    return employees
-      .map((employee) => {
-        const hasApprovedBankAccount = employee.bankAccounts.some(
-          (account) => account.approvalStatus === 'APPROVED',
-        );
+    if (Array.isArray(readiness.readyEmployees)) {
+      return readiness.readyEmployees.map((employee: any) => ({
+        id: employee.employeeId || employee.id,
+        employeeNumber: employee.employeeNumber,
+        name: employee.name,
+        status: employee.employeeStatus || employee.status,
+        department: employee.department || null,
+        jobTitle: employee.jobTitle || null,
+        site: employee.site || null,
+        employmentType: employee.employmentType || null,
+        payrollReady: true,
+      }));
+    }
 
-        const hasApprovedConditionOfService = employee.serviceConditions.some(
-          (condition) => condition.status === 'APPROVED',
-        );
-
-        const checks = {
-          department: Boolean(employee.departmentId),
-          jobTitle: Boolean(employee.jobTitleId),
-          site: Boolean(employee.siteId),
-          employmentType: Boolean(employee.employmentTypeId),
-          tpin: Boolean(employee.statutoryDetails?.tpin),
-          napsaNumber: Boolean(employee.statutoryDetails?.napsaNumber),
-          nhimaNumber: Boolean(employee.statutoryDetails?.nhimaNumber),
-          approvedBankAccount: hasApprovedBankAccount,
-          contract: employee.contracts.length > 0,
-          approvedConditionOfService: hasApprovedConditionOfService,
-          portalAccess: Boolean(employee.portalAccount?.isActive),
-        };
-
-        const payrollReady = Object.values(checks).every(Boolean);
-
-        return {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          name: `${employee.firstName} ${employee.lastName}`,
-          status: employee.status,
-          department: employee.department?.name || null,
-          jobTitle: employee.jobTitle?.name || null,
-          site: employee.site?.name || null,
-          employmentType: employee.employmentType?.name || null,
-          payrollReady,
-        };
-      })
-      .filter((employee) => employee.payrollReady);
+    return [];
   }
 
   async getPayrollRuns() {
@@ -160,13 +126,68 @@ export class PayrollService {
       throw new BadRequestException('Payroll period must be OPEN to create a payroll run');
     }
 
-    const readyEmployees = await this.getPayrollReadyEmployees();
+    const strictReadiness = input.strictReadiness !== false;
 
-    if (readyEmployees.length === 0) {
-      throw new BadRequestException('No payroll-ready employees found');
+    const readiness =
+      await this.payrollReadinessGatesService.evaluatePayrollRunCreationReadiness();
+
+    if (readiness.readyCount === 0) {
+      throw new BadRequestException({
+        message:
+          'Payroll run cannot be created because no employee has passed all HR and Finance readiness gates.',
+        readiness,
+      });
     }
 
-    return this.prisma.payrollRun.create({
+    if (strictReadiness && readiness.blockedCount > 0) {
+      throw new BadRequestException({
+        message:
+          'Payroll run blocked. Some employees have not passed HR/Finance readiness gates.',
+        readiness,
+      });
+    }
+
+    const readyEmployeeIds = (readiness.readyEmployees || [])
+      .map((employee: any) => employee.employeeId || employee.id)
+      .filter(Boolean);
+
+    if (readyEmployeeIds.length === 0) {
+      throw new BadRequestException({
+        message: 'No payroll-ready employees found',
+        readiness,
+      });
+    }
+
+    const readyEmployees = await this.prisma.employee.findMany({
+      where: {
+        id: {
+          in: readyEmployeeIds,
+        },
+      },
+      orderBy: {
+        employeeNumber: 'asc',
+      },
+      include: {
+        department: true,
+        jobTitle: true,
+        site: true,
+        employmentType: true,
+        statutoryDetails: true,
+        bankAccounts: true,
+        contracts: true,
+        serviceConditions: true,
+        portalAccount: true,
+      },
+    });
+
+    if (readyEmployees.length === 0) {
+      throw new BadRequestException({
+        message: 'No payroll-ready employees found',
+        readiness,
+      });
+    }
+
+    const payrollRun = await this.prisma.payrollRun.create({
       data: {
         payrollPeriodId: input.payrollPeriodId,
         runName: input.runName,
@@ -203,6 +224,19 @@ export class PayrollService {
         approvals: true,
       },
     });
+
+    return {
+      ...payrollRun,
+      readiness: {
+        readyCount: readiness.readyCount,
+        blockedCount: readiness.blockedCount,
+        blockedEmployees: readiness.blockedEmployees || [],
+      },
+      readinessMessage:
+        readiness.blockedCount > 0
+          ? 'Payroll run created for payroll-ready employees only. Some employees were excluded by HR/Finance readiness gates.'
+          : 'Payroll run created successfully. All employees passed HR/Finance readiness gates.',
+    };
   }
 
   async getPayrollRun(id: string) {
@@ -336,7 +370,7 @@ export class PayrollService {
     });
   }
 
-    async calculatePayrollLineStatutory(runId: string, lineId: string) {
+  async calculatePayrollLineStatutory(runId: string, lineId: string) {
     const run = await this.prisma.payrollRun.findUnique({
       where: {
         id: runId,
@@ -566,7 +600,9 @@ export class PayrollService {
 
     const totalDeductions = this.roundMoney(paye + napsa + nhima);
     const netPay = this.roundMoney(grossPay - totalDeductions);
-    const employerCost = this.roundMoney(grossPay + napsaEmployerCost + nhimaEmployerCost + sdlEmployerCost);
+    const employerCost = this.roundMoney(
+      grossPay + napsaEmployerCost + nhimaEmployerCost + sdlEmployerCost,
+    );
 
     return this.prisma.payrollRunEmployee.update({
       where: {
@@ -595,7 +631,7 @@ export class PayrollService {
     });
   }
 
-    private calculatePayeFromBands(
+  private calculatePayeFromBands(
     grossPay: number,
     bands: Array<{
       lowerBound: unknown;
@@ -639,7 +675,7 @@ export class PayrollService {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
-    private async getRunForWorkflow(id: string) {
+  private async getRunForWorkflow(id: string) {
     const run = await this.prisma.payrollRun.findUnique({
       where: { id },
       include: {
@@ -987,7 +1023,7 @@ export class PayrollService {
     });
   }
 
-    async generatePayslipsForRun(id: string, input: GeneratePayslipsInput) {
+  async generatePayslipsForRun(id: string, input: GeneratePayslipsInput) {
     const run = await this.prisma.payrollRun.findUnique({
       where: {
         id,
@@ -1067,7 +1103,9 @@ export class PayrollService {
       approverRole: 'PAYROLL_OFFICER',
       approverId: input.actorId || null,
       status: 'APPROVED',
-      comments: input.comments || `Payslips generated. New: ${createdPayslips.length}, Existing: ${skippedExistingPayslips.length}`,
+      comments:
+        input.comments ||
+        `Payslips generated. New: ${createdPayslips.length}, Existing: ${skippedExistingPayslips.length}`,
     });
 
     const refreshedRun = await this.prisma.payrollRun.findUnique({

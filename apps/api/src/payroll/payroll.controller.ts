@@ -1,9 +1,13 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PayrollService } from './payroll.service';
+import { PayrollReadinessGatesService } from './payroll-readiness-gates.service';
 
 @Controller('payroll')
 export class PayrollController {
-  constructor(private readonly payrollService: PayrollService) {}
+  constructor(
+    private readonly payrollService: PayrollService,
+    private readonly payrollReadinessGatesService: PayrollReadinessGatesService,  
+  ) {}
 
   @Get('periods')
   getPayrollPeriods() {
@@ -90,5 +94,15 @@ export class PayrollController {
   @Get('runs/:id')
   getPayrollRun(@Param('id') id: string) {
     return this.payrollService.getPayrollRun(id);
+  }
+
+  @Get('readiness-gates')
+  getPayrollReadinessGates() {
+    return this.payrollReadinessGatesService.getPayrollReadinessGates();
+  }
+
+  @Get('run-creation-readiness')
+  getPayrollRunCreationReadiness() {
+    return this.payrollReadinessGatesService.evaluatePayrollRunCreationReadiness();
   }
 }

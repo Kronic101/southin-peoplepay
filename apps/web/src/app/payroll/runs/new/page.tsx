@@ -2,140 +2,286 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  createPayrollRun,
-  getPayrollPeriods,
-  getPayrollReadyEmployees,
-} from '@/lib/api';
-import { AppShell } from '@/components/AppShell';
+import { createPayrollRun, getPayrollRunCreationReadiness } from '@/lib/api';
 
-export default function NewPayrollRunPage() {
+type Props = {
+  periods: any[];
+};
+
+function formatMissing(value: string) {
+  return value
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^has /i, 'Missing ')
+    .replace(/^bank /i, 'Bank ')
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+export function NewPayrollRunForm({ periods }: Props) {
   const router = useRouter();
-  const [periods, setPeriods] = useState<any[]>([]);
-  const [readyEmployees, setReadyEmployees] = useState<any[]>([]);
+
+  const [payrollPeriodId, setPayrollPeriodId] = useState(periods?.[0]?.id || '');
+  const [runName, setRunName] = useState('');
+  const [runType, setRunType] = useState('MONTHLY');
+  const [preparedBy, setPreparedBy] = useState('payroll-officer-dev');
+  const [strictReadiness, setStrictReadiness] = useState(true);
+
+  const [readiness, setReadiness] = useState<any>(null);
+  const [loadingReadiness, setLoadingReadiness] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [periodData, employeeData] = await Promise.all([
-          getPayrollPeriods(),
-          getPayrollReadyEmployees(),
-        ]);
+    async function loadReadiness() {
+      setLoadingReadiness(true);
+      setError('');
 
-        setPeriods(periodData);
-        setReadyEmployees(employeeData);
+      try {
+        const result = await getPayrollRunCreationReadiness();
+        setReadiness(result);
       } catch {
-        setError('Failed to load payroll setup data.');
+        setError('Failed to load HR/Finance readiness gates.');
+      } finally {
+        setLoadingReadiness(false);
       }
     }
 
-    loadData();
+    loadReadiness();
   }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
-    setSaving(true);
 
-    const formData = new FormData(event.currentTarget);
+    setCreating(true);
+    setMessage('');
+    setError('');
 
     try {
-      const run = await createPayrollRun({
-        payrollPeriodId: String(formData.get('payrollPeriodId') || ''),
-        runName: String(formData.get('runName') || ''),
-        runType: String(formData.get('runType') || 'MONTHLY'),
+      const result = await createPayrollRun({
+        payrollPeriodId,
+        runName,
+        runType,
+        preparedBy,
+        strictReadiness,
       });
 
-      router.push(`/payroll/runs/${run.id}`);
-      router.refresh();
-    } catch {
-      setError('Failed to create payroll run. Confirm there is an open period and payroll-ready employees.');
+      setMessage(result.message || 'Payroll run created successfully.');
+
+      const runId = result.run?.id || result.id;
+
+      if (runId) {
+        router.push(`/payroll/runs/${runId}`);
+      } else {
+        router.push('/payroll');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create payroll run.');
     } finally {
-      setSaving(false);
+      setCreating(false);
     }
   }
 
+  const readyEmployees = readiness?.readyEmployees || [];
+  const blockedEmployees = readiness?.blockedEmployees || [];
+
+  const canCreate =
+    readiness?.readyCount > 0 && (!strictReadiness || readiness?.blockedCount === 0);
+
   return (
-    <AppShell>
-      <section className="card">
-        <h1>New Payroll Run</h1>
-        <p className="muted">
-          Create a draft payroll run using payroll-ready employees only.
-        </p>
-
-        <div className="notice">
-          Payroll-ready employees available: <strong>{readyEmployees.length}</strong>
+    <section className="card">
+      <div className="page-header">
+        <div>
+          <h1>New Payroll Run</h1>
+          <p className="muted">
+            Payroll creation is controlled by HR and Finance readiness gates.
+          </p>
         </div>
+      </div>
 
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            Payroll Period
-            <select name="payrollPeriodId" required>
-              <option value="">Select payroll period</option>
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>
-                  {period.periodName} · {period.status}
-                </option>
-              ))}
-            </select>
-          </label>
+      {loadingReadiness ? (
+        <div className="notice">Checking HR/Finance readiness gates...</div>
+      ) : (
+        <>
+          <div className="summary-grid">
+            <div className="summary-card">
+              <span className="summary-label">Total Employees</span>
+              <strong>{readiness?.summary?.totalEmployees ?? 0}</strong>
+            </div>
 
-          <label>
-            Run Name
-            <input name="runName" placeholder="June 2026 Main Payroll" required />
-          </label>
+            <div className="summary-card">
+              <span className="summary-label">Ready Employees</span>
+              <strong>{readiness?.readyCount ?? 0}</strong>
+            </div>
 
-          <label>
-            Run Type
-            <select name="runType" defaultValue="MONTHLY">
-              <option value="MONTHLY">Monthly</option>
-              <option value="WEEKLY">Weekly</option>
-              <option value="CASUAL">Casual</option>
-              <option value="OFF_CYCLE">Off-cycle</option>
-              <option value="FINAL_PAY">Final pay</option>
-              <option value="ADJUSTMENT">Adjustment</option>
-            </select>
-          </label>
+            <div className="summary-card">
+              <span className="summary-label">Blocked Employees</span>
+              <strong>{readiness?.blockedCount ?? 0}</strong>
+            </div>
 
-          <div className="table-wrap">
-            <h3>Employees to be included</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Employee No.</th>
-                  <th>Name</th>
-                  <th>Employment Type</th>
-                  <th>Department</th>
-                </tr>
-              </thead>
-              <tbody>
-                {readyEmployees.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>No payroll-ready employees available.</td>
-                  </tr>
-                ) : (
-                  readyEmployees.map((employee) => (
-                    <tr key={employee.id}>
-                      <td>{employee.employeeNumber}</td>
-                      <td>{employee.name}</td>
-                      <td>{employee.employmentType || '-'}</td>
-                      <td>{employee.department || '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="summary-card">
+              <span className="summary-label">Can Create Payroll</span>
+              <strong>{readiness?.canCreatePayrollRun ? 'YES' : 'NO'}</strong>
+            </div>
           </div>
 
-          {error && <div className="notice">{error}</div>}
+          <div className="notice">
+            {readiness?.message ||
+              'Payroll readiness will determine which employees can be included.'}
+          </div>
+        </>
+      )}
 
-          <button className="btn" disabled={saving || readyEmployees.length === 0} type="submit">
-            {saving ? 'Creating...' : 'Create Draft Payroll Run'}
-          </button>
-        </form>
-      </section>
-    </AppShell>
+      <form className="form-grid" onSubmit={handleSubmit}>
+        <label>
+          Payroll Period
+          <select
+            value={payrollPeriodId}
+            onChange={(event) => setPayrollPeriodId(event.target.value)}
+            required
+          >
+            {periods.map((period: any) => (
+              <option key={period.id} value={period.id}>
+                {period.periodName}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Run Name
+          <input
+            value={runName}
+            onChange={(event) => setRunName(event.target.value)}
+            placeholder="Example: June 2026 Payroll"
+            required
+          />
+        </label>
+
+        <label>
+          Run Type
+          <select value={runType} onChange={(event) => setRunType(event.target.value)}>
+            <option value="MONTHLY">MONTHLY</option>
+            <option value="WEEKLY">WEEKLY</option>
+            <option value="CASUAL">CASUAL</option>
+            <option value="ADHOC">ADHOC</option>
+          </select>
+        </label>
+
+        <label>
+          Prepared By
+          <input
+            value={preparedBy}
+            onChange={(event) => setPreparedBy(event.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Readiness Enforcement
+          <select
+            value={strictReadiness ? 'STRICT' : 'READY_ONLY'}
+            onChange={(event) => setStrictReadiness(event.target.value === 'STRICT')}
+          >
+            <option value="STRICT">Block payroll if any employee fails readiness</option>
+            <option value="READY_ONLY">Create payroll for ready employees only</option>
+          </select>
+        </label>
+
+        {error && <div className="notice danger">{error}</div>}
+        {message && <div className="notice success">{message}</div>}
+
+        <button className="btn" type="submit" disabled={creating || !readiness?.canCreatePayrollRun}>
+          {creating ? 'Creating Payroll Run...' : 'Create Payroll Run'}
+        </button>
+
+        {!canCreate && readiness?.readyCount > 0 && strictReadiness && (
+          <div className="notice">
+            Strict mode is enabled. Payroll is blocked because some employees have failed readiness
+            gates. Change enforcement to <strong>ready employees only</strong> if you want to exclude
+            blocked employees from this run.
+          </div>
+        )}
+      </form>
+
+      <h2>Employees Included If Created Now</h2>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee No.</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Employment Type</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {readyEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={5}>No payroll-ready employees found.</td>
+              </tr>
+            ) : (
+              readyEmployees.map((employee: any) => (
+                <tr key={employee.employeeId}>
+                  <td>{employee.employeeNumber}</td>
+                  <td>{employee.name}</td>
+                  <td>{employee.department}</td>
+                  <td>{employee.employmentType}</td>
+                  <td>
+                    <span className="badge success">READY</span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Blocked Employees</h2>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee No.</th>
+              <th>Name</th>
+              <th>HR Gate</th>
+              <th>Finance Gate</th>
+              <th>Missing Items</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {blockedEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={5}>No blocked employees.</td>
+              </tr>
+            ) : (
+              blockedEmployees.map((employee: any) => (
+                <tr key={employee.employeeId}>
+                  <td>{employee.employeeNumber}</td>
+                  <td>{employee.name}</td>
+                  <td>
+                    <span className="badge warning">{employee.hrStatus}</span>
+                  </td>
+                  <td>
+                    <span className="badge warning">{employee.financeStatus}</span>
+                  </td>
+                  <td>
+                    <ul>
+                      {(employee.missingItems || []).map((item: string) => (
+                        <li key={item}>{formatMissing(item)}</li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

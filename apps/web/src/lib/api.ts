@@ -1256,3 +1256,27 @@ export async function getEmployeeBankAuditHistory(employeeId: string) {
 
   return res.json();
 }
+
+export async function getPayrollReadinessGates() {
+  const res = await fetch(`${API_URL}/payroll/readiness-gates`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll readiness gates');
+  }
+
+  return res.json();
+}
+
+export async function getPayrollRunCreationReadiness() {
+  const res = await fetch(`${API_URL}/payroll/run-creation-readiness`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to load payroll run creation readiness');
+  }
+
+  return res.json();
+}
