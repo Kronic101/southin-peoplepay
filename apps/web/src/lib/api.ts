@@ -1243,3 +1243,16 @@ export async function getPaymentBatchEvidence(batchId: string) {
 export function getPaymentBatchEvidenceCsvUrl(batchId: string) {
   return `${API_URL}/payment-batches/${batchId}/evidence.csv`;
 }
+
+export async function getEmployeeBankAuditHistory(employeeId: string) {
+  const res = await fetch(`${API_URL}/employees/${employeeId}/bank-audit-history`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to load employee bank audit history');
+  }
+
+  return res.json();
+}

@@ -20,6 +20,11 @@ export class EmployeesController {
     return this.employeesService.create(body);
   }
 
+  @Get(':id/bank-audit-history')
+  getEmployeeBankAuditHistory(@Param('id') id: string) {
+    return this.employeesService.getEmployeeBankAuditHistory(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.employeesService.findOne(id);

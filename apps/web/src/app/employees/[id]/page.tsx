@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getEmployee } from '@/lib/api';
 import { EmployeeEditor } from './components/EmployeeEditor';
+import { EmployeeBankAuditHistory } from './components/EmployeeBankAuditHistory';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,13 +24,13 @@ export default async function EmployeeDetailPage({
   const { id } = await params;
   const employee = await getEmployee(id);
 
+  const employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+
   return (
     <section className="card">
       <div className="page-header">
         <div>
-          <h1>
-            {employee.firstName} {employee.lastName}
-          </h1>
+          <h1>{employeeName || employee.employeeNumber}</h1>
           <p className="muted">
             {employee.employeeNumber} · {employee.status}
           </p>
@@ -100,6 +101,8 @@ export default async function EmployeeDetailPage({
       </div>
 
       <EmployeeEditor employee={employee} />
+
+      <EmployeeBankAuditHistory employeeId={id} />
     </section>
   );
 }
