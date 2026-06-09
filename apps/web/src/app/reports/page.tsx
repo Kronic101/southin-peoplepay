@@ -80,6 +80,10 @@ export default async function PayrollReportsCentrePage() {
             SharePoint Integration
           </Link>
 
+          <Link className="btn-secondary" href="/reports/payroll-readiness">
+            Payroll Readiness Gates
+          </Link>
+
           <a className="btn" href={getPayrollAuditCsvUrl(latestRun?.id)}>
             Export Latest Payroll Audit CSV
           </a>
