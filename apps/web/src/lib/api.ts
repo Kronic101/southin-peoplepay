@@ -1,3 +1,5 @@
+import { withDevRoleHeaders } from './dev-role';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export type Employee = {
@@ -24,16 +26,127 @@ export type Employee = {
   } | null;
 };
 
-export async function getEmployees(): Promise<Employee[]> {
-  const res = await fetch(`${API_URL}/employees`, {
+type JsonBody = Record<string, unknown> | any;
+
+async function readApiError(res: Response, fallback: string): Promise<never> {
+  let errorBody: any = null;
+
+  try {
+    errorBody = await res.json();
+  } catch {
+    try {
+      const text = await res.text();
+      throw new Error(text || fallback);
+    } catch {
+      throw new Error(fallback);
+    }
+  }
+
+  if (typeof errorBody?.message === 'string') {
+    throw new Error(errorBody.message);
+  }
+
+  if (Array.isArray(errorBody?.message)) {
+    throw new Error(errorBody.message.join(', '));
+  }
+
+  if (typeof errorBody?.error === 'string') {
+    throw new Error(errorBody.error);
+  }
+
+  throw new Error(fallback);
+}
+
+function jsonHeaders(): HeadersInit {
+  return withDevRoleHeaders({
+    'Content-Type': 'application/json',
+  });
+}
+
+function roleHeaders(): HeadersInit {
+  return withDevRoleHeaders();
+}
+
+function getSelectedDevActorName() {
+  if (typeof window === 'undefined') {
+    return 'system-dev';
+  }
+
+  const role = window.localStorage.getItem('southin_peoplepay_dev_role') || 'ADMIN';
+
+  const actorByRole: Record<string, string> = {
+    ADMIN: 'admin-dev',
+    PAYROLL_OFFICER: 'payroll-officer-dev',
+    HR_MANAGER: 'hr-manager-dev',
+    FINANCE_MANAGER: 'finance-manager-dev',
+    DIRECTOR: 'director-dev',
+    EMPLOYEE: 'employee-dev',
+  };
+
+  return actorByRole[role] || 'system-dev';
+}
+
+async function apiGet<T = any>(path: string, fallback: string, protectedRoute = false): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: protectedRoute ? roleHeaders() : undefined,
     cache: 'no-store',
   });
 
   if (!res.ok) {
-    throw new Error('Failed to load employees');
+    await readApiError(res, fallback);
   }
 
   return res.json();
+}
+
+async function apiPost<T = any>(
+  path: string,
+  payload?: JsonBody,
+  fallback = 'Request failed',
+  protectedRoute = true,
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!res.ok) {
+    await readApiError(res, fallback);
+  }
+
+  return res.json();
+}
+
+async function apiPatch<T = any>(
+  path: string,
+  payload?: JsonBody,
+  fallback = 'Request failed',
+  protectedRoute = true,
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PATCH',
+    headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!res.ok) {
+    await readApiError(res, fallback);
+  }
+
+  return res.json();
+}
+
+/* -------------------------------------------------------------------------- */
+/* Employees                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export async function getEmployees(): Promise<Employee[]> {
+  return apiGet<Employee[]>('/employees', 'Failed to load employees', true);
+}
+
+export async function getEmployee(id: string) {
+  return apiGet(`/employees/${id}`, 'Failed to load employee', true);
 }
 
 export async function createEmployee(payload: {
@@ -46,47 +159,88 @@ export async function createEmployee(payload: {
   phone?: string;
   startDate?: string;
 }) {
-  const res = await fetch(`${API_URL}/employees`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiPost('/employees', payload, 'Failed to create employee', true);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to create employee');
-  }
+export async function updateEmployee(id: string, payload: Record<string, unknown>) {
+  return apiPatch(`/employees/${id}`, payload, 'Failed to update employee', true);
+}
 
-  return res.json();
+export async function getEmployeeSetupLookups() {
+  return apiGet('/employees/lookups/setup', 'Failed to load setup lookups', true);
 }
 
 export async function createPortalAccount(employeeId: string) {
-  const res = await fetch(`${API_URL}/employees/${employeeId}/portal-account`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create portal account');
-  }
-
-  return res.json();
+  return apiPost(
+    `/employees/${employeeId}/portal-account`,
+    {},
+    'Failed to create portal account',
+    true,
+  );
 }
 
-export async function employeeLogin(payload: { employeeNumber: string; pin: string }) {
-  const res = await fetch(`${API_URL}/auth/employee/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function updateEmployeeStatutoryDetails(
+  id: string,
+  payload: Record<string, unknown>,
+) {
+  return apiPost(
+    `/employees/${id}/statutory-details`,
+    payload,
+    'Failed to update employee statutory details',
+    true,
+  );
+}
+
+export async function addEmployeeBankAccount(id: string, payload: Record<string, unknown>) {
+  return apiPost(
+    `/employees/${id}/bank-accounts`,
+    payload,
+    'Failed to add employee bank account',
+    true,
+  );
+}
+
+export async function approveEmployeeBankAccount(
+  employeeId: string,
+  bankAccountId: string,
+  payload?: Record<string, unknown>,
+) {
+  return apiPost(
+    `/employees/${employeeId}/bank-accounts/${bankAccountId}/approve`,
+    payload || {
+      approvedBy: getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
+    'Failed to approve employee bank account',
+    true,
+  );
+}
 
-  if (!res.ok) {
-    throw new Error('Invalid employee number or PIN');
-  }
+export async function validateEmployeeBankDetails(employeeId: string, input: any) {
+  return apiPost(
+    `/employees/${employeeId}/validate-bank-details`,
+    {
+      reviewedBy: input?.reviewedBy || getSelectedDevActorName(),
+      notes: input?.notes || 'Employee bank details validated from PeoplePay.',
+    },
+    'Failed to validate employee bank details',
+    true,
+  );
+}
 
-  return res.json();
+export async function getEmployeeBankAuditHistory(employeeId: string) {
+  return apiGet(
+    `/employees/${employeeId}/bank-audit-history`,
+    'Failed to load employee bank audit history',
+    true,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Employee portal auth                                                       */
+/* -------------------------------------------------------------------------- */
+
+export async function employeeLogin(payload: { employeeNumber: string; pin: string }) {
+  return apiPost('/auth/employee/login', payload, 'Invalid employee number or PIN', false);
 }
 
 export async function employeeChangePin(payload: {
@@ -94,19 +248,18 @@ export async function employeeChangePin(payload: {
   currentPin: string;
   newPin: string;
 }) {
-  const res = await fetch(`${API_URL}/auth/employee/change-pin`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiPost('/auth/employee/change-pin', payload, 'Failed to change PIN', false);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to change PIN');
-  }
+export async function employeeForgotPin(payload: { employeeNumber: string }) {
+  return apiPost('/auth/employee/forgot-pin', payload, 'Failed to request PIN reset', false);
+}
 
-  return res.json();
+export async function requestEmployeePinReset(payload: {
+  employeeNumber: string;
+  email?: string;
+}) {
+  return apiPost('/auth/employee/forgot-pin', payload, 'Failed to request PIN reset', false);
 }
 
 export async function getEmployeeMe(token: string) {
@@ -118,241 +271,86 @@ export async function getEmployeeMe(token: string) {
   });
 
   if (!res.ok) {
-    throw new Error('Failed to load employee profile');
+    await readApiError(res, 'Failed to load employee profile');
   }
 
   return res.json();
 }
 
-export async function getEmployee(id: string) {
-  const res = await fetch(`${API_URL}/employees/${id}`, {
+export async function getEmployeePayslips(token: string) {
+  const res = await fetch(`${API_URL}/auth/employee/payslips`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
   });
 
   if (!res.ok) {
-    throw new Error('Failed to load employee');
+    await readApiError(res, 'Failed to load employee payslips');
   }
 
   return res.json();
 }
 
-export async function getEmployeeSetupLookups() {
-  const res = await fetch(`${API_URL}/employees/lookups/setup`, {
+export async function getEmployeePayslip(id: string, token: string) {
+  const res = await fetch(`${API_URL}/auth/employee/payslips/${id}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
   });
 
   if (!res.ok) {
-    throw new Error('Failed to load setup lookups');
+    await readApiError(res, 'Failed to load employee payslip');
   }
 
   return res.json();
 }
 
-export async function updateEmployee(id: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${API_URL}/employees/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to update employee');
-  }
-
-  return res.json();
-}
-
-export async function updateEmployeeStatutoryDetails(id: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${API_URL}/employees/${id}/statutory-details`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to update statutory details');
-  }
-
-  return res.json();
-}
-
-export async function createEmployeeBankAccount(id: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${API_URL}/employees/${id}/bank-accounts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create bank account');
-  }
-
-  return res.json();
-}
-
-export async function createEmployeeContract(id: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${API_URL}/employees/${id}/contracts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create contract');
-  }
-
-  return res.json();
-}
-
-export async function assignEmployeeServiceCondition(id: string, payload: Record<string, unknown>) {
-  const res = await fetch(`${API_URL}/employees/${id}/service-conditions/assign`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to assign service condition');
-  }
-
-  return res.json();
-}
-
-export async function getPayrollReadiness() {
-  const res = await fetch(`${API_URL}/employees/payroll-readiness`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll readiness');
-  }
-
-  return res.json();
-}
-
-export async function approveEmployeeBankAccount(employeeId: string, bankAccountId: string) {
-  const res = await fetch(`${API_URL}/employees/${employeeId}/bank-accounts/${bankAccountId}/approve`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to approve bank account');
-  }
-
-  return res.json();
-}
-
-export async function approveEmployeeServiceCondition(employeeId: string, conditionId: string) {
-  const res = await fetch(`${API_URL}/employees/${employeeId}/service-conditions/${conditionId}/approve`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to approve condition of service');
-  }
-
-  return res.json();
-}
+/* -------------------------------------------------------------------------- */
+/* Payroll periods and runs                                                   */
+/* -------------------------------------------------------------------------- */
 
 export async function getPayrollPeriods() {
-  const res = await fetch(`${API_URL}/payroll/periods`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll periods');
-  }
-
-  return res.json();
+  return apiGet('/payroll/periods', 'Failed to load payroll periods', true);
 }
 
 export async function createPayrollPeriod(payload: {
   periodName: string;
   startDate: string;
   endDate: string;
-  payDate: string;
+  payDate?: string | null;
+  status?: string;
 }) {
-  const res = await fetch(`${API_URL}/payroll/periods`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create payroll period');
-  }
-
-  return res.json();
-}
-
-export async function getPayrollReadyEmployees() {
-  const res = await fetch(`${API_URL}/payroll/ready-employees`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll-ready employees');
-  }
-
-  return res.json();
+  return apiPost('/payroll/periods', payload, 'Failed to create payroll period', true);
 }
 
 export async function getPayrollRuns() {
-  const res = await fetch(`${API_URL}/payroll/runs`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll runs');
-  }
-
-  return res.json();
-}
-
-export async function createPayrollRun(payload: {
-  payrollPeriodId: string;
-  runName: string;
-  runType: string;
-}) {
-  const res = await fetch(`${API_URL}/payroll/runs`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create payroll run');
-  }
-
-  return res.json();
+  return apiGet('/payroll/runs', 'Failed to load payroll runs', true);
 }
 
 export async function getPayrollRun(id: string) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll run');
-  }
-
-  return res.json();
+  return apiGet(`/payroll/runs/${id}`, 'Failed to load payroll run', true);
 }
 
-export async function calculatePayrollLineStatutory(runId: string, lineId: string) {
-  const res = await fetch(`${API_URL}/payroll/runs/${runId}/employees/${lineId}/calculate-statutory`, {
-    method: 'POST',
-  });
+export async function createPayrollRun(input: any) {
+  return apiPost('/payroll/runs', input, 'Failed to create payroll run', true);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to calculate statutory deductions');
-  }
+export async function getPayrollReadinessGates() {
+  return apiGet('/payroll/readiness-gates', 'Failed to load payroll readiness gates', true);
+}
 
-  return res.json();
+export async function getPayrollReadyEmployees() {
+  return apiGet('/payroll/ready-employees', 'Failed to load payroll-ready employees', true);
+}
+
+export async function getPayrollRunCreationReadiness() {
+  return apiGet(
+    '/payroll/run-creation-readiness',
+    'Failed to load payroll run creation readiness',
+    true,
+  );
 }
 
 export async function updatePayrollLineGrossPay(
@@ -363,31 +361,155 @@ export async function updatePayrollLineGrossPay(
     description?: string;
   },
 ) {
-  const res = await fetch(`${API_URL}/payroll/runs/${runId}/employees/${lineId}/gross-pay`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to update payroll line gross pay');
-  }
-
-  return res.json();
+  return apiPost(
+    `/payroll/runs/${runId}/employees/${lineId}/gross-pay`,
+    payload,
+    'Failed to update payroll line gross pay',
+    true,
+  );
 }
 
+export async function calculatePayrollLineStatutory(runId: string, lineId: string) {
+  return apiPost(
+    `/payroll/runs/${runId}/employees/${lineId}/calculate-statutory`,
+    {},
+    'Failed to calculate statutory deductions',
+    true,
+  );
+}
+
+export async function submitPayrollRunToHr(
+  id: string,
+  payload?: { actorId?: string; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/submit-hr`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      comments: payload?.comments || 'Submitted to HR review.',
+    },
+    'Failed to submit payroll to HR',
+    true,
+  );
+}
+
+export async function hrReviewPayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/hr-review`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      approved: payload.approved,
+      comments: payload?.comments || 'HR review completed.',
+    },
+    'Failed to complete HR review',
+    true,
+  );
+}
+
+export async function submitPayrollRunToFinance(
+  id: string,
+  payload?: { actorId?: string; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/submit-finance`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      comments: payload?.comments || 'Submitted to Finance review.',
+    },
+    'Failed to submit payroll to Finance',
+    true,
+  );
+}
+
+export async function financeReviewPayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/finance-review`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      approved: payload.approved,
+      comments: payload?.comments || 'Finance review completed.',
+    },
+    'Failed to complete Finance review',
+    true,
+  );
+}
+
+export async function submitPayrollRunToDirector(
+  id: string,
+  payload?: { actorId?: string; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/submit-director`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      comments: payload?.comments || 'Submitted to Director approval.',
+    },
+    'Failed to submit payroll to Director',
+    true,
+  );
+}
+
+export async function directorApprovePayrollRun(
+  id: string,
+  payload: { actorId?: string; approved: boolean; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/director-approve`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      approved: payload.approved,
+      comments: payload?.comments || 'Director approval completed.',
+    },
+    'Failed to complete Director approval',
+    true,
+  );
+}
+
+export async function lockPayrollRun(
+  id: string,
+  payload?: { actorId?: string; comments?: string },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/lock`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      comments: payload?.comments || 'Payroll run locked.',
+    },
+    'Failed to lock payroll run',
+    true,
+  );
+}
+
+export async function generatePayslipsForRun(
+  id: string,
+  payload?: {
+    actorId?: string;
+    comments?: string;
+  },
+) {
+  return apiPost(
+    `/payroll/runs/${id}/generate-payslips`,
+    {
+      actorId: payload?.actorId || getSelectedDevActorName(),
+      comments: payload?.comments || 'Payslips generated.',
+    },
+    'Failed to generate payslips',
+    true,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Statutory                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export async function getStatutorySettings() {
-  const res = await fetch(`${API_URL}/statutory/settings`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load statutory settings');
-  }
-
-  return res.json();
+  return apiGet('/statutory/settings', 'Failed to load statutory settings', true);
 }
 
 export async function createTaxYear(payload: {
@@ -396,19 +518,7 @@ export async function createTaxYear(payload: {
   endDate: string;
   isActive: boolean;
 }) {
-  const res = await fetch(`${API_URL}/statutory/tax-years`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create tax year');
-  }
-
-  return res.json();
+  return apiPost('/statutory/tax-years', payload, 'Failed to create tax year', true);
 }
 
 export async function createPayeBand(payload: {
@@ -417,123 +527,7 @@ export async function createPayeBand(payload: {
   upperBound?: number | null;
   rate: number;
 }) {
-  const res = await fetch(`${API_URL}/statutory/paye-bands`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create PAYE band');
-  }
-
-  return res.json();
-}
-
-export async function createNapsaRate(payload: {
-  name: string;
-  employeeRate: number;
-  employerRate: number;
-  monthlyCeiling?: number | null;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-}) {
-  const res = await fetch(`${API_URL}/statutory/napsa-rates`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create NAPSA rate');
-  }
-
-  return res.json();
-}
-
-export async function approveNapsaRate(id: string) {
-  const res = await fetch(`${API_URL}/statutory/napsa-rates/${id}/approve`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to approve NAPSA rate');
-  }
-
-  return res.json();
-}
-
-export async function createNhimaRate(payload: {
-  name: string;
-  employeeRate: number;
-  employerRate: number;
-  calculationBase: string;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-}) {
-  const res = await fetch(`${API_URL}/statutory/nhima-rates`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create NHIMA rate');
-  }
-
-  return res.json();
-}
-
-export async function approveNhimaRate(id: string) {
-  const res = await fetch(`${API_URL}/statutory/nhima-rates/${id}/approve`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to approve NHIMA rate');
-  }
-
-  return res.json();
-}
-
-export async function createSdlRate(payload: {
-  name: string;
-  employerRate: number;
-  calculationBase: string;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-}) {
-  const res = await fetch(`${API_URL}/statutory/sdl-rates`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to create SDL rate');
-  }
-
-  return res.json();
-}
-
-export async function approveSdlRate(id: string) {
-  const res = await fetch(`${API_URL}/statutory/sdl-rates/${id}/approve`, {
-    method: 'POST',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to approve SDL rate');
-  }
-
-  return res.json();
+  return apiPost('/statutory/paye-bands', payload, 'Failed to create PAYE band', true);
 }
 
 export async function updatePayeBand(
@@ -544,19 +538,18 @@ export async function updatePayeBand(
     rate?: number;
   },
 ) {
-  const res = await fetch(`${API_URL}/statutory/paye-bands/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiPatch(`/statutory/paye-bands/${id}`, payload, 'Failed to update PAYE band', true);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to update PAYE band');
-  }
-
-  return res.json();
+export async function createNapsaRate(payload: {
+  name: string;
+  employeeRate: number;
+  employerRate: number;
+  monthlyCeiling?: number | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  return apiPost('/statutory/napsa-rates', payload, 'Failed to create NAPSA rate', true);
 }
 
 export async function updateNapsaRate(
@@ -570,19 +563,22 @@ export async function updateNapsaRate(
     effectiveTo?: string | null;
   },
 ) {
-  const res = await fetch(`${API_URL}/statutory/napsa-rates/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiPatch(`/statutory/napsa-rates/${id}`, payload, 'Failed to update NAPSA rate', true);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to update NAPSA rate');
-  }
+export async function approveNapsaRate(id: string) {
+  return apiPost(`/statutory/napsa-rates/${id}/approve`, {}, 'Failed to approve NAPSA rate', true);
+}
 
-  return res.json();
+export async function createNhimaRate(payload: {
+  name: string;
+  employeeRate: number;
+  employerRate: number;
+  calculationBase: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  return apiPost('/statutory/nhima-rates', payload, 'Failed to create NHIMA rate', true);
 }
 
 export async function updateNhimaRate(
@@ -596,19 +592,21 @@ export async function updateNhimaRate(
     effectiveTo?: string | null;
   },
 ) {
-  const res = await fetch(`${API_URL}/statutory/nhima-rates/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiPatch(`/statutory/nhima-rates/${id}`, payload, 'Failed to update NHIMA rate', true);
+}
 
-  if (!res.ok) {
-    throw new Error('Failed to update NHIMA rate');
-  }
+export async function approveNhimaRate(id: string) {
+  return apiPost(`/statutory/nhima-rates/${id}/approve`, {}, 'Failed to approve NHIMA rate', true);
+}
 
-  return res.json();
+export async function createSdlRate(payload: {
+  name: string;
+  employerRate: number;
+  calculationBase: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}) {
+  return apiPost('/statutory/sdl-rates', payload, 'Failed to create SDL rate', true);
 }
 
 export async function updateSdlRate(
@@ -621,286 +619,72 @@ export async function updateSdlRate(
     effectiveTo?: string | null;
   },
 ) {
-  const res = await fetch(`${API_URL}/statutory/sdl-rates/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to update SDL rate');
-  }
-
-  return res.json();
+  return apiPatch(`/statutory/sdl-rates/${id}`, payload, 'Failed to update SDL rate', true);
 }
 
-export async function submitPayrollRunToHr(id: string, payload: { actorId?: string; comments?: string }) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-hr`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to submit payroll to HR');
-  return res.json();
+export async function approveSdlRate(id: string) {
+  return apiPost(`/statutory/sdl-rates/${id}/approve`, {}, 'Failed to approve SDL rate', true);
 }
 
-export async function hrReviewPayrollRun(
-  id: string,
-  payload: { actorId?: string; approved: boolean; comments?: string },
-) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/hr-review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to complete HR review');
-  return res.json();
-}
-
-export async function submitPayrollRunToFinance(id: string, payload: { actorId?: string; comments?: string }) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-finance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to submit payroll to Finance');
-  return res.json();
-}
-
-export async function financeReviewPayrollRun(
-  id: string,
-  payload: { actorId?: string; approved: boolean; comments?: string },
-) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/finance-review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to complete Finance review');
-  return res.json();
-}
-
-export async function submitPayrollRunToDirector(id: string, payload: { actorId?: string; comments?: string }) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/submit-director`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to submit payroll to Director');
-  return res.json();
-}
-
-export async function directorApprovePayrollRun(
-  id: string,
-  payload: { actorId?: string; approved: boolean; comments?: string },
-) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/director-approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to complete Director approval');
-  return res.json();
-}
-
-export async function lockPayrollRun(id: string, payload: { actorId?: string; comments?: string }) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/lock`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error('Failed to lock payroll run');
-  return res.json();
-}
-
-export async function generatePayslipsForRun(
-  id: string,
-  payload: {
-    actorId?: string;
-    comments?: string;
-  },
-) {
-  const res = await fetch(`${API_URL}/payroll/runs/${id}/generate-payslips`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to generate payslips');
-  }
-
-  return res.json();
-}
-
-export async function getEmployeePayslips(token: string) {
-  const res = await fetch(`${API_URL}/auth/employee/payslips`, {
-    cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load employee payslips');
-  }
-
-  return res.json();
-}
-
-export async function getEmployeePayslip(id: string, token: string) {
-  const res = await fetch(`${API_URL}/auth/employee/payslips/${id}`, {
-    cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load employee payslip');
-  }
-
-  return res.json();
-}
-
-export async function requestEmployeePinReset(payload: {
-  employeeNumber: string;
-  email?: string;
-}) {
-  const res = await fetch(`${API_URL}/auth/employee/forgot-pin`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to request PIN reset');
-  }
-
-  return res.json();
-}
-
-export async function employeeForgotPin(payload: { employeeNumber: string }) {
-  const res = await fetch(`${API_URL}/auth/employee/forgot-pin`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to request PIN reset');
-  }
-
-  return res.json();
-}
+/* -------------------------------------------------------------------------- */
+/* Executive / reports                                                        */
+/* -------------------------------------------------------------------------- */
 
 export async function getExecutiveDashboard() {
-  const res = await fetch(`${API_URL}/executive/dashboard`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load executive dashboard');
-  }
-
-  return res.json();
+  return apiGet('/executive/dashboard', 'Failed to load executive dashboard', true);
 }
 
 export async function getExecutiveSharePointFeed() {
-  const res = await fetch(`${API_URL}/executive/sharepoint-feed`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load SharePoint executive feed');
-  }
-
-  return res.json();
+  return apiGet('/executive/sharepoint-feed', 'Failed to load SharePoint executive feed', true);
 }
 
 export async function getPayrollAudit(runId?: string) {
-  const url = runId
-    ? `${API_URL}/executive/payroll-audit?runId=${runId}`
-    : `${API_URL}/executive/payroll-audit`;
-
-  const res = await fetch(url, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll audit');
-  }
-
-  return res.json();
+  const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
+  return apiGet(`/executive/payroll-audit${query}`, 'Failed to load payroll audit', true);
 }
 
 export function getPayrollAuditCsvUrl(runId?: string) {
   return runId
-    ? `${API_URL}/executive/payroll-audit.csv?runId=${runId}`
+    ? `${API_URL}/executive/payroll-audit.csv?runId=${encodeURIComponent(runId)}`
     : `${API_URL}/executive/payroll-audit.csv`;
 }
 
-async function fetchJsonOrThrow(url: string, errorMessage: string) {
-  const res = await fetch(url, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    let details = '';
-
-    try {
-      details = await res.text();
-    } catch {
-      details = '';
-    }
-
-    throw new Error(`${errorMessage}. Status: ${res.status}. ${details}`);
-  }
-
-  return res.json();
-}
+/* -------------------------------------------------------------------------- */
+/* SharePoint                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export async function getSharePointExportPackage() {
-  return fetchJsonOrThrow(
-    `${API_URL}/executive/sharepoint/export-package`,
+  return apiGet(
+    '/executive/sharepoint/export-package',
     'Failed to load SharePoint export package',
+    true,
   );
 }
 
 export async function getExecutivePagePayload() {
-  return fetchJsonOrThrow(
-    `${API_URL}/executive/sharepoint/executive-page-payload`,
+  return apiGet(
+    '/executive/sharepoint/executive-page-payload',
     'Failed to load executive SharePoint page payload',
+    true,
+  );
+}
+
+export async function getFinanceAuditPayload(runId?: string) {
+  const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
+  return apiGet(
+    `/executive/sharepoint/finance-audit-payload${query}`,
+    'Failed to load finance audit SharePoint payload',
+    true,
   );
 }
 
 export async function getPublicDashboardPayload() {
-  const res = await fetch(`${API_URL}/executive/sharepoint/public-dashboard-payload`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load public dashboard payload');
-  }
-
-  return res.json();
+  return apiGet(
+    '/executive/sharepoint/public-dashboard-payload',
+    'Failed to load public dashboard payload',
+    true,
+  );
 }
-
 
 export async function logSharePointExportRequest(payload: {
   targetSite: string;
@@ -909,100 +693,53 @@ export async function logSharePointExportRequest(payload: {
   requestedBy: string;
   notes?: string;
 }) {
-  const res = await fetch(`${API_URL}/executive/sharepoint/export-dev-log`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    let details = '';
-
-    try {
-      details = await res.text();
-    } catch {
-      details = '';
-    }
-
-    throw new Error(`Failed to log SharePoint export request. Status: ${res.status}. ${details}`);
-  }
-
-  return res.json();
+  return apiPost(
+    '/executive/sharepoint/export-dev-log',
+    payload,
+    'Failed to log SharePoint export request',
+    true,
+  );
 }
 
-  export async function getSharePointExportLog(id: string) {
-    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs/${id}`, {
-      cache: 'no-store',
-    });
+export async function getSharePointExportLog(id: string) {
+  return apiGet(
+    `/executive/sharepoint/export-logs/${id}`,
+    'Failed to load SharePoint export log',
+    true,
+  );
+}
 
-    if (!res.ok) {
-      throw new Error('Failed to load SharePoint export log');
-    }
+export async function getSharePointExportLogs() {
+  return apiGet('/executive/sharepoint/export-logs', 'Failed to load SharePoint export logs', true);
+}
 
-    return res.json();
-  }
+export async function getSharePointGraphStatus() {
+  return apiGet('/executive/sharepoint/graph-status', 'Failed to load SharePoint Graph status', true);
+}
 
-  export async function getSharePointExportLogs() {
-    const res = await fetch(`${API_URL}/executive/sharepoint/export-logs`, {
-      cache: 'no-store',
-    });
+export async function publishToSharePoint(payload: {
+  targetSite: string;
+  targetPage?: string;
+  targetLibrary?: string;
+  payloadEndpoint: string;
+  payloadType?: string;
+  confidentiality?: string;
+  requestedBy?: string;
+  notes?: string;
+}) {
+  return apiPost(
+    '/executive/sharepoint/publish',
+    {
+      ...payload,
+      requestedBy: payload.requestedBy || getSelectedDevActorName(),
+    },
+    'Failed to publish/log SharePoint export request',
+    true,
+  );
+}
 
-    if (!res.ok) {
-      throw new Error('Failed to load SharePoint export logs');
-    }
-
-    return res.json();
-  }
-
-  export async function getSharePointGraphStatus() {
-    const res = await fetch(`${API_URL}/executive/sharepoint/graph-status`, {
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      throw new Error('Failed to load SharePoint Graph status');
-    }
-
-    return res.json();
-  }
-
-  export async function publishToSharePoint(payload: {
-    targetSite: string;
-    targetPage?: string;
-    targetLibrary?: string;
-    payloadEndpoint: string;
-    payloadType?: string;
-    confidentiality?: string;
-    requestedBy?: string;
-    notes?: string;
-  }) {
-    const res = await fetch(`${API_URL}/executive/sharepoint/publish`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      throw new Error('Failed to publish/log SharePoint export request');
-    }
-
-    return res.json();
-  }
-
-  export async function getSharePointTargets() {
-  const res = await fetch(`${API_URL}/executive/sharepoint/targets`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load SharePoint targets');
-  }
-
-  return res.json();
+export async function getSharePointTargets() {
+  return apiGet('/executive/sharepoint/targets', 'Failed to load SharePoint targets', true);
 }
 
 export async function validateSharePointTarget(payload: {
@@ -1012,99 +749,49 @@ export async function validateSharePointTarget(payload: {
   targetLibrary?: string;
   payloadEndpoint: string;
 }) {
-  const res = await fetch(`${API_URL}/executive/sharepoint/validate-target`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to validate SharePoint target');
-  }
-
-  return res.json();
+  return apiPost(
+    '/executive/sharepoint/validate-target',
+    payload,
+    'Failed to validate SharePoint target',
+    true,
+  );
 }
 
 export async function getSharePointSetupGuide() {
-  const res = await fetch(`${API_URL}/executive/sharepoint/setup-guide`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load SharePoint Graph setup guide');
-  }
-
-  return res.json();
+  return apiGet(
+    '/executive/sharepoint/setup-guide',
+    'Failed to load SharePoint Graph setup guide',
+    true,
+  );
 }
 
 export async function getSharePointDiscoveryGuide() {
-  const res = await fetch(`${API_URL}/executive/sharepoint/discovery-guide`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load SharePoint discovery guide');
-  }
-
-  return res.json();
+  return apiGet(
+    '/executive/sharepoint/discovery-guide',
+    'Failed to load SharePoint discovery guide',
+    true,
+  );
 }
 
 export async function getSharePointDiscoveryPreview(input: any) {
-  const res = await fetch(`${API_URL}/executive/sharepoint/discovery-preview`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to generate SharePoint discovery preview');
-  }
-
-  return res.json();
+  return apiPost(
+    '/executive/sharepoint/discovery-preview',
+    input,
+    'Failed to generate SharePoint discovery preview',
+    true,
+  );
 }
 
-export async function getFinanceAuditPayload(runId?: string) {
-  const url = runId
-    ? `${API_URL}/executive/sharepoint/finance-audit-payload?runId=${encodeURIComponent(runId)}`
-    : `${API_URL}/executive/sharepoint/finance-audit-payload`;
-
-  const res = await fetch(url, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load finance audit SharePoint payload');
-  }
-
-  return res.json();
-}
+/* -------------------------------------------------------------------------- */
+/* Payment batches                                                            */
+/* -------------------------------------------------------------------------- */
 
 export async function getPaymentBatches() {
-  const res = await fetch(`${API_URL}/payment-batches`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payment batches');
-  }
-
-  return res.json();
+  return apiGet('/payment-batches', 'Failed to load payment batches', true);
 }
 
 export async function getPaymentBatch(id: string) {
-  const res = await fetch(`${API_URL}/payment-batches/${id}`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payment batch');
-  }
-
-  return res.json();
+  return apiGet(`/payment-batches/${id}`, 'Failed to load payment batch', true);
 }
 
 export async function createPaymentBatchFromPayrollRun(
@@ -1114,169 +801,99 @@ export async function createPaymentBatchFromPayrollRun(
     preparedBy?: string;
   },
 ) {
-  const res = await fetch(`${API_URL}/payment-batches/from-payroll-run/${payrollRunId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return apiPost(
+    `/payment-batches/from-payroll-run/${payrollRunId}`,
+    {
+      ...payload,
+      preparedBy: payload?.preparedBy || getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to create payment batch');
-  }
-
-  return res.json();
+    'Failed to create payment batch',
+    true,
+  );
 }
 
-export async function validatePaymentBatchBankDetails(
-  id: string,
-  payload: {
-    items: Array<{
-      id: string;
-      bankName?: string;
-      bankBranch?: string;
-      bankAccountNumber?: string;
-      bankDetailsStatus?: string;
-      validationNotes?: string;
-    }>;
-  },
-) {
-  const res = await fetch(`${API_URL}/payment-batches/${id}/validate-bank-details`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function recheckPaymentBatchPayslips(batchId: string) {
+  return apiPost(
+    `/payment-batches/${batchId}/recheck-payslips`,
+    {
+      checkedBy: getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to validate bank details');
-  }
-
-  return res.json();
+    'Failed to recheck payment batch payslips',
+    true,
+  );
 }
 
-export async function preparePaymentBatch(
-  id: string,
-  payload: {
-    preparedBy?: string;
-    evidenceNotes?: string;
-  },
-) {
-  const res = await fetch(`${API_URL}/payment-batches/${id}/prepare`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function validatePaymentBatchBankDetails(batchId: string) {
+  return apiPost(
+    `/payment-batches/${batchId}/validate-bank-details`,
+    {
+      validatedBy: getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to prepare payment batch');
-  }
-
-  return res.json();
+    'Failed to validate payment batch bank details',
+    true,
+  );
 }
 
-export async function approvePaymentBatch(
-  id: string,
-  payload: {
-    approvedBy?: string;
-    evidenceNotes?: string;
-  },
-) {
-  const res = await fetch(`${API_URL}/payment-batches/${id}/approve`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function preparePaymentBatch(batchId: string) {
+  return apiPost(
+    `/payment-batches/${batchId}/prepare`,
+    {
+      preparedBy: getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to approve payment batch');
-  }
-
-  return res.json();
+    'Failed to prepare payment batch',
+    true,
+  );
 }
 
-export async function recheckPaymentBatchPayslips(
-  batchId: string,
-  payload: {
-    checkedBy?: string;
-  },
-) {
-  const res = await fetch(`${API_URL}/payment-batches/${batchId}/recheck-payslips`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+export async function approvePaymentBatch(batchId: string) {
+  return apiPost(
+    `/payment-batches/${batchId}/approve`,
+    {
+      approvedBy: getSelectedDevActorName(),
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to recheck payment batch payslips');
-  }
-
-  return res.json();
+    'Failed to approve payment batch',
+    true,
+  );
 }
 
 export async function getPaymentBatchEvidence(batchId: string) {
-  const res = await fetch(`${API_URL}/payment-batches/${batchId}/evidence`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to load payment batch evidence');
-  }
-
-  return res.json();
+  return apiGet(
+    `/payment-batches/${batchId}/evidence`,
+    'Failed to load payment batch evidence',
+    true,
+  );
 }
 
 export function getPaymentBatchEvidenceCsvUrl(batchId: string) {
   return `${API_URL}/payment-batches/${batchId}/evidence.csv`;
 }
 
-export async function getEmployeeBankAuditHistory(employeeId: string) {
-  const res = await fetch(`${API_URL}/employees/${employeeId}/bank-audit-history`, {
+export async function downloadPaymentBatchEvidenceCsv(batchId: string) {
+  const res = await fetch(`${API_URL}/payment-batches/${batchId}/evidence.csv`, {
+    method: 'GET',
+    headers: roleHeaders(),
     cache: 'no-store',
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || 'Failed to load employee bank audit history');
+    await readApiError(res, 'Failed to download payment batch evidence CSV');
   }
 
-  return res.json();
-}
+  const blob = await res.blob();
 
-export async function getPayrollReadinessGates() {
-  const res = await fetch(`${API_URL}/payroll/readiness-gates`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to load payroll readiness gates');
+  if (typeof window === 'undefined') {
+    return;
   }
 
-  return res.json();
-}
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
 
-export async function getPayrollRunCreationReadiness() {
-  const res = await fetch(`${API_URL}/payroll/run-creation-readiness`, {
-    cache: 'no-store',
-  });
+  link.href = url;
+  link.download = 'payment-batch-evidence.csv';
 
-  if (!res.ok) {
-    throw new Error('Failed to load payroll run creation readiness');
-  }
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 
-  return res.json();
+  window.URL.revokeObjectURL(url);
 }

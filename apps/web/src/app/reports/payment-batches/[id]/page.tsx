@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getPaymentBatch } from '@/lib/api';
 import { PaymentBatchActions } from './PaymentBatchActions';
-import { getPaymentBatchEvidenceCsvUrl } from '@/lib/api';
+import { PaymentBatchEvidenceDownloadButton } from './PaymentBatchEvidenceDownloadButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -69,7 +69,6 @@ export default async function PaymentBatchDetailPage({
   );
 
   return (
-    
     <section className="card">
       <div className="page-header">
         <div>
@@ -92,9 +91,11 @@ export default async function PaymentBatchDetailPage({
             Finance Evidence
           </Link>
 
-          <a className="btn" href={getPaymentBatchEvidenceCsvUrl(id)}>
-            Download Evidence CSV
-          </a>
+          <Link className="btn-secondary" href={`/reports/payment-batches/${id}/evidence`}>
+            View Evidence
+          </Link>
+
+          <PaymentBatchEvidenceDownloadButton batchId={id} />
         </div>
       </div>
 
@@ -176,20 +177,20 @@ export default async function PaymentBatchDetailPage({
 
         <table>
           <thead>
-          <tr>
-            <th>Employee No.</th>
-            <th>Name</th>
-            <th>Department</th>
-            <th>Net Pay</th>
-            <th>Account Name</th>
-            <th>Bank Name</th>
-            <th>Branch</th>
-            <th>Account</th>
-            <th>Bank Status</th>
-            <th>Payment Status</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
+            <tr>
+              <th>Employee No.</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Net Pay</th>
+              <th>Account Name</th>
+              <th>Bank Name</th>
+              <th>Branch</th>
+              <th>Account</th>
+              <th>Bank Status</th>
+              <th>Payment Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
 
           <tbody>
             {items.length === 0 ? (
@@ -213,9 +214,7 @@ export default async function PaymentBatchDetailPage({
                     </span>
                   </td>
                   <td>
-                    <span className={statusClass(item.paymentStatus)}>
-                      {item.paymentStatus}
-                    </span>
+                    <span className={statusClass(item.paymentStatus)}>{item.paymentStatus}</span>
                   </td>
                   <td>{item.validationNotes || '-'}</td>
                 </tr>

@@ -5,112 +5,35 @@ import { useRouter } from 'next/navigation';
 import {
   approvePaymentBatch,
   preparePaymentBatch,
-  recheckPaymentBatchPayslips,  
+  recheckPaymentBatchPayslips,
   validatePaymentBatchBankDetails,
 } from '@/lib/api';
 
-type Props = {
-  batch: any;
-};
-
-export function PaymentBatchActions({ batch }: Props) {
+export function PaymentBatchActions({ batch }: { batch: any }) {
   const router = useRouter();
-  const [message, setMessage] = useState('');
+
   const [loadingAction, setLoadingAction] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  async function handleValidateBankDetails() {
+  async function runAction(actionName: string, action: () => Promise<any>) {
+    setLoadingAction(actionName);
     setMessage('');
-    setLoadingAction('validate');
+    setError('');
 
     try {
-      const items = (batch.items || []).map((item: any) => ({
-        id: item.id,
-        bankName: item.bankName || 'Manual Bank Validation Pending',
-        bankBranch: item.bankBranch || 'Finance To Confirm',
-        bankAccountNumber: item.bankAccountNumber || 'TO-BE-VALIDATED',
-        bankDetailsStatus: 'VALIDATED',
-        validationNotes:
-          item.validationNotes || 'Bank details marked as validated in development placeholder mode.',
-      }));
-
-      await validatePaymentBatchBankDetails(batch.id, { items });
-
-      setMessage('Bank details validation updated in placeholder mode.');
+      const result = await action();
+      setMessage(result?.message || `${actionName} completed successfully.`);
       router.refresh();
-    } catch (error: any) {
-      setMessage(error?.message || 'Failed to validate bank details.');
+    } catch (err: any) {
+      setError(err?.message || `${actionName} failed.`);
     } finally {
       setLoadingAction('');
     }
   }
-
-  async function handlePrepareBatch() {
-    setMessage('');
-    setLoadingAction('prepare');
-
-    try {
-      await preparePaymentBatch(batch.id, {
-        preparedBy: 'finance-manager-dev',
-        evidenceNotes:
-          'Payment batch prepared by Finance. No real bank file generated in this phase.',
-      });
-
-      setMessage('Payment batch prepared successfully.');
-      router.refresh();
-    } catch (error: any) {
-      setMessage(error?.message || 'Failed to prepare payment batch.');
-    } finally {
-      setLoadingAction('');
-    }
-  }
-
-  async function handleApproveBatch() {
-    setMessage('');
-    setLoadingAction('approve');
-
-    try {
-      await approvePaymentBatch(batch.id, {
-        approvedBy: 'director-dev',
-        evidenceNotes:
-          'Payment batch approved for manual payment processing. Bank evidence must be stored separately.',
-      });
-
-      setMessage('Payment batch approved for manual processing.');
-      router.refresh();
-    } catch (error: any) {
-      setMessage(error?.message || 'Failed to approve payment batch.');
-    } finally {
-      setLoadingAction('');
-    }
-  }
-
-  async function handleRecheckPayslips() {
-    setMessage('');
-    setLoadingAction('recheck');
-
-    try {
-      const result = await recheckPaymentBatchPayslips(batch.id, {
-        checkedBy: 'finance-manager-dev',
-      });
-
-      setMessage(
-        `${result.message} Refreshed: ${result.refreshedCount}. Still blocked: ${result.stillBlockedCount}.`,
-      );
-
-      router.refresh();
-    } catch (error: any) {
-      setMessage(error?.message || 'Failed to recheck payslips.');
-    } finally {
-      setLoadingAction('');
-    }
-  }
-
-  const isApproved = batch.status === 'APPROVED';
-  const canPrepare = !isApproved;
-  const canApprove = batch.status === 'PREPARED';
 
   return (
-    <div className="table-wrap">
+    <section style={{ marginTop: '1rem' }}>
       <div className="page-header">
         <div>
           <h3>Finance Payment Batch Actions</h3>
@@ -123,49 +46,57 @@ export function PaymentBatchActions({ batch }: Props) {
           <button
             className="btn-secondary"
             type="button"
-            disabled={loadingAction === 'recheck' || isApproved}
-            onClick={handleRecheckPayslips}
+            disabled={loadingAction === 'Recheck Payslips'}
+            onClick={() =>
+              runAction('Recheck Payslips', () => recheckPaymentBatchPayslips(batch.id))
+            }
           >
-            {loadingAction === 'recheck' ? 'Rechecking...' : 'Recheck Payslips'}
+            {loadingAction === 'Recheck Payslips' ? 'Rechecking...' : 'Recheck Payslips'}
           </button>
 
           <button
             className="btn-secondary"
             type="button"
-            disabled={loadingAction === 'validate' || isApproved}
-            onClick={handleValidateBankDetails}
+            disabled={loadingAction === 'Validate Bank Details'}
+            onClick={() =>
+              runAction('Validate Bank Details', () => validatePaymentBatchBankDetails(batch.id))
+            }
           >
-            {loadingAction === 'validate' ? 'Validating...' : 'Validate Bank Details'}
+            {loadingAction === 'Validate Bank Details'
+              ? 'Validating...'
+              : 'Validate Bank Details'}
           </button>
 
           <button
             className="btn"
             type="button"
-            disabled={loadingAction === 'prepare' || !canPrepare}
-            onClick={handlePrepareBatch}
+            disabled={loadingAction === 'Prepare Batch'}
+            onClick={() => runAction('Prepare Batch', () => preparePaymentBatch(batch.id))}
           >
-            {loadingAction === 'prepare' ? 'Preparing...' : 'Prepare Batch'}
+            {loadingAction === 'Prepare Batch' ? 'Preparing...' : 'Prepare Batch'}
           </button>
 
           <button
             className="btn"
             type="button"
-            disabled={loadingAction === 'approve' || !canApprove}
-            onClick={handleApproveBatch}
+            disabled={loadingAction === 'Approve Batch'}
+            onClick={() => runAction('Approve Batch', () => approvePaymentBatch(batch.id))}
           >
-            {loadingAction === 'approve' ? 'Approving...' : 'Approve Batch'}
+            {loadingAction === 'Approve Batch' ? 'Approving...' : 'Approve Batch'}
           </button>
         </div>
       </div>
 
-      {message && <div className="notice">{message}</div>}
+      {message && <div className="notice success">{message}</div>}
+      {error && <div className="notice danger">{error}</div>}
 
-      {batch.status === 'BLOCKED_PAYSLIPS_MISSING' && (
+      {String(batch.status || '').includes('BLOCKED') && (
         <div className="notice">
           This batch is blocked because one or more payslips are missing. Generate payslips from the
-          locked payroll run, then click <strong>Recheck Payslips</strong> to refresh this payment batch.
+          locked payroll run, then click <strong>Recheck Payslips</strong> to refresh this payment
+          batch.
         </div>
       )}
-    </div>
+    </section>
   );
 }
