@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
+import { RequireRoles } from '../auth/roles.decorator';
+import { RbacGuard } from '../auth/rbac.guard';
 
 @Controller('employees')
 export class EmployeesController {
@@ -55,6 +57,8 @@ export class EmployeesController {
   }
 
   @Post(':id/validate-bank-details')
+  @UseGuards(RbacGuard)
+  @RequireRoles('FINANCE_MANAGER', 'ADMIN')
   validateBankDetails(@Param('id') id: string, @Body() body: any) {
     return this.employeesService.validateBankDetails(id, body);
   }

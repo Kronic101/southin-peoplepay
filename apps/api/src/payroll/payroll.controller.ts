@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { PayrollService } from './payroll.service';
 import { PayrollReadinessGatesService } from './payroll-readiness-gates.service';
+import { RequireRoles } from '../auth/roles.decorator';
+import { RbacGuard } from '../auth/rbac.guard';
 
 @Controller('payroll')
 export class PayrollController {
@@ -30,8 +32,10 @@ export class PayrollController {
   }
 
   @Post('runs')
-  createPayrollRun(@Body() body: unknown) {
-    return this.payrollService.createPayrollRun(body as any);
+  @UseGuards(RbacGuard)
+  @RequireRoles('PAYROLL_OFFICER', 'ADMIN')
+  createPayrollRun(@Body() body: any) {
+    return this.payrollService.createPayrollRun(body);
   }
 
   @Post('runs/:runId/employees/:lineId/gross-pay')
