@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ExecutiveService } from './executive.service';
+import { RequireRoles } from 'src/auth/roles.decorator';
+import { RbacGuard } from 'src/auth/rbac.guard';
 
 @Controller('executive')
 export class ExecutiveController {
@@ -28,6 +30,8 @@ export class ExecutiveController {
   }
 
   @Get('sharepoint/export-package')
+  @UseGuards(RbacGuard)
+  @RequireRoles('ADMIN', 'DIRECTOR')
   getSharePointExportPackage() {
     return this.executiveService.getSharePointExportPackage();
   }

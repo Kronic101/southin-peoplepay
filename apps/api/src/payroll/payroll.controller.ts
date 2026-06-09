@@ -61,6 +61,8 @@ export class PayrollController {
   }
 
   @Post('runs/:id/hr-review')
+  @UseGuards(RbacGuard)
+  @RequireRoles('HR_MANAGER', 'ADMIN')
   hrReviewPayrollRun(@Param('id') id: string, @Body() body: unknown) {
     return this.payrollService.hrReviewPayrollRun(id, body as any);
   }
@@ -71,6 +73,8 @@ export class PayrollController {
   }
 
   @Post('runs/:id/finance-review')
+  @UseGuards(RbacGuard)
+  @RequireRoles('FINANCE_MANAGER', 'ADMIN')
   financeReviewPayrollRun(@Param('id') id: string, @Body() body: unknown) {
     return this.payrollService.financeReviewPayrollRun(id, body as any);
   }
@@ -81,11 +85,15 @@ export class PayrollController {
   }
 
   @Post('runs/:id/director-approve')
+  @UseGuards(RbacGuard)
+  @RequireRoles('DIRECTOR', 'ADMIN')
   directorApprovePayrollRun(@Param('id') id: string, @Body() body: unknown) {
     return this.payrollService.directorApprovePayrollRun(id, body as any);
   }
 
   @Post('runs/:id/lock')
+  @UseGuards(RbacGuard)
+  @RequireRoles('DIRECTOR', 'ADMIN')
   lockPayrollRun(@Param('id') id: string, @Body() body: unknown) {
     return this.payrollService.lockPayrollRun(id, body as any);
   }
