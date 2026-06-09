@@ -37,6 +37,12 @@ export default async function PaymentBatchesPage() {
   const data = await getPaymentBatches();
   const batches = data?.batches || [];
 
+  const approvedCount = batches.filter((batch: any) => batch.status === 'APPROVED').length;
+  const preparedCount = batches.filter((batch: any) => batch.status === 'PREPARED').length;
+  const blockedCount = batches.filter((batch: any) =>
+    String(batch.status || '').includes('BLOCKED'),
+  ).length;
+
   return (
     <section className="card">
       <div className="page-header">
@@ -60,10 +66,6 @@ export default async function PaymentBatchesPage() {
           <Link className="btn" href="/reports/finance-evidence">
             Finance Evidence
           </Link>
-
-          <Link className="btn-secondary" href={`/reports/payment-batches/${id}/evidence`}>
-            View Evidence
-          </Link>
         </div>
       </div>
 
@@ -75,19 +77,17 @@ export default async function PaymentBatchesPage() {
 
         <div className="summary-card">
           <span className="summary-label">Approved</span>
-          <strong>{batches.filter((batch: any) => batch.status === 'APPROVED').length}</strong>
+          <strong>{approvedCount}</strong>
         </div>
 
         <div className="summary-card">
           <span className="summary-label">Prepared</span>
-          <strong>{batches.filter((batch: any) => batch.status === 'PREPARED').length}</strong>
+          <strong>{preparedCount}</strong>
         </div>
 
         <div className="summary-card">
           <span className="summary-label">Blocked</span>
-          <strong>
-            {batches.filter((batch: any) => String(batch.status || '').includes('BLOCKED')).length}
-          </strong>
+          <strong>{blockedCount}</strong>
         </div>
       </div>
 
@@ -133,9 +133,7 @@ export default async function PaymentBatchesPage() {
                   <td>{batch.preparedBy || '-'}</td>
                   <td>{formatDateTime(batch.createdAt)}</td>
                   <td>
-                    <td>
-                      <PaymentBatchListActions batchId={batch.id} />
-                    </td>
+                    <PaymentBatchListActions batchId={batch.id} />
                   </td>
                 </tr>
               ))
