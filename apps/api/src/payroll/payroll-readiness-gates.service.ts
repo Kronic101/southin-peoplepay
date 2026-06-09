@@ -28,18 +28,22 @@ export class PayrollReadinessGatesService {
       },
       gates: {
         hr: [
+          'Employee status must be ACTIVE or ON_PROBATION.',
           'Department must be assigned.',
           'Job title must be assigned.',
           'Site must be assigned.',
           'Employment type must be assigned.',
           'Start date must be captured.',
           'Employee must have a contract record.',
+          'Employee contract must be ACTIVE, APPROVED, or SIGNED.',
           'Employee must have approved conditions of service.',
         ],
         finance: [
           'Statutory details must exist.',
           'Primary bank account must exist.',
           'Primary bank account must be approved.',
+          'Bank account name must exist.',
+          'Bank account number must exist.',
           'Bank details must be validated by Finance.',
         ],
       },
@@ -97,14 +101,17 @@ export class PayrollReadinessGatesService {
         site: true,
         employmentType: true,
         statutoryDetails: true,
-        contracts: true,
+        contracts: {
+          orderBy: [{ createdAt: 'desc' }],
+        },
         serviceConditions: {
+          orderBy: [{ createdAt: 'desc' }],
           include: {
             template: true,
           },
         },
         bankAccounts: {
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          orderBy: [{ isPrimary: 'desc' }, { updatedAt: 'desc' }],
         },
       },
     });
@@ -112,28 +119,66 @@ export class PayrollReadinessGatesService {
 
   private mapEmployeesToGateRows(employees: any[]) {
     return employees.map((employee) => {
+      const employeeStatus = String(employee.status || '').toUpperCase();
+
+      const activeEmployee = ['ACTIVE', 'ON_PROBATION'].includes(employeeStatus);
+
+      const hasDepartment = Boolean(employee.departmentId);
+      const hasJobTitle = Boolean(employee.jobTitleId);
+      const hasSite = Boolean(employee.siteId);
+      const hasEmploymentType = Boolean(employee.employmentTypeId);
+      const hasStartDate = Boolean(employee.startDate);
+
+      const hasContract = Array.isArray(employee.contracts) && employee.contracts.length > 0;
+
+      const hasApprovedContract = (employee.contracts || []).some((contract: any) =>
+        ['ACTIVE', 'APPROVED', 'SIGNED'].includes(String(contract.status || '').toUpperCase()),
+      );
+
+      const hasApprovedConditionsOfService = (employee.serviceConditions || []).some(
+        (condition: any) => String(condition.status || '').toUpperCase() === 'APPROVED',
+      );
+
       const primaryBank =
-        employee.bankAccounts.find((account: any) => account.isPrimary) ||
-        employee.bankAccounts[0] ||
-        null;
+        (employee.bankAccounts || []).find((account: any) => account.isPrimary) || null;
+
+      const hasStatutoryDetails = Boolean(employee.statutoryDetails);
+      const hasPrimaryBankAccount = Boolean(primaryBank);
+
+      const hasApprovedBankAccount =
+        Boolean(primaryBank) &&
+        String(primaryBank?.approvalStatus || '').toUpperCase() === 'APPROVED';
+
+      const hasBankAccountName = Boolean(
+        this.cleanValue(primaryBank?.accountName) || this.cleanValue(employee.bankAccountName),
+      );
+
+      const hasBankAccountNumber = Boolean(
+        this.cleanValue(primaryBank?.accountNumber) || this.cleanValue(employee.bankAccountNumber),
+      );
+
+      const bankDetailsValidated =
+        String(employee.bankDetailsStatus || '').toUpperCase() === 'VALIDATED';
 
       const hrChecks = {
-        hasDepartment: Boolean(employee.departmentId),
-        hasJobTitle: Boolean(employee.jobTitleId),
-        hasSite: Boolean(employee.siteId),
-        hasEmploymentType: Boolean(employee.employmentTypeId),
-        hasStartDate: Boolean(employee.startDate),
-        hasContract: employee.contracts.length > 0,
-        hasApprovedConditionsOfService: employee.serviceConditions.some(
-          (condition: any) => condition.status === 'APPROVED',
-        ),
+        activeEmployee,
+        hasDepartment,
+        hasJobTitle,
+        hasSite,
+        hasEmploymentType,
+        hasStartDate,
+        hasContract,
+        hasApprovedContract,
+        hasApprovedConditionsOfService,
       };
 
       const financeChecks = {
-        hasStatutoryDetails: Boolean(employee.statutoryDetails),
-        hasPrimaryBankAccount: Boolean(primaryBank),
-        hasApprovedBankAccount: Boolean(primaryBank?.approvalStatus === 'APPROVED'),
-        bankDetailsValidated: employee.bankDetailsStatus === 'VALIDATED',
+        hasStatutoryDetails,
+        hasPrimaryBankAccount,
+        hasApprovedBankAccount,
+        hasBankAccountName,
+        hasBankAccountNumber,
+        bankDetailsValidated,
       };
 
       const hrMissing = this.getMissingChecks(hrChecks);
@@ -144,11 +189,13 @@ export class PayrollReadinessGatesService {
 
       const payrollReady = hrStatus === 'READY' && financeStatus === 'READY';
 
+      const missingItems = [...hrMissing, ...financeMissing];
+
       return {
         employeeId: employee.id,
         id: employee.id,
         employeeNumber: employee.employeeNumber,
-        name: `${employee.firstName} ${employee.lastName}`.trim(),
+        name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
         firstName: employee.firstName,
         lastName: employee.lastName,
         department: employee.department?.name || '-',
@@ -163,11 +210,15 @@ export class PayrollReadinessGatesService {
 
         hrChecks,
         financeChecks,
+
         hrMissing,
         financeMissing,
-        missingItems: [...hrMissing, ...financeMissing],
+        missingItems,
+
+        blockingReasons: missingItems.map((item) => this.describeMissingItem(item)),
 
         bankDetailsStatus: employee.bankDetailsStatus || 'PENDING_VALIDATION',
+
         primaryBank: primaryBank
           ? {
               id: primaryBank.id,
@@ -189,10 +240,39 @@ export class PayrollReadinessGatesService {
       .map(([key]) => key);
   }
 
+  private describeMissingItem(item: string) {
+    const descriptions: Record<string, string> = {
+      activeEmployee: 'Employee status must be ACTIVE or ON_PROBATION.',
+      hasDepartment: 'Department is missing.',
+      hasJobTitle: 'Job title is missing.',
+      hasSite: 'Site is missing.',
+      hasEmploymentType: 'Employment type is missing.',
+      hasStartDate: 'Start date is missing.',
+      hasContract: 'Employee contract record is missing.',
+      hasApprovedContract: 'Employee contract is not ACTIVE, APPROVED, or SIGNED.',
+      hasApprovedConditionsOfService: 'Conditions of service are not approved.',
+      hasStatutoryDetails: 'Statutory details are missing.',
+      hasPrimaryBankAccount: 'Primary bank account is missing.',
+      hasApprovedBankAccount: 'Primary bank account is not approved.',
+      hasBankAccountName: 'Bank account name is missing.',
+      hasBankAccountNumber: 'Bank account number is missing.',
+      bankDetailsValidated: 'Bank details have not been validated by Finance.',
+    };
+
+    return descriptions[item] || item;
+  }
+
+  private cleanValue(value?: string | null) {
+    if (!value) return '';
+    return String(value).trim();
+  }
+
   private maskAccountNumber(value?: string | null) {
     if (!value) return null;
 
-    const raw = String(value);
+    const raw = String(value).trim();
+
+    if (!raw) return null;
     if (raw.length <= 4) return '****';
 
     return `${'*'.repeat(Math.max(raw.length - 4, 0))}${raw.slice(-4)}`;
