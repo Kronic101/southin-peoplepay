@@ -397,7 +397,10 @@ export class EmployeesService {
       where: { id },
       include: {
         bankAccounts: {
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          orderBy: [
+            { isPrimary: 'desc' },
+            { updatedAt: 'desc' },
+          ],
         },
       },
     });
@@ -406,49 +409,56 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    const primaryBank =
-      employee.bankAccounts.find((account) => account.isPrimary) || employee.bankAccounts[0];
+    const reviewedBy =
+      this.cleanNullableString(input?.reviewedBy) ||
+      this.cleanNullableString(input?.validatedBy) ||
+      'finance-manager-dev';
 
-    if (
-      !primaryBank &&
-      (!employee.bankName || !employee.bankAccountNumber || !employee.bankAccountName)
-    ) {
-      throw new BadRequestException(
-        'Bank name, account number, and account name are required before validation.',
-      );
-    }
-
-    const reviewedBy = input?.reviewedBy || 'finance-manager-dev';
-    const notes = input?.notes || 'Employee bank details validated by Finance.';
+    const notes =
+      this.cleanNullableString(input?.notes) ||
+      'Employee bank details validated by Finance.';
 
     const previousStatus = employee.bankDetailsStatus || 'PENDING_VALIDATION';
 
+    const approvedAccount =
+      employee.bankAccounts.find((account) => account.approvalStatus === 'APPROVED') ||
+      employee.bankAccounts.find((account) => account.isPrimary) ||
+      employee.bankAccounts[0] ||
+      null;
+
+    let selectedBankAccount = approvedAccount;
+
     const result = await this.prisma.$transaction(async (tx) => {
-      let validatedBankAccountId: string | null = null;
-
-      if (primaryBank) {
-        await tx.employeeBankAccount.updateMany({
-          where: { employeeId: id },
-          data: { isPrimary: false },
-        });
-
-        const updatedBank = await tx.employeeBankAccount.update({
-          where: { id: primaryBank.id },
+      if (selectedBankAccount) {
+        const approved = await tx.employeeBankAccount.update({
+          where: { id: selectedBankAccount.id },
           data: {
-            isPrimary: true,
             approvalStatus: 'APPROVED',
+            isPrimary: true,
           },
         });
 
-        validatedBankAccountId = updatedBank.id;
+        selectedBankAccount = approved;
+
+        await tx.employeeBankAccount.updateMany({
+          where: {
+            employeeId: id,
+            id: {
+              not: approved.id,
+            },
+          },
+          data: {
+            isPrimary: false,
+          },
+        });
 
         await tx.employee.update({
           where: { id },
           data: {
-            bankName: updatedBank.bankName,
-            bankBranch: updatedBank.branchName,
-            bankAccountNumber: updatedBank.accountNumber,
-            bankAccountName: updatedBank.accountName,
+            bankName: approved.bankName,
+            bankBranch: approved.branchName,
+            bankAccountNumber: approved.accountNumber,
+            bankAccountName: approved.accountName,
             bankDetailsStatus: 'VALIDATED',
             bankDetailsReviewedBy: reviewedBy,
             bankDetailsReviewedAt: new Date(),
@@ -467,22 +477,24 @@ export class EmployeesService {
         });
       }
 
-      await tx.employeeBankAuditLog.create({
+      return tx.employeeBankAuditLog.create({
         data: {
           employeeId: id,
-          bankAccountId: validatedBankAccountId,
+          bankAccountId: selectedBankAccount?.id || null,
           action: 'BANK_DETAILS_VALIDATED',
           previousStatus,
           newStatus: 'VALIDATED',
           changedBy: reviewedBy,
           notes,
           snapshot: {
-            source: primaryBank ? 'EmployeeBankAccount' : 'EmployeeLegacyBankFields',
-            bankName: primaryBank?.bankName || employee.bankName,
-            branchName: primaryBank?.branchName || employee.bankBranch,
-            accountName: primaryBank?.accountName || employee.bankAccountName,
+            employeeId: id,
+            employeeNumber: employee.employeeNumber,
+            employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+            bankName: selectedBankAccount?.bankName || employee.bankName || null,
+            branchName: selectedBankAccount?.branchName || employee.bankBranch || null,
+            accountName: selectedBankAccount?.accountName || employee.bankAccountName || null,
             accountNumberMasked: this.maskAccountNumber(
-              primaryBank?.accountNumber || employee.bankAccountNumber,
+              selectedBankAccount?.accountNumber || employee.bankAccountNumber,
             ),
           },
         },
@@ -491,58 +503,12 @@ export class EmployeesService {
 
     return {
       message: 'Employee bank details validated.',
+      auditLog: result,
       employee: await this.findOne(id),
-      result,
     };
   }
 
-  async getEmployeeBankAuditHistory(employeeId: string) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: {
-        id: true,
-        employeeNumber: true,
-        firstName: true,
-        lastName: true,
-        bankDetailsStatus: true,
-        bankDetailsReviewedBy: true,
-        bankDetailsReviewedAt: true,
-        bankDetailsNotes: true,
-      },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee not found');
-    }
-
-    const logs = await this.prisma.employeeBankAuditLog.findMany({
-      where: { employeeId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        bankAccount: {
-          select: {
-            id: true,
-            bankName: true,
-            branchName: true,
-            accountName: true,
-            isPrimary: true,
-            approvalStatus: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-    });
-
-    return {
-      generatedAt: new Date().toISOString(),
-      employee,
-      totalReturned: logs.length,
-      logs,
-    };
-  }
-
-  async getPayrollReadiness() {
+    async getPayrollReadiness() {
     const employees = await this.prisma.employee.findMany({
       orderBy: [{ employeeNumber: 'asc' }],
       include: {
@@ -727,6 +693,24 @@ export class EmployeesService {
     };
   }
 
+  private maskAccountNumber(accountNumber?: string | null) {
+    if (!accountNumber) {
+      return '';
+    }
+
+    const value = String(accountNumber).trim();
+
+    if (!value) {
+      return '';
+    }
+
+    if (value.length <= 4) {
+      return '****';
+    }
+
+    return `${'*'.repeat(Math.max(value.length - 4, 4))}${value.slice(-4)}`;
+  }
+
   private async createBankAuditLog(input: {
     employeeId: string;
     bankAccountId?: string | null;
@@ -749,6 +733,96 @@ export class EmployeesService {
         snapshot: input.snapshot || undefined,
       },
     });
+  }
+
+  async getEmployeeBankAuditHistory(employeeId: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: {
+        department: true,
+        jobTitle: true,
+        site: true,
+        employmentType: true,
+        bankAccounts: {
+          orderBy: [
+            { isPrimary: 'desc' },
+            { updatedAt: 'desc' },
+          ],
+        },
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const logs = await this.prisma.employeeBankAuditLog.findMany({
+      where: { employeeId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        bankAccount: true,
+      },
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      employee: {
+        id: employee.id,
+        employeeNumber: employee.employeeNumber,
+        firstName: employee.firstName,
+        middleName: employee.middleName,
+        lastName: employee.lastName,
+        name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+        department: employee.department?.name || null,
+        jobTitle: employee.jobTitle?.name || null,
+        site: employee.site?.name || null,
+        employmentType: employee.employmentType?.name || null,
+        bankDetailsStatus: employee.bankDetailsStatus || 'PENDING_VALIDATION',
+        bankName: employee.bankName || null,
+        bankBranch: employee.bankBranch || null,
+        bankAccountName: employee.bankAccountName || null,
+        bankAccountNumberMasked: this.maskAccountNumber(employee.bankAccountNumber),
+        bankDetailsReviewedBy: employee.bankDetailsReviewedBy || null,
+        bankDetailsReviewedAt: employee.bankDetailsReviewedAt || null,
+        bankDetailsNotes: employee.bankDetailsNotes || null,
+      },
+      bankAccounts: (employee.bankAccounts || []).map((account) => ({
+        id: account.id,
+        bankName: account.bankName,
+        branchName: account.branchName,
+        accountName: account.accountName,
+        accountNumberMasked: this.maskAccountNumber(account.accountNumber),
+        isPrimary: account.isPrimary,
+        approvalStatus: account.approvalStatus,
+        effectiveFrom: account.effectiveFrom,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      })),
+      totalReturned: logs.length,
+      logs: logs.map((log) => ({
+        id: log.id,
+        employeeId: log.employeeId,
+        bankAccountId: log.bankAccountId,
+        action: log.action,
+        previousStatus: log.previousStatus,
+        newStatus: log.newStatus,
+        changedBy: log.changedBy,
+        notes: log.notes,
+        snapshot: log.snapshot,
+        createdAt: log.createdAt,
+        bankAccount: log.bankAccount
+          ? {
+              id: log.bankAccount.id,
+              bankName: log.bankAccount.bankName,
+              branchName: log.bankAccount.branchName,
+              accountName: log.bankAccount.accountName,
+              accountNumberMasked: this.maskAccountNumber(log.bankAccount.accountNumber),
+              isPrimary: log.bankAccount.isPrimary,
+              approvalStatus: log.bankAccount.approvalStatus,
+            }
+          : null,
+      })),
+    };
   }
 
   private cleanString(value: any) {
@@ -775,12 +849,4 @@ export class EmployeesService {
     return date;
   }
 
-  private maskAccountNumber(value?: string | null) {
-    if (!value) return null;
-
-    const raw = String(value);
-    if (raw.length <= 4) return '****';
-
-    return `${'*'.repeat(Math.max(raw.length - 4, 0))}${raw.slice(-4)}`;
-  }
 }
