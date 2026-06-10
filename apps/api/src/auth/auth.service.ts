@@ -1,332 +1,46 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
-import { JwtService } from '@nestjs/jwt';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHmac, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 
 type EmployeeLoginInput = {
-  employeeNumber: string;
-  pin: string;
+  employeeNumber?: string;
+  pin?: string;
 };
 
 type EmployeeChangePinInput = {
-  employeeNumber: string;
-  currentPin: string;
-  newPin: string;
+  employeeNumber?: string;
+  currentPin?: string;
+  newPin?: string;
+};
+
+type ForgotPinInput = {
+  employeeNumber?: string;
+  requestedBy?: string;
 };
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private readonly prisma: PrismaService, 
-    private readonly jwtService: JwtService,
-  ) {}
+  private readonly jwtSecret = process.env.JWT_SECRET || 'southin-peoplepay-dev-secret';
 
-  async employeeLogin(input: {
-    employeeNumber?: string;
-    pin?: string;
-  }) {
-    const employeeNumber = input.employeeNumber?.trim();
-    const pin = input.pin?.trim();
+  constructor(private readonly prisma: PrismaService) {}
+
+  async employeeLogin(input: EmployeeLoginInput) {
+    const employeeNumber = String(input?.employeeNumber || '').trim();
+    const pin = String(input?.pin || '').trim();
 
     if (!employeeNumber || !pin) {
-      throw new BadRequestException('Employee number and PIN are required');
+      throw new BadRequestException('Employee number and PIN are required.');
     }
 
-    const employee = await this.prisma.employee.findUnique({
+    const portalAccount = await this.prisma.employeePortalAccount.findUnique({
       where: {
         employeeNumber,
-      },
-      include: {
-        portalAccount: true,
-      },
-    });
-
-    if (!employee || !employee.portalAccount) {
-      throw new UnauthorizedException('Invalid employee number or PIN');
-    }
-
-    if (!employee.portalAccount.isActive) {
-      throw new UnauthorizedException('Employee portal account is inactive');
-    }
-
-    const pinMatches = await bcrypt.compare(pin, employee.portalAccount.pinHash);
-
-    if (!pinMatches) {
-      throw new UnauthorizedException('Invalid employee number or PIN');
-    }
-
-    await this.prisma.employeePortalAccount.update({
-      where: {
-        id: employee.portalAccount.id,
-      },
-      data: {
-        lastLoginAt: new Date(),
-      },
-    });
-
-    const token = this.jwtService.sign({
-      sub: employee.id,
-      employeeId: employee.id,
-      employeeNumber: employee.employeeNumber,
-      role: 'EMPLOYEE',
-    });
-
-    if (employee.portalAccount.mustChangePin) {
-      return {
-        message: 'PIN change required',
-        mustChangePin: true,
-        employee: {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          status: employee.status,
-        },
-        token,
-      };
-    }
-
-    return {
-      message: 'Login successful',
-      mustChangePin: false,
-      employee: {
-        id: employee.id,
-        employeeNumber: employee.employeeNumber,
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        status: employee.status,
-      },
-      token,
-    };
-}
-
-  async employeeChangePin(input: {
-      employeeNumber?: string;
-      currentPin?: string;
-      newPin?: string;
-    }) {
-      const employeeNumber = input.employeeNumber?.trim();
-      const currentPin = input.currentPin?.trim();
-      const newPin = input.newPin?.trim();
-
-      if (!employeeNumber || !currentPin || !newPin) {
-        throw new BadRequestException('Employee number, current PIN, and new PIN are required');
-      }
-
-      if (!/^\d{6}$/.test(newPin)) {
-        throw new BadRequestException('New PIN must be exactly 6 digits');
-      }
-
-      if (currentPin === newPin) {
-        throw new BadRequestException('New PIN must be different from the temporary PIN');
-      }
-
-      const employee = await this.prisma.employee.findUnique({
-        where: {
-          employeeNumber,
-        },
-        include: {
-          portalAccount: true,
-        },
-      });
-
-      if (!employee || !employee.portalAccount) {
-        throw new UnauthorizedException('Invalid employee number or PIN');
-      }
-
-      if (!employee.portalAccount.isActive) {
-        throw new UnauthorizedException('Employee portal account is inactive');
-      }
-
-      const pinMatches = await bcrypt.compare(currentPin, employee.portalAccount.pinHash);
-
-      if (!pinMatches) {
-        throw new UnauthorizedException('Invalid temporary PIN');
-      }
-
-      const newPinHash = await bcrypt.hash(newPin, 10);
-
-      await this.prisma.employeePortalAccount.update({
-        where: {
-          id: employee.portalAccount.id,
-        },
-        data: {
-          pinHash: newPinHash,
-          mustChangePin: false,
-          lastLoginAt: new Date(),
-        },
-      });
-
-      const token = this.jwtService.sign({
-        sub: employee.id,
-        employeeId: employee.id,
-        employeeNumber: employee.employeeNumber,
-        role: 'EMPLOYEE',
-      });
-
-      return {
-        message: 'PIN changed successfully',
-        mustChangePin: false,
-        employee: {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          status: employee.status,
-        },
-        token,
-      };
-    }
-
-  async getEmployeeMe(employeeId: string) {
-        const employee = await this.prisma.employee.findUnique({
-          where: { id: employeeId },
-          include: {
-            statutoryDetails: true,
-            portalAccount: {
-              select: {
-                employeeNumber: true,
-                mustChangePin: true,
-                isActive: true,
-                lastLoginAt: true,
-              },
-            },
-          },
-        });
-
-        if (!employee) {
-          throw new UnauthorizedException('Invalid session');
-        }
-
-        const payslipCount = await this.prisma.payslip.count({
-          where: {
-            employeeId,
-          },
-        });
-
-        return {
-          id: employee.id,
-          employeeNumber: employee.employeeNumber,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          status: employee.status,
-          phone: employee.phone,
-          email: employee.email,
-          statutoryDetails: employee.statutoryDetails,
-          portalAccount: employee.portalAccount,
-          payslipCount,
-        };
-      }
-
-  private async registerFailedAttempt(accountId: string, currentFailedAttempts: number) {
-    const failedAttempts = currentFailedAttempts + 1;
-
-    await this.prisma.employeePortalAccount.update({
-      where: { id: accountId },
-      data: {
-        failedAttempts,
-        lockedUntil: failedAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null,
-      },
-    });
-  }
-
-  private hashPin(pin: string) {
-    const salt = process.env.EMPLOYEE_PIN_SALT || 'southin-peoplepay-dev-salt';
-    return createHash('sha256').update(`${pin}:${salt}`).digest('hex');
-  }
-
-  private createDevToken(employeeId: string, employeeNumber: string) {
-    return Buffer.from(
-      JSON.stringify({
-        sessionId: randomUUID(),
-        type: 'EMPLOYEE',
-        employeeId,
-        employeeNumber,
-        issuedAt: new Date().toISOString(),
-      }),
-    ).toString('base64url');
-  }
-
-    private extractEmployeeNumberFromRequest(req: any) {
-    const authHeader = req.headers?.authorization || req.headers?.Authorization;
-
-    if (!authHeader || !String(authHeader).startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing employee token');
-    }
-
-    const token = String(authHeader).replace('Bearer ', '').trim();
-
-    try {
-      const decoded = this.jwtService.verify(token);
-      return decoded.employeeNumber;
-    } catch {
-      throw new UnauthorizedException('Invalid or expired employee token');
-    }
-  }
-
-  async getEmployeePayslips(req: any) {
-    const employeeNumber = this.extractEmployeeNumberFromRequest(req);
-
-    const employee = await this.prisma.employee.findUnique({
-      where: { employeeNumber },
-      include: {
-        payslips: {
-          include: {
-            payrollPeriod: true,
-            payrollRunEmployee: {
-              include: {
-                earnings: true,
-                deductions: true,
-              },
-            },
-          },
-          orderBy: {
-            generatedAt: 'desc',
-          },
-        },
-      },
-    });
-
-    if (!employee) {
-      throw new UnauthorizedException('Employee not found');
-    }
-
-    return employee.payslips.map((payslip) => ({
-      id: payslip.id,
-      employeeNumber: employee.employeeNumber,
-      employeeName: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
-      payrollPeriod: payslip.payrollPeriod?.periodName || '-',
-      periodStart: payslip.payrollPeriod?.startDate || null,
-      periodEnd: payslip.payrollPeriod?.endDate || null,
-      payDate: payslip.payrollPeriod?.payDate || null,
-      grossPay: payslip.grossPay,
-      totalDeductions: payslip.totalDeductions,
-      netPay: payslip.netPay,
-      employerCost: payslip.employerCost,
-      status: payslip.status,
-      generatedAt: payslip.generatedAt,
-      earningsCount: payslip.payrollRunEmployee?.earnings?.length || 0,
-      deductionsCount: payslip.payrollRunEmployee?.deductions?.length || 0,
-    }));
-  }
-
-  async getEmployeePayslip(id: string, req: any) {
-    const employeeNumber = this.extractEmployeeNumberFromRequest(req);
-
-    const employee = await this.prisma.employee.findUnique({
-      where: { employeeNumber },
-    });
-
-    if (!employee) {
-      throw new UnauthorizedException('Employee not found');
-    }
-
-    const payslip = await this.prisma.payslip.findFirst({
-      where: {
-        id,
-        employeeId: employee.id,
       },
       include: {
         employee: {
@@ -335,136 +49,338 @@ export class AuthService {
             jobTitle: true,
             site: true,
             employmentType: true,
+            statutoryDetails: true,
           },
         },
-        payrollPeriod: true,
-        payrollRunEmployee: {
+      },
+    });
+
+    if (!portalAccount || !portalAccount.employee) {
+      throw new UnauthorizedException('Invalid employee number or PIN.');
+    }
+
+    if (!portalAccount.isActive) {
+      throw new UnauthorizedException('Employee portal account is not active.');
+    }
+
+    if (portalAccount.lockedUntil && portalAccount.lockedUntil > new Date()) {
+      throw new UnauthorizedException('Employee portal account is temporarily locked.');
+    }
+
+    const validPin = await bcrypt.compare(pin, portalAccount.pinHash);
+
+    if (!validPin) {
+      const failedAttempts = Number(portalAccount.failedAttempts || 0) + 1;
+      const shouldLock = failedAttempts >= 5;
+
+      await this.prisma.employeePortalAccount.update({
+        where: {
+          id: portalAccount.id,
+        },
+        data: {
+          failedAttempts,
+          lockedUntil: shouldLock ? new Date(Date.now() + 10 * 60 * 1000) : null,
+        },
+      });
+
+      throw new UnauthorizedException('Invalid employee number or PIN.');
+    }
+
+    await this.prisma.employeePortalAccount.update({
+      where: {
+        id: portalAccount.id,
+      },
+      data: {
+        failedAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+      },
+    });
+
+    const token = this.signEmployeeToken({
+      type: 'EMPLOYEE',
+      role: 'EMPLOYEE',
+      sub: portalAccount.employeeId,
+      employeeId: portalAccount.employeeId,
+      employeeNumber: portalAccount.employeeNumber,
+    });
+
+    return {
+      message: 'Login successful',
+      token,
+      mustChangePin: portalAccount.mustChangePin,
+      employee: this.formatEmployeeSummary(portalAccount.employee),
+    };
+  }
+
+  async employeeChangePin(input: EmployeeChangePinInput) {
+    const employeeNumber = String(input?.employeeNumber || '').trim();
+    const currentPin = String(input?.currentPin || '').trim();
+    const newPin = String(input?.newPin || '').trim();
+
+    if (!employeeNumber || !currentPin || !newPin) {
+      throw new BadRequestException('Employee number, current PIN, and new PIN are required.');
+    }
+
+    if (newPin.length < 4) {
+      throw new BadRequestException('New PIN must be at least 4 characters.');
+    }
+
+    const portalAccount = await this.prisma.employeePortalAccount.findUnique({
+      where: {
+        employeeNumber,
+      },
+      include: {
+        employee: {
           include: {
-            earnings: true,
-            deductions: true,
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
+            statutoryDetails: true,
+          },
+        },
+      },
+    });
+
+    if (!portalAccount || !portalAccount.employee) {
+      throw new NotFoundException('Employee portal account not found.');
+    }
+
+    if (!portalAccount.isActive) {
+      throw new UnauthorizedException('Employee portal account is not active.');
+    }
+
+    const validPin = await bcrypt.compare(currentPin, portalAccount.pinHash);
+
+    if (!validPin) {
+      throw new UnauthorizedException('Current PIN is incorrect.');
+    }
+
+    const pinHash = await bcrypt.hash(newPin, 10);
+
+    await this.prisma.employeePortalAccount.update({
+      where: {
+        id: portalAccount.id,
+      },
+      data: {
+        pinHash,
+        mustChangePin: false,
+        failedAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    const token = this.signEmployeeToken({
+      type: 'EMPLOYEE',
+      role: 'EMPLOYEE',
+      sub: portalAccount.employeeId,
+      employeeId: portalAccount.employeeId,
+      employeeNumber: portalAccount.employeeNumber,
+    });
+
+    return {
+      message: 'Employee PIN changed successfully.',
+      token,
+      mustChangePin: false,
+      employee: this.formatEmployeeSummary(portalAccount.employee),
+    };
+  }
+
+  async employeeMe(req: any) {
+    const token = this.getBearerToken(req);
+
+    if (!token) {
+      throw new UnauthorizedException('Missing employee token.');
+    }
+
+    const payload = this.verifyEmployeeToken(token);
+
+    return this.getEmployeeMe(payload.employeeId);
+  }
+
+  async getEmployeeMe(employeeId: string) {
+    if (!employeeId) {
+      throw new UnauthorizedException('Invalid employee session.');
+    }
+
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id: employeeId,
+      },
+      include: {
+        statutoryDetails: true,
+        portalAccount: {
+          select: {
+            employeeNumber: true,
+            mustChangePin: true,
+            isActive: true,
+            lastLoginAt: true,
+          },
+        },
+        department: true,
+        jobTitle: true,
+        site: true,
+        employmentType: true,
+        bankAccounts: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+        },
+        payslips: {
+          orderBy: {
+            generatedAt: 'desc',
+          },
+          take: 5,
+          include: {
+            payrollPeriod: true,
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      throw new UnauthorizedException('Employee profile not found.');
+    }
+
+    if (!employee.portalAccount?.isActive) {
+      throw new UnauthorizedException('Employee portal account is not active.');
+    }
+
+    return {
+      id: employee.id,
+      employeeNumber: employee.employeeNumber,
+      firstName: employee.firstName,
+      middleName: employee.middleName,
+      lastName: employee.lastName,
+      gender: employee.gender,
+      status: employee.status,
+      phone: employee.phone,
+      email: employee.email,
+
+      department: employee.department,
+      jobTitle: employee.jobTitle,
+      site: employee.site,
+      employmentType: employee.employmentType,
+      statutoryDetails: employee.statutoryDetails,
+
+      bankDetailsStatus: employee.bankDetailsStatus,
+      bankName: employee.bankName,
+      bankBranch: employee.bankBranch,
+      bankAccountName: employee.bankAccountName,
+      bankAccountNumberMasked: this.maskAccountNumber(employee.bankAccountNumber),
+
+      bankAccounts: employee.bankAccounts.map((account) => ({
+        id: account.id,
+        bankName: account.bankName,
+        branchName: account.branchName,
+        accountName: account.accountName,
+        accountNumberMasked: this.maskAccountNumber(account.accountNumber),
+        isPrimary: account.isPrimary,
+        approvalStatus: account.approvalStatus,
+        effectiveFrom: account.effectiveFrom,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      })),
+
+      portalAccount: employee.portalAccount,
+      payslipCount: employee.payslips.length,
+      latestPayslip: employee.payslips[0] || null,
+
+      leaveSummary: {
+        monthlyLeaveDays: 2,
+        mothersDayDays: this.isFemale(employee.gender) ? 1 : 0,
+        totalAvailableThisMonth: 2 + (this.isFemale(employee.gender) ? 1 : 0),
+      },
+    };
+  }
+
+  async getEmployeePayslips(req: any) {
+    const token = this.getBearerToken(req);
+
+    if (!token) {
+      throw new UnauthorizedException('Missing employee token.');
+    }
+
+    const payload = this.verifyEmployeeToken(token);
+
+    const payslips = await this.prisma.payslip.findMany({
+      where: {
+        employeeId: payload.employeeId,
+      },
+      orderBy: {
+        generatedAt: 'desc',
+      },
+      include: {
+        payrollPeriod: true,
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
+          },
+        },
+      },
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      totalReturned: payslips.length,
+      payslips: payslips.map((payslip) => this.formatPayslipForEmployee(payslip)),
+    };
+  }
+
+  async getEmployeePayslip(id: string, req: any) {
+    const token = this.getBearerToken(req);
+
+    if (!token) {
+      throw new UnauthorizedException('Missing employee token.');
+    }
+
+    const payload = this.verifyEmployeeToken(token);
+
+    const payslip = await this.prisma.payslip.findFirst({
+      where: {
+        id,
+        employeeId: payload.employeeId,
+      },
+      include: {
+        payrollPeriod: true,
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            site: true,
+            employmentType: true,
           },
         },
       },
     });
 
     if (!payslip) {
-      throw new NotFoundException('Payslip not found');
+      throw new NotFoundException('Payslip not found.');
     }
 
-    return payslip;
+    return this.formatPayslipForEmployee(payslip);
   }
 
-    private generateTemporaryPin() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-  }
-
-  private maskEmail(email?: string | null) {
-    if (!email || !email.includes('@')) return null;
-
-    const [name, domain] = email.split('@');
-    const visible = name.slice(0, 2);
-    return `${visible}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
-  }
-
-  private async sendForgotPinEmail(input: {
-    to: string;
-    employeeName: string;
-    employeeNumber: string;
-    temporaryPin: string;
-  }) {
-    const emailEnabled = String(process.env.EMAIL_ENABLED || 'false').toLowerCase() === 'true';
-
-    const subject = 'Southin PeoplePay Temporary PIN Reset';
-
-    const text = `
-Dear ${input.employeeName},
-
-A temporary PIN has been generated for your Southin PeoplePay employee portal.
-
-Employee Number: ${input.employeeNumber}
-Temporary PIN: ${input.temporaryPin}
-
-For security, you must login and change this temporary PIN immediately.
-
-If you did not request this reset, please contact HR or IT immediately.
-
-Regards,
-Southin PeoplePay
-`;
-
-    if (!emailEnabled) {
-      console.log('EMAIL_DISABLED_DEV_MODE');
-      console.log({
-        to: input.to,
-        subject,
-        temporaryPin: input.temporaryPin,
-      });
-
-      return {
-        sent: false,
-        devMode: true,
-        message: 'Email disabled. Temporary PIN logged in API terminal for development testing.',
-      };
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: input.to,
-      subject,
-      text,
-    });
-
-    return {
-      sent: true,
-      devMode: false,
-      message: 'Temporary PIN email sent.',
-    };
-  }
-
-  async employeeForgotPin(input: {
-    employeeNumber?: string;
-  }) {
-    const employeeNumber = input.employeeNumber?.trim();
+  async forgotEmployeePin(input: ForgotPinInput) {
+    const employeeNumber = String(input?.employeeNumber || '').trim();
 
     if (!employeeNumber) {
-      throw new BadRequestException('Employee number is required');
+      throw new BadRequestException('Employee number is required.');
     }
 
-    const employee = await this.prisma.employee.findUnique({
+    const portalAccount = await this.prisma.employeePortalAccount.findUnique({
       where: {
         employeeNumber,
       },
       include: {
-        portalAccount: true,
+        employee: true,
       },
     });
 
-    /**
-     * Security note:
-     * We return a generic message when employee/account/email is missing.
-     * This prevents exposing whether an employee number exists.
-     */
-    const genericResponse = {
-      message:
-        'If the employee number is valid and has an email address, a temporary PIN reset email will be sent.',
-    };
-
-    if (!employee || !employee.portalAccount || !employee.email) {
-      return genericResponse;
-    }
-
-    if (!employee.portalAccount.isActive) {
-      return genericResponse;
+    if (!portalAccount || !portalAccount.employee) {
+      throw new NotFoundException('Employee portal account not found.');
     }
 
     const temporaryPin = this.generateTemporaryPin();
@@ -472,36 +388,191 @@ Southin PeoplePay
 
     await this.prisma.employeePortalAccount.update({
       where: {
-        id: employee.portalAccount.id,
+        id: portalAccount.id,
       },
       data: {
         pinHash,
         mustChangePin: true,
+        failedAttempts: 0,
+        lockedUntil: null,
       },
     });
 
-    const employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
-
-    const emailResult = await this.sendForgotPinEmail({
-      to: employee.email,
-      employeeName: employeeName || employee.employeeNumber,
-      employeeNumber: employee.employeeNumber,
-      temporaryPin,
-    });
+    if (process.env.EMAIL_ENABLED !== 'true') {
+      return {
+        message: 'Temporary PIN generated. Email is disabled in dev mode.',
+        devModeTemporaryPin: temporaryPin,
+        employeeNumber,
+        mustChangePin: true,
+      };
+    }
 
     return {
-      ...genericResponse,
-      email: this.maskEmail(employee.email),
-      devMode: emailResult.devMode,
-      /**
-       * Development only:
-       * This allows you to test without SMTP.
-       * Remove temporaryPin from response before production.
-       */
-      temporaryPin:
-        String(process.env.EMAIL_ENABLED || 'false').toLowerCase() === 'true'
-          ? undefined
-          : temporaryPin,
+      message: 'Temporary PIN generated and queued for email delivery.',
+      employeeNumber,
+      mustChangePin: true,
     };
+  }
+
+  async employeeForgotPin(input: ForgotPinInput) {
+    return this.forgotEmployeePin(input);
+  }
+
+  private formatEmployeeSummary(employee: any) {
+    return {
+      id: employee.id,
+      employeeNumber: employee.employeeNumber,
+      firstName: employee.firstName,
+      middleName: employee.middleName,
+      lastName: employee.lastName,
+      gender: employee.gender,
+      status: employee.status,
+      phone: employee.phone,
+      email: employee.email,
+      department: employee.department,
+      jobTitle: employee.jobTitle,
+      site: employee.site,
+      employmentType: employee.employmentType,
+      statutoryDetails: employee.statutoryDetails,
+    };
+  }
+
+  private formatPayslipForEmployee(payslip: any) {
+    const grossPay = Number(payslip.grossPay || 0);
+    const totalDeductions = Number(payslip.totalDeductions || 0);
+    const netPay = Number(payslip.netPay || 0);
+
+    return {
+      ...payslip,
+
+      payrollPeriod: payslip.payrollPeriod,
+      employee: payslip.employee,
+
+      earnings: [
+        {
+          type: 'BASIC_PAY',
+          description: 'Basic salary / gross pay',
+          amount: grossPay,
+        },
+      ],
+
+      deductions: [
+        {
+          type: 'TOTAL_DEDUCTIONS',
+          description: 'Total statutory and other deductions',
+          amount: totalDeductions,
+        },
+      ],
+
+      grossPay,
+      totalDeductions,
+      netPay,
+      employerCost: Number(payslip.employerCost || 0),
+      status: payslip.status || 'GENERATED',
+    };
+  }
+
+  private getBearerToken(req: any) {
+    const authorization =
+      req?.headers?.authorization ||
+      req?.headers?.Authorization ||
+      req?.authorization ||
+      '';
+
+    if (!authorization || typeof authorization !== 'string') {
+      return null;
+    }
+
+    if (!authorization.toLowerCase().startsWith('bearer ')) {
+      return null;
+    }
+
+    return authorization.slice(7).trim();
+  }
+
+  private signEmployeeToken(payload: Record<string, any>) {
+    const header = {
+      alg: 'HS256',
+      typ: 'JWT',
+    };
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const body = {
+      ...payload,
+      iat: now,
+      exp: now + 60 * 60 * 12,
+    };
+
+    const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
+    const encodedBody = this.base64UrlEncode(JSON.stringify(body));
+    const unsignedToken = `${encodedHeader}.${encodedBody}`;
+
+    const signature = createHmac('sha256', this.jwtSecret)
+      .update(unsignedToken)
+      .digest('base64url');
+
+    return `${unsignedToken}.${signature}`;
+  }
+
+  private verifyEmployeeToken(token: string) {
+    const parts = String(token || '').split('.');
+
+    if (parts.length !== 3) {
+      throw new UnauthorizedException('Invalid token.');
+    }
+
+    const [encodedHeader, encodedBody, signature] = parts;
+    const unsignedToken = `${encodedHeader}.${encodedBody}`;
+
+    const expectedSignature = createHmac('sha256', this.jwtSecret)
+      .update(unsignedToken)
+      .digest('base64url');
+
+    if (signature !== expectedSignature) {
+      throw new UnauthorizedException('Invalid token.');
+    }
+
+    let payload: any;
+
+    try {
+      payload = JSON.parse(Buffer.from(encodedBody, 'base64url').toString('utf8'));
+    } catch {
+      throw new UnauthorizedException('Invalid token.');
+    }
+
+    if (payload?.type !== 'EMPLOYEE' || !payload?.employeeId) {
+      throw new UnauthorizedException('Invalid employee session.');
+    }
+
+    if (payload?.exp && Number(payload.exp) < Math.floor(Date.now() / 1000)) {
+      throw new UnauthorizedException('Employee session expired.');
+    }
+
+    return payload;
+  }
+
+  private base64UrlEncode(value: string) {
+    return Buffer.from(value).toString('base64url');
+  }
+
+  private generateTemporaryPin() {
+    return String(randomBytes(3).readUIntBE(0, 3)).slice(0, 6).padStart(6, '0');
+  }
+
+  private maskAccountNumber(value?: string | null) {
+    if (!value) return null;
+
+    const raw = String(value);
+
+    if (raw.length <= 4) {
+      return '****';
+    }
+
+    return `${'*'.repeat(Math.max(raw.length - 4, 0))}${raw.slice(-4)}`;
+  }
+
+  private isFemale(value?: string | null) {
+    return String(value || '').toLowerCase().startsWith('f');
   }
 }

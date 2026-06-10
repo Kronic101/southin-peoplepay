@@ -20,6 +20,14 @@ export function getEmployeePortalToken() {
   return null;
 }
 
+export function saveEmployeePortalToken(token: string) {
+  if (typeof window === 'undefined') return;
+
+  for (const key of EMPLOYEE_TOKEN_KEYS) {
+    localStorage.setItem(key, token);
+  }
+}
+
 export function clearEmployeePortalToken() {
   if (typeof window === 'undefined') return;
 
@@ -28,16 +36,6 @@ export function clearEmployeePortalToken() {
   }
 
   localStorage.removeItem('employee');
-}
-
-export function saveEmployeePortalToken(token: string) {
-  if (typeof window === 'undefined') return;
-
-  clearEmployeePortalToken();
-
-  for (const key of EMPLOYEE_TOKEN_KEYS) {
-    localStorage.setItem(key, token);
-  }
 }
 
 export function employeeAuthHeaders() {
