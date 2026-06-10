@@ -1,7 +1,7 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { DevRole, getDevRole, setDevRole } from '@/lib/dev-role';
 
 const roles: DevRole[] = [

@@ -365,6 +365,10 @@ export async function getPayrollReadinessGates() {
   return apiGet('/payroll/readiness-gates', 'Failed to load payroll readiness gates', true);
 }
 
+export async function getPayrollReadiness() {
+  return getPayrollReadinessGates();
+}
+
 export async function getPayrollReadyEmployees() {
   return apiGet('/payroll/ready-employees', 'Failed to load payroll-ready employees', true);
 }

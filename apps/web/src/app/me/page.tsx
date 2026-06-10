@@ -201,12 +201,15 @@ export default function EmployeePortalHomePage() {
             </div>
           </Link>
 
-          <Link className="employee-tile" href="/me/tax-certificates">
+          <Link className="employee-tile" href="/me/statutory-certificates">
             <span className="tile-icon">📄</span>
+
             <div>
-              <h3>Tax Certificates</h3>
-              <p>Access annual PAYE and statutory tax certificate documents when published.</p>
-              <strong>Coming soon →</strong>
+              <h3>Statutory Certificates</h3>
+              <p>
+                View PAYE, NAPSA, NHIMA, and other statutory certificate records when published.
+              </p>
+              <strong>Open centre →</strong>
             </div>
           </Link>
         </section>
