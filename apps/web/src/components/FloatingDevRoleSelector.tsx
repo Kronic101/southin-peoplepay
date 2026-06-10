@@ -1,74 +1,57 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {
-  DEV_ROLE_LABELS,
-  DEV_ROLES,
-  DevRole,
-  getDevRole,
-  setDevRole,
-} from '@/lib/dev-role';
+import { DevRole, getDevRole, setDevRole } from '@/lib/dev-role';
 
-export function FloatingDevRoleSelector() {
-  const [role, setRole] = useState<DevRole>('ADMIN');
+const roles: DevRole[] = [
+  'PAYROLL_OFFICER',
+  'HR_MANAGER',
+  'FINANCE_MANAGER',
+  'DIRECTOR',
+  'ADMIN',
+];
+
+const roleLabels: Record<DevRole, string> = {
+  PAYROLL_OFFICER: 'Payroll Officer',
+  HR_MANAGER: 'HR Manager',
+  FINANCE_MANAGER: 'Finance Manager',
+  DIRECTOR: 'Director',
+  ADMIN: 'Admin',
+};
+
+export default function FloatingDevRoleSelector() {
+  const pathname = usePathname();
+  const [role, setRoleState] = useState<DevRole>('PAYROLL_OFFICER');
 
   useEffect(() => {
-    setRole(getDevRole());
-
-    const onRoleChanged = (event: Event) => {
-      const customEvent = event as CustomEvent<DevRole>;
-      setRole(customEvent.detail);
-    };
-
-    window.addEventListener('southin-dev-role-changed', onRoleChanged);
-
-    return () => {
-      window.removeEventListener('southin-dev-role-changed', onRoleChanged);
-    };
+    setRoleState(getDevRole());
   }, []);
 
-  function handleChange(value: string) {
-    const selectedRole = value as DevRole;
-    setRole(selectedRole);
-    setDevRole(selectedRole);
+  if (
+    pathname === '/' ||
+    pathname?.startsWith('/me') ||
+    pathname?.startsWith('/employee-login') ||
+    pathname?.startsWith('/employee-change-pin') ||
+    pathname?.startsWith('/forgot-pin')
+  ) {
+    return null;
+  }
+
+  function handleChange(nextRole: DevRole) {
+    setDevRole(nextRole);
+    setRoleState(nextRole);
+    window.location.reload();
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        right: '1rem',
-        bottom: '1rem',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        padding: '0.55rem 0.75rem',
-        border: '1px solid #fed7aa',
-        borderRadius: '0.85rem',
-        background: '#fff7ed',
-        boxShadow: '0 12px 35px rgba(15, 23, 42, 0.18)',
-      }}
-    >
-      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#9a3412' }}>
-        Dev Role
-      </span>
+    <div className="floating-role-selector">
+      <span>Dev Role</span>
 
-      <select
-        value={role}
-        onChange={(event) => handleChange(event.target.value)}
-        style={{
-          border: '1px solid #fed7aa',
-          borderRadius: '0.5rem',
-          padding: '0.35rem 0.5rem',
-          fontWeight: 800,
-          color: '#0f172a',
-          background: 'white',
-        }}
-      >
-        {DEV_ROLES.map((item) => (
+      <select value={role} onChange={(event) => handleChange(event.target.value as DevRole)}>
+        {roles.map((item) => (
           <option key={item} value={item}>
-            {DEV_ROLE_LABELS[item]}
+            {roleLabels[item]}
           </option>
         ))}
       </select>

@@ -1,13 +1,17 @@
-import './globals.css';
 import type { Metadata } from 'next';
-import { FloatingDevRoleSelector } from '@/components/FloatingDevRoleSelector';
+import './globals.css';
+import FloatingDevRoleSelector from '@/components/FloatingDevRoleSelector';
 
 export const metadata: Metadata = {
   title: 'Southin PeoplePay',
-  description: 'HR and Payroll Management System for Southin Contracting Limited',
+  description: 'Southin HR, payroll, finance, and employee self-service platform.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
       <body>
