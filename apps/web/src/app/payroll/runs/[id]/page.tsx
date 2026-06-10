@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SummaryGrid } from '@/components/ui/SummaryGrid';
+import { Notice } from '@/components/ui/Notice';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { getPayrollRun } from '@/lib/api';
 import { PayrollRunWorkflowActions } from './PayrollRunWorkflowActions';
 
@@ -20,32 +24,52 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function statusClass(status?: string | null) {
-  if (!status) return 'status-pill';
-
-  const value = String(status).toUpperCase();
-
-  if (['LOCKED', 'APPROVED', 'GENERATED', 'READY', 'COMPLETED'].includes(value)) {
-    return 'status-pill locked';
-  }
-
-  if (['OPEN', 'DRAFT', 'PENDING'].includes(value)) {
-    return 'status-pill warning';
-  }
-
-  if (['REJECTED', 'FAILED', 'BLOCKED'].includes(value)) {
-    return 'status-pill danger';
-  }
-
-  return 'status-pill';
+function shortId(value?: string | null) {
+  if (!value) return '-';
+  return `${String(value).slice(0, 8)}...`;
 }
 
-function getApprovals(payrollRun: any) {
-  return payrollRun?.approvals || payrollRun?.approvalRecords || [];
+function getEmployeeCount(run: any) {
+  return run?.employeeCount ?? run?.employees?.length ?? 0;
 }
 
-function getEmployees(payrollRun: any) {
-  return payrollRun?.employees || [];
+function getTotals(run: any) {
+  const employees = run?.employees || [];
+
+  const grossPay =
+    run?.grossPay ??
+    run?.totals?.grossPay ??
+    employees.reduce((sum: number, row: any) => sum + Number(row.grossPay || 0), 0);
+
+  const deductions =
+    run?.totalDeductions ??
+    run?.totals?.totalDeductions ??
+    employees.reduce((sum: number, row: any) => sum + Number(row.totalDeductions || 0), 0);
+
+  const netPay =
+    run?.netPay ??
+    run?.totals?.netPay ??
+    employees.reduce((sum: number, row: any) => sum + Number(row.netPay || 0), 0);
+
+  const employerCost =
+    run?.employerCost ??
+    run?.totals?.employerCost ??
+    employees.reduce((sum: number, row: any) => sum + Number(row.employerCost || 0), 0);
+
+  return {
+    grossPay,
+    deductions,
+    netPay,
+    employerCost,
+  };
+}
+
+function payslipStatus(row: any) {
+  if (row?.payslip || row?.payslipId || row?.payslips?.length > 0) {
+    return 'Generated';
+  }
+
+  return 'Not generated';
 }
 
 export default async function PayrollRunDetailPage({
@@ -54,81 +78,93 @@ export default async function PayrollRunDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const payrollRun = await getPayrollRun(id);
+  const run = await getPayrollRun(id);
 
-  const employees = getEmployees(payrollRun);
-  const approvals = getApprovals(payrollRun);
+  const employees = run?.employees || [];
+  const approvals = run?.approvals || run?.approvalTimeline || [];
+  const totals = getTotals(run);
+
+  const isLocked = run?.status === 'LOCKED';
 
   return (
     <AppShell>
       <section className="card">
-        <div className="page-header">
-          <div>
-            <h1>{payrollRun?.runName || 'Payroll Run'}</h1>
-            <p className="muted">
-              {payrollRun?.payrollPeriod?.periodName || '-'} · {payrollRun?.runType || '-'} ·{' '}
-              <strong>{payrollRun?.status || '-'}</strong>
-            </p>
-          </div>
+        <PageHeader
+          eyebrow="Payroll Run"
+          title={run?.runName || 'Payroll Run'}
+          description={`${run?.payrollPeriod?.periodName || run?.periodName || '-'} · ${
+            run?.runType || '-'
+          } · ${run?.status || '-'}`}
+          actions={
+            <>
+              <Link className="btn-secondary" href="/payroll">
+                Payroll
+              </Link>
 
-          <div className="action-row">
-            <Link className="btn-secondary" href="/payroll">
-              Payroll
-            </Link>
+              <Link className="btn-secondary" href="/hr/payroll-readiness-gates">
+                Readiness
+              </Link>
 
-            <Link className="btn-secondary" href="/reports/payroll-readiness">
-              Readiness
-            </Link>
+              <Link className="btn-secondary" href="/reports/payroll-audit">
+                Payroll Audit
+              </Link>
+            </>
+          }
+        />
 
-            <Link className="btn-secondary" href="/reports/payroll-audit">
-              Payroll Audit
-            </Link>
-          </div>
+        <SummaryGrid
+          items={[
+            {
+              label: 'Employees',
+              value: getEmployeeCount(run),
+            },
+            {
+              label: 'Gross Pay',
+              value: money(totals.grossPay),
+            },
+            {
+              label: 'Deductions',
+              value: money(totals.deductions),
+            },
+            {
+              label: 'Net Pay',
+              value: money(totals.netPay),
+            },
+            {
+              label: 'Employer Cost',
+              value: money(totals.employerCost),
+            },
+            {
+              label: 'Created',
+              value: formatDateTime(run?.createdAt),
+            },
+            {
+              label: 'Locked At',
+              value: formatDateTime(run?.lockedAt),
+            },
+            {
+              label: 'Status',
+              value: run?.status || '-',
+            },
+          ]}
+        />
+
+        <div className="workflow-panel">
+          <h3>Payroll Review Workflow</h3>
+          <p className="muted">
+            Current status: <strong>{run?.status || '-'}</strong>. Actions are shown based on the
+            selected role and workflow state.
+          </p>
+
+          {isLocked ? (
+            <Notice>
+              Payroll is locked and payslips have been generated. Workflow actions are now locked
+              for audit control.
+            </Notice>
+          ) : (
+            <PayrollRunWorkflowActions payrollRun={run} />
+          )}
         </div>
-
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="summary-label">Employees</span>
-            <strong>{payrollRun?.employeeCount ?? employees.length}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Gross Pay</span>
-            <strong>{money(payrollRun?.grossPay)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Deductions</span>
-            <strong>{money(payrollRun?.totalDeductions)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Net Pay</span>
-            <strong>{money(payrollRun?.netPay)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Employer Cost</span>
-            <strong>{money(payrollRun?.employerCost)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Created</span>
-            <strong>{formatDateTime(payrollRun?.createdAt)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Locked At</span>
-            <strong>{formatDateTime(payrollRun?.lockedAt)}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Status</span>
-            <strong>{payrollRun?.status || '-'}</strong>
-          </div>
-        </div>
-
-        <PayrollRunWorkflowActions payrollRun={payrollRun} />
 
         <div className="table-wrap">
           <h3>Payroll Employees</h3>
@@ -151,36 +187,29 @@ export default async function PayrollRunDetailPage({
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>No employees found in this payroll run.</td>
+                  <td colSpan={9}>No employees are attached to this payroll run.</td>
                 </tr>
               ) : (
-                employees.map((line: any) => {
-                  const employee = line.employee || {};
-                  const employeeName =
-                    line.employeeName ||
+                employees.map((row: any) => {
+                  const employee = row.employee || {};
+                  const name =
+                    row.employeeName ||
+                    employee.name ||
                     `${employee.firstName || ''} ${employee.lastName || ''}`.trim() ||
                     '-';
 
-                  const payslipGenerated = Boolean(
-                    line.payslip ||
-                      line.payslipId ||
-                      String(line.payslipStatus || '').toUpperCase() === 'GENERATED',
-                  );
-
                   return (
-                    <tr key={line.id}>
-                      <td>{String(line.id || '').slice(0, 8)}...</td>
-                      <td>{employee.employeeNumber || line.employeeNumber || '-'}</td>
-                      <td>{employeeName}</td>
-                      <td>{employee.department?.name || line.department || '-'}</td>
-                      <td>{employee.employmentType?.name || line.employmentType || '-'}</td>
-                      <td>{money(line.grossPay)}</td>
-                      <td>{money(line.totalDeductions)}</td>
-                      <td>{money(line.netPay)}</td>
+                    <tr key={row.id}>
+                      <td>{shortId(row.id)}</td>
+                      <td>{row.employeeNumber || employee.employeeNumber || '-'}</td>
+                      <td>{name}</td>
+                      <td>{row.department || employee.department?.name || '-'}</td>
+                      <td>{row.employmentType || employee.employmentType?.name || '-'}</td>
+                      <td>{money(row.grossPay)}</td>
+                      <td>{money(row.totalDeductions)}</td>
+                      <td>{money(row.netPay)}</td>
                       <td>
-                        <span className={statusClass(payslipGenerated ? 'GENERATED' : 'PENDING')}>
-                          {payslipGenerated ? 'Generated' : 'Not Generated'}
-                        </span>
+                        <StatusPill status={payslipStatus(row)} />
                       </td>
                     </tr>
                   );
@@ -212,14 +241,14 @@ export default async function PayrollRunDetailPage({
                 </tr>
               ) : (
                 approvals.map((approval: any) => (
-                  <tr key={approval.id}>
+                  <tr key={approval.id || `${approval.stage}-${approval.createdAt}`}>
                     <td>{approval.stage || '-'}</td>
                     <td>{approval.role || approval.requiredRole || '-'}</td>
                     <td>{approval.approver || approval.approvedBy || '-'}</td>
                     <td>
-                      <span className={statusClass(approval.status)}>{approval.status || '-'}</span>
+                      <StatusPill status={approval.status || '-'} />
                     </td>
-                    <td>{approval.comments || '-'}</td>
+                    <td>{approval.comments || approval.notes || '-'}</td>
                     <td>{formatDateTime(approval.approvedAt || approval.createdAt)}</td>
                   </tr>
                 ))
@@ -230,7 +259,7 @@ export default async function PayrollRunDetailPage({
 
         <details>
           <summary>Raw Payroll Run JSON</summary>
-          <pre className="json-preview">{JSON.stringify(payrollRun, null, 2)}</pre>
+          <pre className="json-preview">{JSON.stringify(run, null, 2)}</pre>
         </details>
       </section>
     </AppShell>

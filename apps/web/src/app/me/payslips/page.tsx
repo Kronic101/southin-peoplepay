@@ -1,28 +1,49 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getEmployeePayslips } from '@/lib/api';
+import { EmployeePortalShell } from '@/components/EmployeePortalShell';
+import { employeeAuthHeaders, getEmployeePortalToken } from '@/lib/employee-auth';
 
-function money(value: unknown) {
-  return Number(value || 0).toFixed(2);
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+function normalizePayslips(data: any) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.payslips)) return data.payslips;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 }
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-  return new Date(value).toLocaleDateString();
+
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch {
+    return '-';
+  }
 }
 
-function getStoredEmployeeToken() {
-  if (typeof window === 'undefined') return null;
+function money(value: unknown) {
+  return `K ${Number(value || 0).toFixed(2)}`;
+}
 
+function getPeriodName(payslip: any) {
   return (
-    localStorage.getItem('employeeToken') ||
-    localStorage.getItem('peoplepay_employee_token') ||
-    localStorage.getItem('southinEmployeeToken') ||
-    localStorage.getItem('southin_peoplepay_employee_token') ||
-    localStorage.getItem('token')
+    payslip?.payrollPeriod?.periodName ||
+    payslip?.payrollRun?.payrollPeriod?.periodName ||
+    payslip?.periodName ||
+    'Payslip'
+  );
+}
+
+function getPayDate(payslip: any) {
+  return (
+    payslip?.payrollPeriod?.payDate ||
+    payslip?.payrollRun?.payrollPeriod?.payDate ||
+    payslip?.payDate ||
+    payslip?.createdAt
   );
 }
 
@@ -30,103 +51,176 @@ export default function EmployeePayslipsPage() {
   const router = useRouter();
 
   const [payslips, setPayslips] = useState<any[]>([]);
-  const [message, setMessage] = useState('Loading payslips...');
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     async function loadPayslips() {
-      const token = getStoredEmployeeToken();
-
-      if (!token) {
-        setMessage('You are not logged in. Please login again.');
-        return;
-      }
+      setLoading(true);
+      setMessage('');
 
       try {
-        localStorage.setItem('employeeToken', token);
-        localStorage.setItem('peoplepay_employee_token', token);
+        const token = getEmployeePortalToken();
 
-        const data = await getEmployeePayslips(token);
-        setPayslips(data);
-        setMessage('');
-      } catch {
-        setMessage('Failed to load payslips. Please login again.');
+        if (!token) {
+          router.push('/employee-login');
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/auth/employee/payslips`, {
+          headers: employeeAuthHeaders(),
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Unable to load payslips.');
+        }
+
+        const data = await response.json();
+        setPayslips(normalizePayslips(data));
+      } catch (error: any) {
+        setMessage(error?.message || 'Unable to load payslips.');
+      } finally {
+        setLoading(false);
       }
     }
 
     loadPayslips();
-  }, []);
+  }, [router]);
 
-  function handleBackToPortal() {
-    const token = getStoredEmployeeToken();
-
-    if (!token) {
-      router.push('/employee-login');
-      return;
-    }
-
-    router.push('/me');
-  }
+  const totals = useMemo(() => {
+    return payslips.reduce(
+      (acc, payslip) => {
+        acc.grossPay += Number(payslip?.grossPay || 0);
+        acc.deductions += Number(payslip?.totalDeductions || payslip?.deductions || 0);
+        acc.netPay += Number(payslip?.netPay || 0);
+        return acc;
+      },
+      {
+        grossPay: 0,
+        deductions: 0,
+        netPay: 0,
+      },
+    );
+  }, [payslips]);
 
   return (
-    <section className="card">
-      <div className="page-header">
-        <div>
-          <h1>My Payslips</h1>
-          <p className="muted">
-            View generated payslips after payroll has been approved and locked.
-          </p>
+    <EmployeePortalShell>
+      <section className="employee-payslip-centre">
+        <div className="employee-page-hero">
+          <div>
+            <span className="eyebrow">Employee Payslips</span>
+            <h1>My Payslips</h1>
+            <p>
+              View generated payslips after payroll approval and lock. Select any payslip to open
+              the formal payslip document.
+            </p>
+          </div>
+
+          <Link className="btn-secondary" href="/me">
+            Back to Portal
+          </Link>
         </div>
 
-        <button className="btn-secondary" onClick={handleBackToPortal} type="button">
-          Back to Portal
-        </button>
-      </div>
+        {loading && <div className="notice">Loading payslips...</div>}
 
-      {message && <div className="notice">{message}</div>}
+        {message && (
+          <div className="notice danger">
+            {message}
+            <div style={{ marginTop: 10 }}>
+              <Link className="btn-secondary" href="/employee-login">
+                Return to Employee Login
+              </Link>
+            </div>
+          </div>
+        )}
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Payroll Period</th>
-              <th>Pay Date</th>
-              <th>Gross Pay</th>
-              <th>Deductions</th>
-              <th>Net Pay</th>
-              <th>Status</th>
-              <th>Generated</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+        {!loading && !message && (
+          <>
+            <div className="employee-payslip-summary">
+              <div>
+                <span>Total Payslips</span>
+                <strong>{payslips.length}</strong>
+              </div>
 
-          <tbody>
-            {payslips.length === 0 && !message ? (
-              <tr>
-                <td colSpan={8}>No generated payslips are available yet.</td>
-              </tr>
-            ) : (
-              payslips.map((payslip) => (
-                <tr key={payslip.id}>
-                  <td>{payslip.payrollPeriod}</td>
-                  <td>{formatDate(payslip.payDate)}</td>
-                  <td>{money(payslip.grossPay)}</td>
-                  <td>{money(payslip.totalDeductions)}</td>
-                  <td>{money(payslip.netPay)}</td>
-                  <td>
-                    <span className="status-pill locked">{payslip.status}</span>
-                  </td>
-                  <td>{formatDate(payslip.generatedAt)}</td>
-                  <td>
-                    <Link className="link-button" href={`/me/payslips/${payslip.id}`}>
-                      View Payslip
+              <div>
+                <span>Total Gross Pay</span>
+                <strong>{money(totals.grossPay)}</strong>
+              </div>
+
+              <div>
+                <span>Total Deductions</span>
+                <strong>{money(totals.deductions)}</strong>
+              </div>
+
+              <div>
+                <span>Total Net Pay</span>
+                <strong>{money(totals.netPay)}</strong>
+              </div>
+            </div>
+
+            <div className="employee-payslip-card">
+              <div className="employee-panel-title-row">
+                <div>
+                  <h2>Payslip Statements</h2>
+                  <p className="employee-muted">
+                    Your payslips are generated from approved payroll runs.
+                  </p>
+                </div>
+              </div>
+
+              {payslips.length === 0 ? (
+                <div className="empty-state">
+                  <strong>No payslips available yet.</strong>
+                  <p>
+                    Payslips will appear after payroll has been approved, locked, and generated by
+                    Payroll.
+                  </p>
+                </div>
+              ) : (
+                <div className="employee-payslip-list">
+                  {payslips.map((payslip: any) => (
+                    <Link
+                      key={payslip.id}
+                      className="employee-payslip-row"
+                      href={`/me/payslips/${payslip.id}`}
+                    >
+                      <div className="payslip-main">
+                        <div className="payslip-icon">₭</div>
+
+                        <div>
+                          <strong>{getPeriodName(payslip)}</strong>
+                          <span>Pay date: {formatDate(getPayDate(payslip))}</span>
+                        </div>
+                      </div>
+
+                      <div className="payslip-money">
+                        <span>Gross</span>
+                        <strong>{money(payslip?.grossPay)}</strong>
+                      </div>
+
+                      <div className="payslip-money">
+                        <span>Deductions</span>
+                        <strong>{money(payslip?.totalDeductions || payslip?.deductions)}</strong>
+                      </div>
+
+                      <div className="payslip-money highlight">
+                        <span>Net Pay</span>
+                        <strong>{money(payslip?.netPay)}</strong>
+                      </div>
+
+                      <span className="status-pill locked">{payslip?.status || 'GENERATED'}</span>
+
+                      <span className="payslip-open-link">View →</span>
                     </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    </EmployeePortalShell>
   );
 }

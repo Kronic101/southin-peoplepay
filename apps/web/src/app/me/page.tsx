@@ -1,134 +1,338 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getEmployeePayslips } from '@/lib/api';
+import { EmployeePortalShell } from '@/components/EmployeePortalShell';
+import { employeeAuthHeaders, getEmployeePortalToken } from '@/lib/employee-auth';
 
-function money(value: unknown) {
-  return Number(value || 0).toFixed(2);
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-  return new Date(value).toLocaleDateString();
+
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch {
+    return '-';
+  }
 }
 
-function getStoredEmployeeToken() {
-  if (typeof window === 'undefined') return null;
-
-  return (
-    localStorage.getItem('peoplepay_employee_token') ||
-    localStorage.getItem('employeeToken') ||
-    localStorage.getItem('southin_peoplepay_employee_token') ||
-    localStorage.getItem('token')
-  );
+function formatMoney(value: unknown) {
+  return `K ${Number(value || 0).toFixed(2)}`;
 }
 
-export default function EmployeePayslipsPage() {
+function getEmployeeName(employee: any) {
+  const firstName = employee?.firstName || '';
+  const lastName = employee?.lastName || '';
+  const name = `${firstName} ${lastName}`.trim();
+
+  return name || employee?.name || 'Employee';
+}
+
+function getInitials(name: string) {
+  const parts = name.split(' ').filter(Boolean);
+
+  if (parts.length === 0) return 'E';
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+}
+
+function normalizeEmployeeProfile(data: any) {
+  return data?.employee || data?.profile || data?.user || data || null;
+}
+
+function normalizePayslips(data: any) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.payslips)) return data.payslips;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
+export default function EmployeePortalHomePage() {
   const router = useRouter();
 
+  const [employee, setEmployee] = useState<any>(null);
   const [payslips, setPayslips] = useState<any[]>([]);
-  const [message, setMessage] = useState('Loading payslips...');
-
-  function handleBackToPortal() {
-    const token = getStoredEmployeeToken();
-
-    if (!token) {
-      router.push('/employee-login');
-      return;
-    }
-
-    localStorage.setItem('employeeToken', token);
-    router.push('/me');
-  }
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    async function loadPayslips() {
-      const token = getStoredEmployeeToken();
-
-      if (!token) {
-        setMessage('You are not logged in. Please login again.');
-        return;
-      }
+    async function loadPortalData() {
+      setLoading(true);
+      setMessage('');
 
       try {
-        localStorage.setItem('employeeToken', token);
+        const token = getEmployeePortalToken();
 
-        const data = await getEmployeePayslips(token);
-        setPayslips(data);
-        setMessage('');
-      } catch {
-        setMessage('Failed to load payslips. Please login again.');
+        if (!token) {
+          router.push('/employee-login');
+          return;
+        }
+
+        const profileResponse = await fetch(`${API_URL}/auth/employee/me`, {
+          headers: employeeAuthHeaders(),
+          cache: 'no-store',
+        });
+
+        if (!profileResponse.ok) {
+          const text = await profileResponse.text();
+          throw new Error(text || 'Unable to load employee profile.');
+        }
+
+        const profileData = await profileResponse.json();
+        const employeeProfile = normalizeEmployeeProfile(profileData);
+
+        const payslipsResponse = await fetch(`${API_URL}/auth/employee/payslips`, {
+          headers: employeeAuthHeaders(),
+          cache: 'no-store',
+        });
+
+        const payslipData = payslipsResponse.ok ? await payslipsResponse.json() : [];
+
+        setEmployee(employeeProfile);
+        setPayslips(normalizePayslips(payslipData));
+      } catch (error: any) {
+        setMessage(error?.message || 'Unable to load employee portal.');
+      } finally {
+        setLoading(false);
       }
     }
 
-    loadPayslips();
-  }, []);
+    loadPortalData();
+  }, [router]);
+
+  const employeeName = useMemo(() => getEmployeeName(employee), [employee]);
+  const initials = useMemo(() => getInitials(employeeName), [employeeName]);
+
+  const latestPayslip = payslips?.[0] || null;
+
+  const standardLeaveDays = 2;
+  const mothersDayLeave = String(employee?.gender || '').toLowerCase() === 'female' ? 1 : 0;
+  const totalLeaveEntitlement = standardLeaveDays + mothersDayLeave;
 
   return (
-    <section className="card">
-      <div className="page-header">
-        <div>
-          <h1>My Payslips</h1>
-          <p className="muted">
-            View generated payslips after payroll has been approved and locked.
-          </p>
-        </div>
+    <EmployeePortalShell>
+      <section className="employee-home">
+        {loading && <div className="notice">Loading your employee portal...</div>}
 
-        <button className="btn-secondary" onClick={handleBackToPortal} type="button">
-          Back to Portal
-        </button>
-      </div>
+        {message && (
+          <div className="notice danger">
+            {message}
+            <div style={{ marginTop: 10 }}>
+              <Link className="btn-secondary" href="/employee-login">
+                Return to Employee Login
+              </Link>
+            </div>
+          </div>
+        )}
 
-      {message && <div className="notice">{message}</div>}
+        {!loading && employee && (
+          <>
+            <div className="employee-hero-card">
+              <div>
+                <span className="eyebrow">Employee Self-Service</span>
+                <h1>Welcome back, {employeeName}</h1>
+                <p>
+                  View your profile, leave entitlement, payslips, tax certificates, and employee
+                  self-service information from one secure portal.
+                </p>
+              </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Payroll Period</th>
-              <th>Pay Date</th>
-              <th>Gross Pay</th>
-              <th>Deductions</th>
-              <th>Net Pay</th>
-              <th>Status</th>
-              <th>Generated</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+              <div className="employee-profile-card">
+                <div className="employee-avatar">{initials}</div>
+                <strong>{employeeName}</strong>
+                <span>{employee?.employeeNumber || '-'}</span>
+              </div>
+            </div>
 
-          <tbody>
-            {payslips.length === 0 && !message ? (
-              <tr>
-                <td colSpan={8}>No generated payslips are available yet.</td>
-              </tr>
-            ) : (
-              payslips.map((payslip) => (
-                <tr key={payslip.id}>
-                  <td>{payslip.payrollPeriod}</td>
-                  <td>{formatDate(payslip.payDate)}</td>
-                  <td>{money(payslip.grossPay)}</td>
-                  <td>{money(payslip.totalDeductions)}</td>
-                  <td>{money(payslip.netPay)}</td>
-                  <td>
-                    <span className="status-pill locked">{payslip.status}</span>
-                  </td>
-                  <td>{formatDate(payslip.generatedAt)}</td>
-                  <td>
-                    <button
-                      className="link-button"
-                      onClick={() => router.push(`/me/payslips/${payslip.id}`)}
-                      type="button"
-                    >
-                      View Payslip
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+            <div className="employee-portal-grid">
+              <article className="employee-panel employee-identity-panel">
+                <div className="employee-panel-header">
+                  <h2>{employeeName}</h2>
+                  <span>{employee?.jobTitle?.name || employee?.jobTitle || 'Employee'}</span>
+                </div>
+
+                <div className="employee-person-icon">👤</div>
+
+                <div className="employee-action-list">
+                  <Link href="/me/details">View My Details</Link>
+                  <Link href="/me/payslips">View Payslips</Link>
+                  <Link href="/me/tax-certificates">View Tax Certificates</Link>
+                  <Link href="/me/leave">View Leave Balances</Link>
+                </div>
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>My Details</h2>
+                  <span className="mini-badge">Profile</span>
+                </div>
+
+                <div className="employee-info-list">
+                  <div>
+                    <span>Employee No.</span>
+                    <strong>{employee?.employeeNumber || '-'}</strong>
+                  </div>
+
+                  <div>
+                    <span>Department</span>
+                    <strong>{employee?.department?.name || '-'}</strong>
+                  </div>
+
+                  <div>
+                    <span>Job Title</span>
+                    <strong>{employee?.jobTitle?.name || '-'}</strong>
+                  </div>
+
+                  <div>
+                    <span>Site</span>
+                    <strong>{employee?.site?.name || '-'}</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>My Leave</h2>
+                  <span className="mini-badge">Balance</span>
+                </div>
+
+                <div className="leave-balance-visual">
+                  <strong>{totalLeaveEntitlement}</strong>
+                  <span>available days</span>
+                </div>
+
+                <div className="employee-info-list compact">
+                  <div>
+                    <span>Monthly entitlement</span>
+                    <strong>{standardLeaveDays} days</strong>
+                  </div>
+
+                  <div>
+                    <span>Mother’s Day</span>
+                    <strong>{mothersDayLeave} day{mothersDayLeave === 1 ? '' : 's'}</strong>
+                  </div>
+                </div>
+
+                <Link className="employee-panel-link" href="/me/leave">
+                  Open Leave
+                </Link>
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>My Payslips</h2>
+                  <span className="mini-badge">Payroll</span>
+                </div>
+
+                {latestPayslip ? (
+                  <>
+                    <p className="employee-muted">Latest payslip</p>
+
+                    <div className="latest-payslip-card">
+                      <div>
+                        <strong>
+                          {latestPayslip?.payrollPeriod?.periodName ||
+                            latestPayslip?.payrollRun?.payrollPeriod?.periodName ||
+                            'Payslip'}
+                        </strong>
+                        <span>
+                          Pay date:{' '}
+                          {formatDate(
+                            latestPayslip?.payrollPeriod?.payDate ||
+                              latestPayslip?.payrollRun?.payrollPeriod?.payDate,
+                          )}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span>Net Pay</span>
+                        <strong>{formatMoney(latestPayslip?.netPay)}</strong>
+                      </div>
+                    </div>
+
+                    <Link className="employee-panel-link" href="/me/payslips">
+                      View Payslips
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="employee-muted">No generated payslips are available yet.</p>
+                    <Link className="employee-panel-link" href="/me/payslips">
+                      Check Payslips
+                    </Link>
+                  </>
+                )}
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>My Tax Certificates</h2>
+                  <span className="mini-badge">Tax</span>
+                </div>
+
+                <p className="employee-muted">
+                  Tax certificates will appear once Finance publishes annual tax records.
+                </p>
+
+                <div className="tax-placeholder">
+                  <strong>Latest tax certificate</strong>
+                  <span>None available</span>
+                </div>
+
+                <Link className="employee-panel-link" href="/me/tax-certificates">
+                  Open Tax Certificates
+                </Link>
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>My Submitted Items</h2>
+                  <span className="mini-badge">Requests</span>
+                </div>
+
+                <div className="submitted-items-grid">
+                  <div>
+                    <span>Leave</span>
+                    <strong>0</strong>
+                  </div>
+
+                  <div>
+                    <span>Claims</span>
+                    <strong>0</strong>
+                  </div>
+
+                  <div>
+                    <span>Profile Updates</span>
+                    <strong>0</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article className="employee-panel">
+                <div className="employee-panel-title-row">
+                  <h2>Upcoming Birthdays</h2>
+                  <span className="mini-badge">Team</span>
+                </div>
+
+                <div className="birthday-row">
+                  <span>{employeeName}</span>
+                  <strong>{employee?.dateOfBirth ? formatDate(employee?.dateOfBirth) : '-'}</strong>
+                </div>
+
+                <p className="employee-muted">
+                  Birthday reminders can later be connected to the HR calendar.
+                </p>
+              </article>
+            </div>
+          </>
+        )}
+      </section>
+    </EmployeePortalShell>
   );
 }

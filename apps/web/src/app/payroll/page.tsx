@@ -1,76 +1,79 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
-import { getPayrollPeriods, getPayrollReadyEmployees, getPayrollRuns } from '@/lib/api';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SummaryGrid } from '@/components/ui/SummaryGrid';
+import { Notice } from '@/components/ui/Notice';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { getPayrollDashboard } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
 
-  const looksLikeIsoDate = /^\d{4}-\d{2}-\d{2}T/.test(value);
-
-  if (looksLikeIsoDate) {
-    return value.split('T')[0];
+  try {
+    return new Date(value).toISOString().slice(0, 10);
+  } catch {
+    return '-';
   }
-
-  return value;
 }
 
 export default async function PayrollPage() {
-  const [periods, readyEmployees, runs] = await Promise.all([
-    getPayrollPeriods(),
-    getPayrollReadyEmployees(),
-    getPayrollRuns(),
-  ]);
+  const data = await getPayrollDashboard();
 
-  const openPeriods = periods.filter((period: any) => period.status === 'OPEN');
+  const periods = data?.payrollPeriods || [];
+  const readyEmployees = data?.payrollReadyEmployees || [];
+  const runs = data?.payrollRuns || [];
 
   return (
     <AppShell>
       <section className="card">
-        <div className="page-header">
-          <div>
-            <h1>Payroll</h1>
-            <p className="muted">
-              Payroll periods, payroll-ready employees, draft payroll runs, approvals, and payroll locks.
-            </p>
-          </div>
+        <PageHeader
+          eyebrow="Payroll Control"
+          title="Payroll Dashboard"
+          description="Manage payroll periods, payroll-ready employees, draft payroll runs, approvals, and payroll locks."
+          actions={
+            <>
+              <Link className="btn-secondary" href="/payroll/periods/new">
+                New Period
+              </Link>
 
-          <div className="actions">
-            <Link className="btn-secondary" href="/payroll/periods/new">
-              New Period
-            </Link>
+              <Link className="btn" href="/payroll/runs/new">
+                New Payroll Run
+              </Link>
+            </>
+          }
+        />
 
-            <Link className="btn" href="/payroll/runs/new">
-              New Payroll Run
-            </Link>
-          </div>
-        </div>
+        <SummaryGrid
+          items={[
+            {
+              label: 'Payroll periods',
+              value: data?.summary?.payrollPeriods ?? periods.length,
+            },
+            {
+              label: 'Open periods',
+              value:
+                data?.summary?.openPayrollPeriods ??
+                periods.filter((period: any) => period.status === 'OPEN').length,
+            },
+            {
+              label: 'Payroll-ready employees',
+              value: data?.summary?.payrollReadyEmployees ?? readyEmployees.length,
+            },
+            {
+              label: 'Payroll runs',
+              value: data?.summary?.payrollRuns ?? runs.length,
+            },
+          ]}
+        />
 
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="summary-label">Payroll periods</span>
-            <strong>{periods.length}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Open periods</span>
-            <strong>{openPeriods.length}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Payroll-ready employees</span>
-            <strong>{readyEmployees.length}</strong>
-          </div>
-
-          <div className="summary-card">
-            <span className="summary-label">Payroll runs</span>
-            <strong>{runs.length}</strong>
-          </div>
-        </div>
-
-        <div className="notice">
-          Only employees marked as payroll-ready can be included in a new payroll run.
-          HR and Finance must validate statutory details, approved bank account, contract, and approved conditions of service before payroll processing.
-        </div>
+        <Notice>
+          Only employees who have passed HR and Finance readiness gates can be included in payroll.
+          This protects payroll from incomplete employee records, unvalidated bank details, missing
+          contracts, or unapproved conditions of service.
+        </Notice>
 
         <div className="table-wrap">
           <h3>Payroll Periods</h3>
@@ -90,7 +93,7 @@ export default async function PayrollPage() {
             <tbody>
               {periods.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No payroll periods created yet.</td>
+                  <td colSpan={6}>No payroll periods found.</td>
                 </tr>
               ) : (
                 periods.map((period: any) => (
@@ -100,11 +103,9 @@ export default async function PayrollPage() {
                     <td>{formatDate(period.endDate)}</td>
                     <td>{formatDate(period.payDate)}</td>
                     <td>
-                      <span className={period.status === 'OPEN' ? 'status-pill ready' : 'status-pill not-ready'}>
-                        {period.status}
-                      </span>
+                      <StatusPill status={period.status} />
                     </td>
-                    <td>{period.runs?.length || 0}</td>
+                    <td>{period.runCount ?? period._count?.runs ?? '-'}</td>
                   </tr>
                 ))
               )}
@@ -130,23 +131,29 @@ export default async function PayrollPage() {
             <tbody>
               {readyEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No payroll-ready employees available.</td>
+                  <td colSpan={6}>No payroll-ready employees found.</td>
                 </tr>
               ) : (
-                readyEmployees.map((employee: any) => (
-                  <tr key={employee.id}>
-                    <td>{employee.employeeNumber}</td>
-                    <td>
-                      <Link className="employee-link" href={`/employees/${employee.id}`}>
-                        {employee.name}
-                      </Link>
-                    </td>
-                    <td>{employee.department || '-'}</td>
-                    <td>{employee.jobTitle || '-'}</td>
-                    <td>{employee.site || '-'}</td>
-                    <td>{employee.employmentType || '-'}</td>
-                  </tr>
-                ))
+                readyEmployees.map((employee: any) => {
+                  const employeeId = employee.employeeId || employee.id;
+                  const name =
+                    employee.name ||
+                    `${employee.firstName || ''} ${employee.lastName || ''}`.trim() ||
+                    '-';
+
+                  return (
+                    <tr key={employeeId}>
+                      <td>{employee.employeeNumber || '-'}</td>
+                      <td>
+                        <Link href={`/employees/${employeeId}`}>{name}</Link>
+                      </td>
+                      <td>{employee.department?.name || employee.department || '-'}</td>
+                      <td>{employee.jobTitle?.name || employee.jobTitle || '-'}</td>
+                      <td>{employee.site?.name || employee.site || '-'}</td>
+                      <td>{employee.employmentType?.name || employee.employmentType || '-'}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -170,24 +177,20 @@ export default async function PayrollPage() {
             <tbody>
               {runs.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No payroll runs created yet.</td>
+                  <td colSpan={6}>No payroll runs found.</td>
                 </tr>
               ) : (
                 runs.map((run: any) => (
                   <tr key={run.id}>
                     <td>
-                      <Link className="employee-link" href={`/payroll/runs/${run.id}`}>
-                        {run.runName}
-                      </Link>
+                      <Link href={`/payroll/runs/${run.id}`}>{run.runName}</Link>
                     </td>
-                    <td>{run.payrollPeriod?.periodName || '-'}</td>
-                    <td>{run.runType}</td>
+                    <td>{run.periodName || run.payrollPeriod?.periodName || '-'}</td>
+                    <td>{run.runType || '-'}</td>
                     <td>
-                      <span className={run.status === 'OPEN' ? 'status-pill ready' : 'status-pill not-ready'}>
-                        {run.status}
-                      </span>
+                      <StatusPill status={run.status} />
                     </td>
-                    <td>{run.employees?.length || 0}</td>
+                    <td>{run.employeeCount ?? run.employees?.length ?? '-'}</td>
                     <td>{formatDate(run.createdAt)}</td>
                   </tr>
                 ))

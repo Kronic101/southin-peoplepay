@@ -17,6 +17,7 @@ const navGroups: NavGroup[] = [
   {
     title: 'Core',
     links: [
+      { label: 'Workbench', href: '/workbench' },
       { label: 'Dashboard', href: '/dashboard' },
       { label: 'Employees', href: '/employees' },
       { label: 'HR Dashboard', href: '/hr/dashboard' },

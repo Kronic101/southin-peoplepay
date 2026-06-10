@@ -311,6 +311,30 @@ export async function getEmployeePayslip(id: string, token: string) {
 /* Payroll periods and runs                                                   */
 /* -------------------------------------------------------------------------- */
 
+export async function getPayrollDashboard() {
+  const [dashboard, readyEmployees] = await Promise.all([
+    apiGet('/executive/dashboard', 'Failed to load executive payroll dashboard.', true),
+    apiGet('/payroll/ready-employees', 'Failed to load payroll-ready employees.', true),
+  ]);
+
+  return {
+    summary: {
+      payrollPeriods: dashboard?.summary?.payrollPeriods ?? 0,
+      openPayrollPeriods:
+        dashboard?.payrollPeriods?.filter((period: any) => period.status === 'OPEN')?.length ?? 0,
+      payrollReadyEmployees:
+        readyEmployees?.totalReturned ??
+        readyEmployees?.employees?.length ??
+        readyEmployees?.length ??
+        0,
+      payrollRuns: dashboard?.summary?.payrollRuns ?? 0,
+    },
+    payrollPeriods: dashboard?.payrollPeriods || [],
+    payrollReadyEmployees: readyEmployees?.employees || readyEmployees || [],
+    payrollRuns: dashboard?.recentPayrollRuns || [],
+  };
+}
+
 export async function getPayrollPeriods() {
   return apiGet('/payroll/periods', 'Failed to load payroll periods', true);
 }
