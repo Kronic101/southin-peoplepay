@@ -22,6 +22,7 @@ export default function LoginPage() {
         <div className="auth-footer">
           <Link href="/">Back home</Link>
           <Link href="/workbench">Use demo workbench</Link>
+          <Link href="/demo">Open Demo Guide</Link>
         </div>
       </section>
     </main>
