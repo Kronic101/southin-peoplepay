@@ -139,7 +139,13 @@ export class LeaveService {
     const existing = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: {
-        employee: true,
+        employee: {
+          include: {
+            department: true,
+            jobTitle: true,
+            site: true,
+          },
+        },
       },
     });
 
@@ -172,6 +178,8 @@ export class LeaveService {
       },
     });
 
+    await this.notifyEmployeeAfterReview(updated);
+
     return {
       message: `Leave request ${status.toLowerCase()}.`,
       request: updated,
@@ -180,11 +188,7 @@ export class LeaveService {
 
   private async notifySupervisor(request: any) {
     const employee = request.employee;
-    const employeeName = `${employee?.firstName || ''} ${employee?.middleName || ''} ${
-      employee?.lastName || ''
-    }`
-      .replace(/\s+/g, ' ')
-      .trim();
+    const employeeName = this.employeeName(employee);
 
     const subject = `Leave Approval Required - ${employeeName || employee?.employeeNumber}`;
 
@@ -215,6 +219,60 @@ Southin PeoplePay
 
     await this.sendEmail({
       to: request.supervisorEmail,
+      subject,
+      text: body,
+    });
+  }
+
+  private async notifyEmployeeAfterReview(request: any) {
+    const employee = request.employee;
+    const employeeName = this.employeeName(employee);
+    const employeeEmail = String(employee?.email || '').trim().toLowerCase();
+
+    if (!employeeEmail) {
+      console.log('Leave review notification skipped: employee email is missing.');
+      return;
+    }
+
+    const approved = request.status === 'APPROVED';
+
+    const subject = approved
+      ? `Leave Request Approved - ${this.formatDate(request.startDate)} to ${this.formatDate(
+          request.endDate,
+        )}`
+      : `Leave Request Rejected - ${this.formatDate(request.startDate)} to ${this.formatDate(
+          request.endDate,
+        )}`;
+
+    const body = `
+Dear ${employeeName || 'Employee'},
+
+Your leave request has been reviewed.
+
+Employee No.: ${employee?.employeeNumber}
+Leave Type: ${request.leaveType}
+Start Date: ${this.formatDate(request.startDate)}
+End Date: ${this.formatDate(request.endDate)}
+Total Days: ${request.totalDays}
+Reason: ${request.reason || '-'}
+
+Decision: ${request.status}
+Reviewed By: ${request.reviewedBy || '-'}
+Review Date: ${request.reviewedAt ? this.formatDate(request.reviewedAt) : '-'}
+Supervisor Comment: ${request.reviewComment || '-'}
+
+${
+  approved
+    ? 'Your leave request has been approved. Please ensure your handover and operational arrangements are completed.'
+    : 'Your leave request was not approved. Please contact your supervisor or HR for further guidance if required.'
+}
+
+Regards,
+Southin PeoplePay
+`.trim();
+
+    await this.sendEmail({
+      to: employeeEmail,
       subject,
       text: body,
     });
@@ -276,7 +334,13 @@ Southin PeoplePay
     return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
   }
 
-  private formatDate(value: Date) {
+  private formatDate(value: Date | string) {
     return new Date(value).toISOString().slice(0, 10);
+  }
+
+  private employeeName(employee: any) {
+    return `${employee?.firstName || ''} ${employee?.middleName || ''} ${employee?.lastName || ''}`
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }
