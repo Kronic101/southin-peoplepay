@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "start": "node dist/main.js",
-    "start:prod": "node dist/main.js",
+    "start": "node start.js",
+    "start:prod": "node start.js",
     "build": "prisma generate && nest build",
     "lint": "echo \"api lint placeholder\"",
     "prisma:generate": "prisma generate",
