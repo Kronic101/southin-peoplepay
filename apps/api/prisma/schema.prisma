@@ -122,6 +122,8 @@ model Employee {
   statutoryDetails  EmployeeStatutoryDetails?
   payrollRuns       PayrollRunEmployee[]
   payslips          Payslip[]
+
+  leaveRequests     LeaveRequest[]
 }
 
 model EmployeePortalAccount {
@@ -533,6 +535,52 @@ model SharePointExportLog {
   errorMessage      String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
+}
+
+model LeaveRequest {
+  id              String             @id @default(uuid())
+  employeeId      String
+  employee        Employee           @relation(fields: [employeeId], references: [id])
+
+  leaveType       LeaveType
+  startDate       DateTime
+  endDate         DateTime
+  totalDays       Int
+  reason          String?
+
+  supervisorName  String?
+  supervisorEmail String
+
+  status          LeaveRequestStatus @default(PENDING_SUPERVISOR)
+
+  submittedAt     DateTime           @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  reviewComment   String?
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([supervisorEmail])
+}
+
+enum LeaveRequestStatus {
+  PENDING_SUPERVISOR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  COMPASSIONATE
+  MATERNITY
+  PATERNITY
+  UNPAID
+  OTHER
 }
 
 enum EmployeeStatus {

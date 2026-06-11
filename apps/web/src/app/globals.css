@@ -3061,3 +3061,139 @@ textarea:focus {
 .employee-dashboard-grid > .employee-panel .latest-payslip-card {
   flex: 1;
 }
+
+.employee-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.employee-form-grid label {
+  display: grid;
+  gap: 0.45rem;
+  font-weight: 900;
+  color: #07142b;
+  font-size: 0.82rem;
+}
+
+.employee-form-grid input,
+.employee-form-grid select,
+.employee-form-grid textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  background: #f8fafc;
+  color: #07142b;
+  font: inherit;
+  font-weight: 700;
+  outline: none;
+}
+
+.employee-form-grid textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.employee-form-grid input:focus,
+.employee-form-grid select:focus,
+.employee-form-grid textarea:focus {
+  border-color: #f26a21;
+  box-shadow: 0 0 0 3px rgba(242, 106, 33, 0.14);
+  background: #ffffff;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.employee-table-wrap {
+  overflow-x: auto;
+}
+
+.employee-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.65rem;
+}
+
+.employee-table th {
+  text-align: left;
+  font-size: 0.74rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 0.75rem;
+}
+
+.employee-table td {
+  background: #f8fafc;
+  border-top: 1px solid #d9e3f0;
+  border-bottom: 1px solid #d9e3f0;
+  padding: 0.9rem 0.75rem;
+  font-weight: 800;
+  color: #07142b;
+}
+
+.employee-table td:first-child {
+  border-left: 1px solid #d9e3f0;
+  border-radius: 14px 0 0 14px;
+}
+
+.employee-table td:last-child {
+  border-right: 1px solid #d9e3f0;
+  border-radius: 0 14px 14px 0;
+}
+
+.employee-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.employee-status.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.employee-status.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.employee-status.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.employee-status.neutral {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+@media (max-width: 720px) {
+  .employee-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: span 1;
+  }
+
+  .form-actions {
+    justify-content: stretch;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+}
