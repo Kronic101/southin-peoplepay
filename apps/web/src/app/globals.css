@@ -3284,3 +3284,46 @@ textarea:focus {
     padding: 1rem;
   }
 }
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  .employee-portal-nav,
+  .floating-dev-role-selector,
+  .dev-role-selector,
+  .btn,
+  .btn-secondary,
+  .action-row,
+  .demo-link-list,
+  .notice {
+    display: none !important;
+  }
+
+  .employee-portal-page,
+  .demo-page {
+    background: #ffffff !important;
+    padding: 0 !important;
+  }
+
+  .employee-portal-shell,
+  .demo-shell {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .employee-hero-card,
+  .employee-panel,
+  .employee-tile,
+  .summary-card,
+  .latest-payslip-card {
+    box-shadow: none !important;
+    border-color: #d0d7e2 !important;
+    break-inside: avoid;
+  }
+
+  .employee-hero-card h1 {
+    font-size: 28px !important;
+  }
+}

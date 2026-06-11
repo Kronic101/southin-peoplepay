@@ -92,6 +92,10 @@ export default function EmployeeStatutoryCertificatesPage() {
           <Link className="btn-secondary" href="/me">
             Back to Portal
           </Link>
+
+          <button className="btn" type="button" onClick={() => window.print()}>
+            Print / Save PDF
+          </button>
         </section>
 
         {loading && <div className="notice">Loading statutory certificate information...</div>}
