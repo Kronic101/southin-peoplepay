@@ -10,6 +10,7 @@ const roles: DevRole[] = [
   'FINANCE_MANAGER',
   'DIRECTOR',
   'ADMIN',
+  'EMPLOYEE',
 ];
 
 const roleLabels: Record<DevRole, string> = {
@@ -18,6 +19,7 @@ const roleLabels: Record<DevRole, string> = {
   FINANCE_MANAGER: 'Finance Manager',
   DIRECTOR: 'Director',
   ADMIN: 'Admin',
+  EMPLOYEE: 'Employee',
 };
 
 export default function FloatingDevRoleSelector() {

@@ -4,6 +4,12 @@ import { getSharePointExportLog } from '@/lib/api';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+type PageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return '-';
 
@@ -23,12 +29,10 @@ function JsonPreview({ title, data }: { title: string; data: unknown }) {
   );
 }
 
-export default async function SharePointExportLogDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const result = await getSharePointExportLog(params.id);
+export default async function SharePointExportLogDetailPage({ params }: PageProps) {
+  const { id } = await params;
+
+  const result = await getSharePointExportLog(id);
   const log = result.log;
 
   return (

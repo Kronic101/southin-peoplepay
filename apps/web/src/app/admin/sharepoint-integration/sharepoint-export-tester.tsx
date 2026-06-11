@@ -58,7 +58,6 @@ export function SharePointExportTester() {
 
     try {
       const result = await publishToSharePoint({
-        targetKey: target.targetKey,
         targetSite: target.targetSite,
         targetPage: target.targetPage,
         targetLibrary: target.targetLibrary,

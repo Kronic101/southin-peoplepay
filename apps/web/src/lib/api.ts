@@ -162,6 +162,7 @@ export async function createEmployee(payload: {
   return apiPost('/employees', payload, 'Failed to create employee', true);
 }
 
+
 export async function updateEmployee(id: string, payload: Record<string, unknown>) {
   return apiPatch(`/employees/${id}`, payload, 'Failed to update employee', true);
 }
@@ -191,6 +192,7 @@ export async function updateEmployeeStatutoryDetails(
   );
 }
 
+
 export async function addEmployeeBankAccount(id: string, payload: Record<string, unknown>) {
   return apiPost(
     `/employees/${id}/bank-accounts`,
@@ -211,6 +213,60 @@ export async function approveEmployeeBankAccount(
       approvedBy: getSelectedDevActorName(),
     },
     'Failed to approve employee bank account',
+    true,
+  );
+}
+
+export async function approveEmployeeServiceCondition(
+  employeeId: string,
+  conditionId: string,
+  payload: Record<string, unknown> = {},
+) {
+  return apiPost(
+    `/employees/${employeeId}/service-conditions/${conditionId}/approve`,
+    {
+      approvedBy: 'hr-manager-dev',
+      ...payload,
+    },
+    'Failed to approve employee condition of service',
+    true,
+  );
+}
+
+export async function approveServiceCondition(
+  employeeId: string,
+  conditionId: string,
+  payload: Record<string, unknown> = {},
+) {
+  return approveEmployeeServiceCondition(employeeId, conditionId, payload);
+}
+
+export async function createEmployeeBankAccount(employeeId: string, payload: Record<string, unknown>) {
+  return apiPost(
+    `/employees/${employeeId}/bank-accounts`,
+    payload,
+    'Failed to create employee bank account',
+    true,
+  );
+}
+
+export async function createEmployeeContract(employeeId: string, payload: Record<string, unknown>) {
+  return apiPost(
+    `/employees/${employeeId}/contracts`,
+    payload,
+    'Failed to create employee contract',
+    true,
+  );
+}
+
+export async function assignEmployeeServiceCondition(
+  employeeId: string,
+  payload: Record<string, unknown>,
+) {
+  return apiPost(
+    `/employees/${employeeId}/service-conditions`,
+    payload,
+    'Failed to assign employee condition of service',
     true,
   );
 }

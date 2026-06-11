@@ -19,9 +19,7 @@ export function PaymentBatchListActions({ batchId }: Props) {
     setLoading(true);
 
     try {
-      const result = await recheckPaymentBatchPayslips(batchId, {
-        checkedBy: 'finance-manager-dev',
-      });
+      const result = await recheckPaymentBatchPayslips(batchId);
 
       setMessage(result?.message || 'Payment batch rechecked.');
       router.refresh();
