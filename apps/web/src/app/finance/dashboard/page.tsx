@@ -72,15 +72,20 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getDevRoleHeaders() {
-  if (typeof window === 'undefined') return {};
+function getDevRoleHeaders(): HeadersInit {
+  if (typeof window === 'undefined') {
+    return {};
+  }
 
   const role =
-    localStorage.getItem('southinDevRole') ||
     localStorage.getItem('southin-dev-role') ||
     localStorage.getItem('devRole') ||
-    localStorage.getItem('role') ||
-    'FINANCE_MANAGER';
+    localStorage.getItem('staffRole') ||
+    '';
+
+  if (!role) {
+    return {};
+  }
 
   return {
     'x-user-role': role,
