@@ -981,3 +981,94 @@ export async function downloadPaymentBatchEvidenceCsv(batchId: string) {
 
   window.URL.revokeObjectURL(url);
 }
+
+export async function getBankPaymentPreparation(runId?: string) {
+  /**
+   * Bank Payment Preparation front-end payload builder.
+   *
+   * This keeps the page working before we create a dedicated backend endpoint.
+   * It combines:
+   * - latest payroll audit data
+   * - existing payment batches
+   * - finance readiness controls
+   *
+   * Later we can replace this with:
+   * GET /api/reports/bank-payment-preparation
+   */
+  const audit = await getPayrollAudit(runId);
+  const paymentBatchData = await getPaymentBatches();
+
+  const batches = paymentBatchData?.batches || [];
+  const latestBatch = batches[0] || null;
+
+  const payrollRun = audit?.run || latestBatch?.payrollRun || null;
+  const items = latestBatch?.items || [];
+
+  return {
+    payrollRun,
+    paymentBatch: latestBatch,
+    batch: latestBatch,
+    items,
+    readiness: [
+      {
+        control: 'Payroll locked',
+        requiredBeforePayment: 'Payroll must be locked after Director approval.',
+        status: payrollRun?.status === 'LOCKED' ? 'READY' : 'TO_CONFIRM',
+      },
+      {
+        control: 'Payslips generated',
+        requiredBeforePayment: 'Each payable employee should have a generated payslip.',
+        status: items.length > 0 ? 'READY' : 'TO_CONFIRM',
+      },
+      {
+        control: 'Finance audit evidence',
+        requiredBeforePayment: 'Payroll audit CSV and approval evidence must be available.',
+        status: audit?.run ? 'TO_CONFIRM' : 'MISSING',
+      },
+      {
+        control: 'Bank account validation',
+        requiredBeforePayment: 'Employee bank details must be validated by Finance.',
+        status: 'MANUAL_STEP',
+      },
+      {
+        control: 'Payment authorisation',
+        requiredBeforePayment: 'Payment file must be approved by authorised Finance/Director signatories.',
+        status: latestBatch?.status === 'APPROVED' ? 'READY' : 'MANUAL_STEP',
+      },
+    ],
+    evidenceChecklist: [
+      {
+        evidenceRequired: 'Payroll audit CSV',
+        storageLocation: 'Finance → Payroll Audit Reports',
+        status: 'TO_UPLOAD',
+      },
+      {
+        evidenceRequired: 'Approval evidence JSON',
+        storageLocation: 'Finance → Payroll Audit Reports',
+        status: 'TO_UPLOAD',
+      },
+      {
+        evidenceRequired: 'Payment/bank preparation evidence',
+        storageLocation: 'Finance restricted document library',
+        status: 'MANUAL_STEP',
+      },
+      {
+        evidenceRequired: 'Director/payment sign-off evidence',
+        storageLocation: 'Finance restricted document library',
+        status: 'MANUAL_STEP',
+      },
+      {
+        evidenceRequired: 'Bank confirmation/proof of payment',
+        storageLocation: 'Finance restricted document library',
+        status: 'MANUAL_STEP',
+      },
+    ],
+    financeControls: [
+      'Confirm payroll totals match approved Finance review.',
+      'Confirm locked payroll followed Director approval.',
+      'Confirm payslips were generated after payroll lock.',
+      'Confirm statutory configuration used for payroll was approved before live payroll use.',
+      'Confirm bank payment preparation evidence is stored separately in Finance.',
+    ],
+  };
+}

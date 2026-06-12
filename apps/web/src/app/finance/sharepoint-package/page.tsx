@@ -1,267 +1,242 @@
+'use client';
+
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Notice } from '@/components/ui/Notice';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+/**
+ * Finance SharePoint Publishing Package
+ * --------------------------------------------------------------------
+ * Purpose:
+ * This page prepares controlled Finance records for future SharePoint
+ * publishing using Microsoft Graph.
+ *
+ * Current phase:
+ * - Demo package checklist.
+ *
+ * Future phase:
+ * - The API will produce a publishing package containing:
+ *   - Payroll audit CSV
+ *   - Payment batch evidence
+ *   - Statutory obligations
+ *   - Expense approvals
+ *   - Procurement payment evidence
+ * - Microsoft Graph will publish approved records to SharePoint libraries/pages.
+ */
 
-const evidencePackages = [
+type PackageStatus = 'Pending' | 'Ready' | 'Published' | 'Blocked';
+
+type PackageItem = {
+  id: string;
+  title: string;
+  source: string;
+  destination: string;
+  status: PackageStatus;
+  notes: string;
+};
+
+const seedItems: PackageItem[] = [
   {
-    area: 'Payroll Audit Package',
-    source: 'Payroll runs, approval timeline, generated payslips',
-    targetLibrary: 'Finance → Payroll Audit Reports',
-    documentControl: 'Locked payroll only',
-    status: 'Ready for controlled export',
+    id: 'pkg-001',
+    title: 'Payroll Audit Pack',
+    source: 'Payroll Audit Reports',
+    destination: 'Finance → Payroll Audit Reports',
+    status: 'Ready',
+    notes: 'Includes payroll run totals, approval timeline, and employee payroll line summary.',
   },
   {
-    area: 'Payment Batch Package',
-    source: 'Approved payment batches and payment preparation evidence',
-    targetLibrary: 'Finance Restricted Library',
-    documentControl: 'Finance and Director approval required',
-    status: 'Ready for controlled export',
+    id: 'pkg-002',
+    title: 'Payment Batch Pack',
+    source: 'Payment Batches',
+    destination: 'Finance Restricted Library',
+    status: 'Ready',
+    notes: 'Includes payment batch status, employee payment readiness, and manual payment evidence checklist.',
   },
   {
-    area: 'Statutory Evidence Package',
-    source: 'PAYE, NAPSA, NHIMA obligations and employee statutory records',
-    targetLibrary: 'Finance Statutory Records',
-    documentControl: 'Approved payroll figures only',
-    status: 'Planned',
+    id: 'pkg-003',
+    title: 'Expense Approval Pack',
+    source: 'Finance Expenses',
+    destination: 'Finance → Expense Approvals',
+    status: 'Pending',
+    notes: 'Will include approved expenses, paid status, and proof-of-payment documents.',
   },
   {
-    area: 'Procurement Payment Package',
-    source: 'Procurement tracker, invoices, PO stages, POP evidence',
-    targetLibrary: 'Finance Procurement Payments',
-    documentControl: 'Finance approval required',
-    status: 'Planned',
+    id: 'pkg-004',
+    title: 'Procurement Payment Pack',
+    source: 'Procurement Tracker',
+    destination: 'Finance → Procurement Payments',
+    status: 'Pending',
+    notes: 'Will include supplier invoice status, PO references, and proof-of-payment tracking.',
   },
   {
-    area: 'Expense Approval Package',
-    source: 'Expense capture, approval status, payment confirmation',
-    targetLibrary: 'Finance Expense Approvals',
-    documentControl: 'Approved expenses only',
-    status: 'Planned',
+    id: 'pkg-005',
+    title: 'Statutory Evidence Pack',
+    source: 'PAYE / NAPSA / NHIMA',
+    destination: 'Finance → Statutory Records',
+    status: 'Blocked',
+    notes: 'Blocked until statutory payment files and certificates are introduced.',
   },
 ];
 
-const publishingControls = [
-  {
-    control: 'Single Source of Truth',
-    description:
-      'PeoplePay remains the source system. SharePoint receives published records for document control and review.',
-  },
-  {
-    control: 'No Draft Payroll Publishing',
-    description:
-      'Payroll-related evidence must only be published after payroll has been approved, locked, and payslips generated.',
-  },
-  {
-    control: 'Approval Evidence Required',
-    description:
-      'Finance packages must include approval trail records before being treated as final finance evidence.',
-  },
-  {
-    control: 'Restricted Access',
-    description:
-      'Finance evidence libraries should be restricted to authorised Finance, HR, Director, and Admin users.',
-  },
-];
-
-function StatusPill({ value }: { value: string }) {
-  const status = value.toLowerCase();
-
-  let className = 'employee-status neutral';
-
-  if (status.includes('ready')) {
-    className = 'employee-status success';
-  }
-
-  if (status.includes('planned')) {
-    className = 'employee-status warning';
-  }
-
-  return <span className={className}>{value}</span>;
+function statusClass(status: PackageStatus) {
+  if (status === 'Published' || status === 'Ready') return 'employee-status success';
+  if (status === 'Blocked') return 'employee-status danger';
+  return 'employee-status warning';
 }
 
 export default function FinanceSharePointPackagePage() {
+  const [items, setItems] = useState(seedItems);
+
+  const totals = useMemo(() => {
+    return {
+      total: items.length,
+      ready: items.filter((item) => item.status === 'Ready').length,
+      pending: items.filter((item) => item.status === 'Pending').length,
+      blocked: items.filter((item) => item.status === 'Blocked').length,
+      published: items.filter((item) => item.status === 'Published').length,
+    };
+  }, [items]);
+
+  function markReady(id: string) {
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, status: 'Ready' } : item)));
+  }
+
+  function markPublished(id: string) {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, status: 'Published' } : item)),
+    );
+  }
+
+  function resetPackage() {
+    setItems(seedItems);
+  }
+
   return (
     <AppShell>
-      <section className="card finance-wide-page">
+      <section className="card wide-page-card">
         <PageHeader
-          eyebrow="Finance SharePoint"
-          title="Finance SharePoint Publishing Package"
-          description="Prepare controlled Finance evidence packages for SharePoint document control, review, and departmental reporting."
+          eyebrow="Finance Document Control"
+          title="SharePoint Finance Publishing Package"
+          description="Prepare approved Finance records for future SharePoint document control, audit evidence, and departmental dashboard publishing."
         />
 
-        <div className="finance-page-actions">
+        <div className="action-row" style={{ marginBottom: '1rem' }}>
           <Link className="btn-secondary" href="/finance/dashboard">
             Back to Finance Dashboard
+          </Link>
+
+          <Link className="btn-secondary" href="/finance/approval-evidence">
+            Finance Evidence
           </Link>
 
           <Link className="btn-secondary" href="/admin/sharepoint-integration">
             SharePoint Integration
           </Link>
 
-          <Link className="btn-secondary" href="/workbench">
-            Back to Workbench
-          </Link>
+          <button className="btn" type="button" onClick={resetPackage}>
+            Reset Demo Package
+          </button>
         </div>
 
         <Notice>
-          This page defines the Finance publishing model. PeoplePay should remain the operational
-          system and single source of truth. SharePoint should be used for controlled document
-          storage, departmental dashboards, audit evidence, and management review.
+          This page does not publish live data yet. It prepares the control structure for future
+          Microsoft Graph publishing. Once enabled, only approved and locked Finance records should
+          be published to SharePoint.
         </Notice>
 
-        <section className="finance-kpi-grid finance-kpi-grid-wide">
+        <section className="finance-kpi-grid">
           <div className="employee-panel">
-            <h2>Packages</h2>
+            <h2>Total Items</h2>
             <div className="leave-summary-card">
-              <div>
-                <span>Finance evidence areas</span>
-                <strong>{evidencePackages.length}</strong>
-              </div>
+              <span>Package records</span>
+              <strong>{totals.total}</strong>
             </div>
           </div>
 
           <div className="employee-panel">
             <h2>Ready</h2>
             <div className="leave-summary-card">
-              <div>
-                <span>Controlled exports</span>
-                <strong>
-                  {evidencePackages.filter((item) => item.status.includes('Ready')).length}
-                </strong>
-              </div>
+              <span>Ready to publish</span>
+              <strong>{totals.ready}</strong>
             </div>
           </div>
 
           <div className="employee-panel">
-            <h2>Planned</h2>
+            <h2>Pending</h2>
             <div className="leave-summary-card">
-              <div>
-                <span>Future publishing areas</span>
-                <strong>
-                  {evidencePackages.filter((item) => item.status.includes('Planned')).length}
-                </strong>
-              </div>
+              <span>Needs completion</span>
+              <strong>{totals.pending}</strong>
             </div>
           </div>
 
           <div className="employee-panel">
-            <h2>Target</h2>
+            <h2>Blocked</h2>
             <div className="leave-summary-card">
-              <div>
-                <span>Document control</span>
-                <strong>SharePoint</strong>
-              </div>
+              <span>Cannot publish</span>
+              <strong>{totals.blocked}</strong>
             </div>
           </div>
 
           <div className="employee-panel">
-            <h2>Source</h2>
+            <h2>Published</h2>
             <div className="leave-summary-card">
-              <div>
-                <span>Operational data</span>
-                <strong>PeoplePay</strong>
-              </div>
+              <span>Sent to SharePoint</span>
+              <strong>{totals.published}</strong>
             </div>
           </div>
         </section>
 
-        <section className="employee-panel finance-register-panel">
-          <div className="section-heading-row">
-            <div>
-              <h2>Publishing Package Register</h2>
-              <p className="muted">
-                Finance evidence groups that will be published or referenced in SharePoint once
-                Graph publishing is enabled.
-              </p>
-            </div>
-          </div>
+        <section className="employee-panel" style={{ marginTop: '1rem' }}>
+          <h2>Publishing Package Register</h2>
 
-          <div className="procurement-register-list">
-            {evidencePackages.map((item) => (
-              <article className="procurement-register-card" key={item.area}>
-                <div className="procurement-main">
-                  <div>
-                    <span className="field-label">Package Area</span>
-                    <strong>{item.area}</strong>
+          <div className="record-card-list">
+            {items.map((item) => (
+              <article className="workflow-record-card" key={item.id}>
+                <div className="workflow-record-grid">
+                  <div className="leave-summary-card wide-field">
+                    <span>Package Item</span>
+                    <strong>{item.title}</strong>
                   </div>
 
-                  <div className="procurement-description">
-                    <span className="field-label">Source Data</span>
+                  <div className="leave-summary-card">
+                    <span>Source</span>
                     <strong>{item.source}</strong>
                   </div>
 
-                  <div>
-                    <span className="field-label">Target Library</span>
-                    <strong>{item.targetLibrary}</strong>
+                  <div className="leave-summary-card wide-field">
+                    <span>Destination</span>
+                    <strong>{item.destination}</strong>
                   </div>
 
-                  <div>
-                    <span className="field-label">Control Rule</span>
-                    <strong>{item.documentControl}</strong>
+                  <div className="leave-summary-card">
+                    <span>Status</span>
+                    <strong>
+                      <span className={statusClass(item.status)}>{item.status}</span>
+                    </strong>
                   </div>
+                </div>
 
-                  <div>
-                    <span className="field-label">Status</span>
-                    <StatusPill value={item.status} />
-                  </div>
+                <div className="notice" style={{ marginTop: '1rem' }}>
+                  {item.notes}
+                </div>
+
+                <div className="action-row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
+                  {item.status === 'Pending' && (
+                    <button className="btn-secondary" type="button" onClick={() => markReady(item.id)}>
+                      Mark Ready
+                    </button>
+                  )}
+
+                  {item.status === 'Ready' && (
+                    <button className="btn" type="button" onClick={() => markPublished(item.id)}>
+                      Mark Published
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
-          </div>
-        </section>
-
-        <section className="finance-dashboard-grid" style={{ marginTop: '1rem' }}>
-          <div className="employee-panel">
-            <h2>Publishing Controls</h2>
-
-            <div className="procurement-register-list">
-              {publishingControls.map((item) => (
-                <div className="leave-summary-card" key={item.control}>
-                  <div>
-                    <span>{item.control}</span>
-                    <strong>{item.description}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="employee-panel">
-            <h2>Next Implementation Steps</h2>
-
-            <div className="procurement-register-list">
-              <div className="leave-summary-card">
-                <div>
-                  <span>Step 1</span>
-                  <strong>Keep Graph publishing in safe log mode until local testing is complete.</strong>
-                </div>
-              </div>
-
-              <div className="leave-summary-card">
-                <div>
-                  <span>Step 2</span>
-                  <strong>Add document upload references for payment evidence and approvals.</strong>
-                </div>
-              </div>
-
-              <div className="leave-summary-card">
-                <div>
-                  <span>Step 3</span>
-                  <strong>Publish final packages to SharePoint once approvals are locked.</strong>
-                </div>
-              </div>
-
-              <div className="leave-summary-card">
-                <div>
-                  <span>Step 4</span>
-                  <strong>Expose SharePoint dashboard pages for Finance and management review.</strong>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
       </section>

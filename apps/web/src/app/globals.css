@@ -4281,3 +4281,201 @@ textarea:focus {
     width: 100%;
   }
 }
+
+.wide-page-card {
+  width: min(100%, 1280px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.record-card-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.workflow-record-card {
+  border: 1px solid #d8e0ea;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.workflow-record-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.workflow-record-grid .wide-field {
+  grid-column: span 2;
+}
+
+.form-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1200px) {
+  .workflow-record-grid {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+
+  .workflow-record-grid .wide-field {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .workflow-record-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-record-grid .wide-field {
+    grid-column: span 1;
+  }
+}
+
+/* =========================================================
+   Southin PeoplePay - Standard Report Page Layout
+   Used by all /reports pages so reports match Finance pages.
+   ========================================================= */
+
+.report-page-card {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+}
+
+.report-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.report-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.report-section {
+  border: 1px solid #d8e0ea;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 1rem;
+  margin-top: 1rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.04);
+}
+
+.report-section h2,
+.report-section h3 {
+  margin: 0 0 0.75rem;
+  color: #020b1f;
+}
+
+.report-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #d8e0ea;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.report-table th {
+  background: #f4f7fb;
+  color: #64748b;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid #d8e0ea;
+}
+
+.report-table td {
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid #e5edf5;
+  color: #020b1f;
+  vertical-align: top;
+}
+
+.report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.report-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.75fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.report-record-card-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.report-record-card {
+  border: 1px solid #d8e0ea;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.report-record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.report-record-grid .wide-field {
+  grid-column: span 2;
+}
+
+@media (max-width: 1200px) {
+  .report-kpi-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+
+  .report-two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .report-record-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .report-record-grid .wide-field {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .report-kpi-grid,
+  .report-record-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-record-grid .wide-field {
+    grid-column: span 1;
+  }
+
+  .report-header-actions {
+    justify-content: stretch;
+  }
+
+  .report-header-actions a,
+  .report-header-actions button {
+    width: 100%;
+  }
+}

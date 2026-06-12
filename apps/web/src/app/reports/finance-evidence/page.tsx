@@ -1,15 +1,12 @@
-import Link from 'next/link';
-import {
-  getPayrollAudit,
-  getPayrollAuditCsvUrl,
-  getFinanceAuditPayload,
-} from '@/lib/api';
+import { Notice } from '@/components/ui/Notice';
+import { ReportPageFrame } from '@/components/reports/ReportPageFrame';
+import { getFinanceAuditPayload, getPayrollAudit, getPayrollAuditCsvUrl } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 function money(value: unknown) {
-  return Number(value || 0).toFixed(2);
+  return `K ${Number(value || 0).toFixed(2)}`;
 }
 
 function formatDateTime(value?: string | null) {
@@ -25,17 +22,25 @@ function formatDateTime(value?: string | null) {
 function statusClass(status?: string | null) {
   if (!status) return 'status-pill';
 
-  if (['LOCKED', 'APPROVED', 'GENERATED', 'READY'].includes(status)) {
+  const value = String(status).toUpperCase();
+
+  if (['LOCKED', 'APPROVED', 'GENERATED', 'READY'].includes(value)) {
     return 'status-pill locked';
   }
 
-  if (['OPEN', 'DRAFT', 'PENDING', 'DISABLED_DEV_MODE'].includes(status)) {
+  if (['OPEN', 'DRAFT', 'PENDING', 'DISABLED_DEV_MODE'].includes(value)) {
     return 'status-pill warning';
   }
 
   return 'status-pill';
 }
 
+/**
+ * Finance audit evidence package.
+ * --------------------------------------------------------------------
+ * This page groups payroll audit files, approval evidence, statutory
+ * evidence, and SharePoint-ready Finance package records.
+ */
 export default async function FinanceEvidencePage() {
   const audit = await getPayrollAudit();
   const runId = audit?.run?.id;
@@ -50,32 +55,24 @@ export default async function FinanceEvidencePage() {
   const financeControls = financePayload?.financeControls || [];
 
   return (
-    <section className="card">
-      <div className="page-header">
-        <div>
-          <h1>Finance Audit Evidence Package</h1>
-          <p className="muted">
-            Finance-controlled evidence pack for locked payroll runs, audit CSV exports, approval
-            records, statutory evidence, and payslip generation checks.
-          </p>
-        </div>
-
-        <div className="action-row">
-          <Link className="btn-secondary" href="/reports">
-            Reports Centre
-          </Link>
-
-          <Link className="btn-secondary" href="/executive/dashboard">
-            Executive Dashboard
-          </Link>
-
-          <a className="btn" href={getPayrollAuditCsvUrl(runId)}>
-            Download Payroll Audit CSV
-          </a>
-        </div>
+    <ReportPageFrame
+      eyebrow="Finance Evidence"
+      title="Finance Audit Evidence Package"
+      description="Finance-controlled evidence pack for locked payroll runs, audit CSV exports, approval records, statutory evidence, and payslip generation checks."
+      actions={[
+        { label: 'Reports Centre', href: '/reports' },
+        { label: 'Finance Dashboard', href: '/finance/dashboard' },
+        { label: 'SharePoint Package', href: '/finance/sharepoint-package' },
+        { label: 'Executive Dashboard', href: '/executive/dashboard', variant: 'primary' },
+      ]}
+    >
+      <div className="report-header-actions">
+        <a className="btn" href={getPayrollAuditCsvUrl(runId)}>
+          Download Payroll Audit CSV
+        </a>
       </div>
 
-      <div className="summary-grid">
+      <div className="report-kpi-grid">
         <div className="summary-card">
           <span className="summary-label">Payroll Run</span>
           <strong>{run.runName || '-'}</strong>
@@ -95,9 +92,7 @@ export default async function FinanceEvidencePage() {
           <span className="summary-label">Locked At</span>
           <strong>{formatDateTime(run.lockedAt)}</strong>
         </div>
-      </div>
 
-      <div className="summary-grid">
         <div className="summary-card">
           <span className="summary-label">Gross Pay</span>
           <strong>{money(totals.grossPay)}</strong>
@@ -119,170 +114,180 @@ export default async function FinanceEvidencePage() {
         </div>
       </div>
 
-      <div className="notice">
+      <Notice>
         This evidence package should be stored under the Finance SharePoint site in the Payroll Audit
         Reports document library once Microsoft Graph publishing is enabled.
-      </div>
+      </Notice>
 
-      <div className="table-wrap">
-        <h3>Recommended Finance Evidence Files</h3>
+      <div className="report-two-column">
+        <section className="report-section">
+          <h3>Recommended Finance Evidence Files</h3>
 
-        <table>
-          <thead>
-            <tr>
-              <th>File Name</th>
-              <th>Document Type</th>
-              <th>Source Endpoint</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {recommendedFiles.length === 0 ? (
-              <tr>
-                <td colSpan={3}>No recommended evidence files returned.</td>
-              </tr>
-            ) : (
-              recommendedFiles.map((file: any) => (
-                <tr key={file.fileName}>
-                  <td>{file.fileName}</td>
-                  <td>{file.documentType}</td>
-                  <td>
-                    <code>{file.sourceEndpoint}</code>
-                  </td>
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>File Name</th>
+                  <th>Document Type</th>
+                  <th>Source Endpoint</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
 
-      <div className="table-wrap">
-        <h3>Finance Control Checklist</h3>
+              <tbody>
+                {recommendedFiles.length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>No recommended evidence files returned.</td>
+                  </tr>
+                ) : (
+                  recommendedFiles.map((file: any) => (
+                    <tr key={file.fileName}>
+                      <td>{file.fileName}</td>
+                      <td>{file.documentType}</td>
+                      <td>
+                        <code>{file.sourceEndpoint}</code>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <table>
-          <thead>
-            <tr>
-              <th>No.</th>
-              <th>Control</th>
-              <th>Status</th>
-            </tr>
-          </thead>
+        <section className="report-section">
+          <h3>Finance Control Checklist</h3>
 
-          <tbody>
-            {financeControls.length === 0 ? (
-              <tr>
-                <td colSpan={3}>No finance controls returned.</td>
-              </tr>
-            ) : (
-              financeControls.map((control: string, index: number) => (
-                <tr key={control}>
-                  <td>{index + 1}</td>
-                  <td>{control}</td>
-                  <td>
-                    <span className="status-pill warning">To Confirm</span>
-                  </td>
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Control</th>
+                  <th>Status</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+
+              <tbody>
+                {financeControls.length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>No finance controls returned.</td>
+                  </tr>
+                ) : (
+                  financeControls.map((control: string, index: number) => (
+                    <tr key={control}>
+                      <td>{index + 1}</td>
+                      <td>{control}</td>
+                      <td>
+                        <span className="status-pill warning">To Confirm</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
-      <div className="table-wrap">
+      <section className="report-section">
         <h3>Payroll Employees Evidence</h3>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Employee No.</th>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Gross</th>
-              <th>Deductions</th>
-              <th>Net</th>
-              <th>Payslip</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {employees.length === 0 ? (
+        <div className="report-table-wrap">
+          <table className="report-table">
+            <thead>
               <tr>
-                <td colSpan={8}>No employees found in audit package.</td>
+                <th>Employee No.</th>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Gross</th>
+                <th>Deductions</th>
+                <th>Net</th>
+                <th>Payslip</th>
+                <th>Status</th>
               </tr>
-            ) : (
-              employees.map((employee: any) => (
-                <tr key={employee.lineId}>
-                  <td>{employee.employeeNumber}</td>
-                  <td>{employee.employeeName}</td>
-                  <td>{employee.department}</td>
-                  <td>{money(employee.grossPay)}</td>
-                  <td>{money(employee.totalDeductions)}</td>
-                  <td>{money(employee.netPay)}</td>
-                  <td>
-                    <span
-                      className={
-                        employee.payslipGenerated ? 'status-pill locked' : 'status-pill warning'
-                      }
-                    >
-                      {employee.payslipGenerated ? 'Generated' : 'Missing'}
-                    </span>
-                  </td>
-                  <td>{employee.status}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
 
-      <div className="table-wrap">
+            <tbody>
+              {employees.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>No employees found in audit package.</td>
+                </tr>
+              ) : (
+                employees.map((employee: any) => (
+                  <tr key={employee.lineId}>
+                    <td>{employee.employeeNumber}</td>
+                    <td>{employee.employeeName}</td>
+                    <td>{employee.department}</td>
+                    <td>{money(employee.grossPay)}</td>
+                    <td>{money(employee.totalDeductions)}</td>
+                    <td>{money(employee.netPay)}</td>
+                    <td>
+                      <span
+                        className={
+                          employee.payslipGenerated ? 'status-pill locked' : 'status-pill warning'
+                        }
+                      >
+                        {employee.payslipGenerated ? 'Generated' : 'Missing'}
+                      </span>
+                    </td>
+                    <td>{employee.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="report-section">
         <h3>Approval Evidence</h3>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Stage</th>
-              <th>Role</th>
-              <th>Approver</th>
-              <th>Status</th>
-              <th>Comments</th>
-              <th>Approved At</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {approvals.length === 0 ? (
+        <div className="report-table-wrap">
+          <table className="report-table">
+            <thead>
               <tr>
-                <td colSpan={6}>No approval records found.</td>
+                <th>Stage</th>
+                <th>Role</th>
+                <th>Approver</th>
+                <th>Status</th>
+                <th>Comments</th>
+                <th>Approved At</th>
               </tr>
-            ) : (
-              approvals.map((approval: any) => (
-                <tr key={approval.id}>
-                  <td>{approval.stage}</td>
-                  <td>{approval.role}</td>
-                  <td>{approval.approverId || '-'}</td>
-                  <td>
-                    <span className={statusClass(approval.status)}>{approval.status}</span>
-                  </td>
-                  <td>{approval.comments || '-'}</td>
-                  <td>{formatDateTime(approval.approvedAt)}</td>
+            </thead>
+
+            <tbody>
+              {approvals.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>No approval records found.</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                approvals.map((approval: any) => (
+                  <tr key={approval.id}>
+                    <td>{approval.stage}</td>
+                    <td>{approval.role}</td>
+                    <td>{approval.approverId || '-'}</td>
+                    <td>
+                      <span className={statusClass(approval.status)}>{approval.status}</span>
+                    </td>
+                    <td>{approval.comments || '-'}</td>
+                    <td>{formatDateTime(approval.approvedAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <details>
         <summary>Raw Finance SharePoint Payload</summary>
         <pre className="json-preview">{JSON.stringify(financePayload, null, 2)}</pre>
       </details>
 
-      <div className="notice">
+      <Notice>
         This page is for Finance and Executive evidence only. It must not be exposed to the public
         SharePoint dashboard.
-      </div>
-    </section>
+      </Notice>
+    </ReportPageFrame>
   );
 }

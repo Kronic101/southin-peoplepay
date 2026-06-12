@@ -6,6 +6,22 @@ import { AppShell } from '@/components/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Notice } from '@/components/ui/Notice';
 
+/**
+ * Finance Procurement Payment Tracker
+ * --------------------------------------------------------------------
+ * This page is the Finance-side view of procurement payments.
+ *
+ * Current phase:
+ * - Uses local demo records so Finance can understand the workflow.
+ *
+ * Future phase:
+ * - This will connect to the Procurement module.
+ * - Procurement will capture requisitions, PO details, supplier invoices,
+ *   GRNs, delivery notes, and POP records.
+ * - Asset purchases will later flow into the Southin Asset Management system.
+ * - Approved finance records will be published to SharePoint for document control.
+ */
+
 type ProcurementRecord = {
   id: string;
   requisitionNo: string;
@@ -15,9 +31,9 @@ type ProcurementRecord = {
   amount: number;
   procurementStage: string;
   financeStage: string;
-  invoiceStatus: string;
-  paymentStatus: string;
-  popStatus: string;
+  invoiceStatus: 'Pending' | 'Received';
+  paymentStatus: 'Not Paid' | 'Pending Approval' | 'Paid';
+  popStatus: 'Not Uploaded' | 'Uploaded';
   responsibleOfficer: string;
 };
 
@@ -56,17 +72,15 @@ function money(value: number) {
   return `K ${Number(value || 0).toFixed(2)}`;
 }
 
-function getStatusClass(value: string) {
-  const status = value.toLowerCase();
+function statusClass(value: string) {
+  const text = value.toLowerCase();
 
-  if (status.includes('paid') && !status.includes('not')) return 'success';
-  if (status.includes('received')) return 'success';
-  if (status.includes('approved')) return 'success';
-  if (status.includes('pending')) return 'warning';
-  if (status.includes('awaiting')) return 'warning';
-  if (status.includes('not')) return 'danger';
+  if (text.includes('paid') && !text.includes('not')) return 'employee-status success';
+  if (text.includes('received') || text.includes('uploaded')) return 'employee-status success';
+  if (text.includes('pending') || text.includes('awaiting')) return 'employee-status warning';
+  if (text.includes('not')) return 'employee-status danger';
 
-  return 'neutral';
+  return 'employee-status neutral';
 }
 
 export default function ProcurementTrackerPage() {
@@ -76,13 +90,13 @@ export default function ProcurementTrackerPage() {
     const totalValue = records.reduce((sum, item) => sum + item.amount, 0);
     const pendingPayment = records.filter((item) => item.paymentStatus !== 'Paid').length;
     const pendingInvoice = records.filter((item) => item.invoiceStatus !== 'Received').length;
-    const pendingPop = records.filter((item) => item.popStatus !== 'Uploaded').length;
+    const popRequired = records.filter((item) => item.popStatus !== 'Uploaded').length;
 
     return {
       totalValue,
       pendingPayment,
       pendingInvoice,
-      pendingPop,
+      popRequired,
       totalRecords: records.length,
     };
   }, [records]);
@@ -96,7 +110,7 @@ export default function ProcurementTrackerPage() {
         requisitionNo: `REQ-2026-${nextNo}`,
         department: 'Projects',
         supplier: 'New Demo Supplier',
-        description: 'Demo procurement payment item for project-related operational support',
+        description: 'Demo procurement payment item awaiting Finance review',
         amount: 5000,
         procurementStage: 'Requisition Submitted',
         financeStage: 'Not Reviewed',
@@ -109,16 +123,45 @@ export default function ProcurementTrackerPage() {
     ]);
   }
 
+  function markInvoiceReceived(id: string) {
+    setRecords((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              invoiceStatus: 'Received',
+              financeStage: 'Invoice Received',
+            }
+          : item,
+      ),
+    );
+  }
+
+  function markPaymentPaid(id: string) {
+    setRecords((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              paymentStatus: 'Paid',
+              popStatus: 'Uploaded',
+              financeStage: 'Payment Completed',
+            }
+          : item,
+      ),
+    );
+  }
+
   return (
     <AppShell>
-      <section className="card finance-wide-page">
+      <section className="card wide-page-card">
         <PageHeader
           eyebrow="Finance Control"
           title="Procurement Payment Tracker"
-          description="Track requisitions, purchase orders, supplier invoices, finance review, payment approval, and proof-of-payment readiness."
+          description="Track requisitions, purchase orders, supplier invoices, Finance review, payment approval, and proof-of-payment readiness."
         />
 
-        <div className="finance-page-actions">
+        <div className="action-row" style={{ marginBottom: '1rem' }}>
           <Link className="btn-secondary" href="/finance/dashboard">
             Back to Finance Dashboard
           </Link>
@@ -134,11 +177,11 @@ export default function ProcurementTrackerPage() {
 
         <Notice>
           This page prepares the Finance side of procurement tracking. Later, this will connect to
-          the Procurement module and the Southin Asset Management system so asset purchases,
-          inventory, tools, scaffold items, and supplier payments are visible in one workflow.
+          the Procurement module and Southin Asset Management so asset purchases, inventory,
+          tools, scaffold items, supplier invoices, and payments are visible in one workflow.
         </Notice>
 
-        <section className="finance-kpi-grid finance-kpi-grid-wide">
+        <section className="finance-kpi-grid">
           <div className="employee-panel">
             <h2>Total Items</h2>
             <div className="leave-summary-card">
@@ -184,120 +227,103 @@ export default function ProcurementTrackerPage() {
             <div className="leave-summary-card">
               <div>
                 <span>Proof not uploaded</span>
-                <strong>{totals.pendingPop}</strong>
+                <strong>{totals.popRequired}</strong>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="employee-panel finance-register-panel">
-          <div className="section-heading-row">
-            <div>
-              <h2>Procurement Payment Register</h2>
-              <p className="muted">
-                Finance view of procurement items requiring invoice review, payment control, and
-                payment evidence tracking.
-              </p>
-            </div>
-          </div>
+        <section className="employee-panel" style={{ marginTop: '1rem' }}>
+          <h2>Procurement Payment Register</h2>
+          <p className="muted">
+            Finance view of procurement items requiring invoice review, payment control, and
+            payment evidence tracking.
+          </p>
 
-          <div className="procurement-register-list">
+          <div className="record-card-list">
             {records.map((record) => (
-              <article className="procurement-register-card" key={record.id}>
-                <div className="procurement-main">
-                  <div>
-                    <span className="field-label">Requisition</span>
+              <article className="workflow-record-card" key={record.id}>
+                <div className="workflow-record-grid">
+                  <div className="leave-summary-card">
+                    <span>Requisition</span>
                     <strong>{record.requisitionNo}</strong>
                   </div>
 
-                  <div>
-                    <span className="field-label">Department</span>
+                  <div className="leave-summary-card">
+                    <span>Department</span>
                     <strong>{record.department}</strong>
                   </div>
 
-                  <div>
-                    <span className="field-label">Supplier</span>
+                  <div className="leave-summary-card">
+                    <span>Supplier</span>
                     <strong>{record.supplier}</strong>
                   </div>
 
-                  <div className="procurement-description">
-                    <span className="field-label">Description</span>
+                  <div className="leave-summary-card wide-field">
+                    <span>Description</span>
                     <strong>{record.description}</strong>
                   </div>
 
-                  <div>
-                    <span className="field-label">Amount</span>
+                  <div className="leave-summary-card">
+                    <span>Amount</span>
                     <strong>{money(record.amount)}</strong>
+                  </div>
+
+                  <div className="leave-summary-card">
+                    <span>Procurement</span>
+                    <strong>{record.procurementStage}</strong>
+                  </div>
+
+                  <div className="leave-summary-card">
+                    <span>Finance</span>
+                    <strong>{record.financeStage}</strong>
+                  </div>
+
+                  <div className="leave-summary-card">
+                    <span>Invoice</span>
+                    <strong>
+                      <span className={statusClass(record.invoiceStatus)}>
+                        {record.invoiceStatus}
+                      </span>
+                    </strong>
+                  </div>
+
+                  <div className="leave-summary-card">
+                    <span>Payment</span>
+                    <strong>
+                      <span className={statusClass(record.paymentStatus)}>
+                        {record.paymentStatus}
+                      </span>
+                    </strong>
+                  </div>
+
+                  <div className="leave-summary-card">
+                    <span>POP</span>
+                    <strong>
+                      <span className={statusClass(record.popStatus)}>{record.popStatus}</span>
+                    </strong>
                   </div>
                 </div>
 
-                <div className="procurement-status-grid">
-                  <div>
-                    <span className="field-label">Procurement</span>
-                    <span className={`employee-status ${getStatusClass(record.procurementStage)}`}>
-                      {record.procurementStage}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="field-label">Finance</span>
-                    <span className={`employee-status ${getStatusClass(record.financeStage)}`}>
-                      {record.financeStage}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="field-label">Invoice</span>
-                    <span className={`employee-status ${getStatusClass(record.invoiceStatus)}`}>
-                      {record.invoiceStatus}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="field-label">Payment</span>
-                    <span className={`employee-status ${getStatusClass(record.paymentStatus)}`}>
-                      {record.paymentStatus}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="field-label">POP</span>
-                    <span className={`employee-status ${getStatusClass(record.popStatus)}`}>
-                      {record.popStatus}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="field-label">Officer</span>
-                    <strong>{record.responsibleOfficer}</strong>
-                  </div>
-
-                  <div className="procurement-action-cell">
-                    <button className="btn-secondary" type="button">
-                      Review
+                <div className="action-row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
+                  {record.invoiceStatus !== 'Received' && (
+                    <button
+                      className="btn-secondary"
+                      type="button"
+                      onClick={() => markInvoiceReceived(record.id)}
+                    >
+                      Mark Invoice Received
                     </button>
-                  </div>
+                  )}
+
+                  {record.paymentStatus !== 'Paid' && (
+                    <button className="btn" type="button" onClick={() => markPaymentPaid(record.id)}>
+                      Mark Paid + POP
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
-          </div>
-        </section>
-
-        <section className="finance-dashboard-grid" style={{ marginTop: '1rem' }}>
-          <div className="employee-panel">
-            <h2>Next Build</h2>
-            <p className="muted">
-              The next version should add procurement item detail pages, invoice upload, POP upload,
-              Finance Manager approval, Director approval, and SharePoint evidence publishing.
-            </p>
-          </div>
-
-          <div className="employee-panel">
-            <h2>Future Integration</h2>
-            <p className="muted">
-              This tracker will eventually receive approved procurement records from the Procurement
-              module and asset-linked purchases from the Southin Asset Management platform.
-            </p>
           </div>
         </section>
       </section>

@@ -1,10 +1,24 @@
 import Link from 'next/link';
+import { ReportPageFrame } from '@/components/reports/ReportPageFrame';
+import { SummaryGrid } from '@/components/ui/SummaryGrid';
+import { Notice } from '@/components/ui/Notice';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { getPaymentBatches } from '@/lib/api';
-import { PaymentBatchListActions } from './PaymentBatchListActions';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/**
+ * Payment Batches List Page
+ * ------------------------------------------------------------
+ * Purpose:
+ * Shows Finance-controlled payment batches created from locked payroll runs.
+ *
+ * Important:
+ * This is the LIST page only.
+ * Batch workflow actions belong inside:
+ * /reports/payment-batches/[id]/page.tsx
+ */
 function money(value: unknown) {
   return Number(value || 0).toFixed(2);
 }
@@ -19,133 +33,117 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function statusClass(status?: string | null) {
-  if (!status) return 'status-pill';
-
-  if (['APPROVED', 'PREPARED', 'DRAFT'].includes(status)) {
-    return 'status-pill locked';
-  }
-
-  if (['BLOCKED_PAYSLIPS_MISSING', 'PENDING', 'MANUAL_STEP'].includes(status)) {
-    return 'status-pill warning';
-  }
-
-  return 'status-pill';
-}
-
 export default async function PaymentBatchesPage() {
   const data = await getPaymentBatches();
   const batches = data?.batches || [];
 
-  const approvedCount = batches.filter((batch: any) => batch.status === 'APPROVED').length;
-  const preparedCount = batches.filter((batch: any) => batch.status === 'PREPARED').length;
-  const blockedCount = batches.filter((batch: any) =>
-    String(batch.status || '').includes('BLOCKED'),
-  ).length;
+  const approved = batches.filter((batch: any) => batch.status === 'APPROVED');
+  const prepared = batches.filter((batch: any) => batch.status === 'PREPARED');
+  const blocked = batches.filter((batch: any) =>
+    ['BLOCKED', 'PENDING_VALIDATION', 'DRAFT'].includes(String(batch.status || '')),
+  );
 
   return (
-    <section className="card">
-      <div className="page-header">
-        <div>
-          <h1>Payment Batches</h1>
-          <p className="muted">
-            Finance-controlled payment batches prepared from locked payroll runs. This area does not
-            trigger real bank transfers.
-          </p>
-        </div>
+    
+      <ReportPageFrame
+        eyebrow="Finance Payment Control"
+        title="Payment Batches"
+        description="Finance-controlled payment batches prepared from locked payroll runs. These records do not trigger real bank transfers."
+        actions={
+          <>
+            <Link className="btn-secondary" href="/finance/dashboard">
+              Finance Dashboard
+            </Link>
 
-        <div className="action-row">
-          <Link className="btn-secondary" href="/reports">
-            Reports Centre
-          </Link>
+            <Link className="btn-secondary" href="/reports/bank-payment-preparation">
+              Payment Prep
+            </Link>
 
-          <Link className="btn-secondary" href="/reports/bank-payment-preparation">
-            Payment Prep
-          </Link>
+            <Link className="btn" href="/finance/approval-evidence">
+              Finance Evidence
+            </Link>
+          </>
+        }
+      >
+        <SummaryGrid
+          items={[
+            {
+              label: 'Total Payment Batches',
+              value: batches.length,
+            },
+            {
+              label: 'Approved',
+              value: approved.length,
+            },
+            {
+              label: 'Prepared',
+              value: prepared.length,
+            },
+            {
+              label: 'Blocked / Draft',
+              value: blocked.length,
+            },
+          ]}
+        />
 
-          <Link className="btn" href="/reports/finance-evidence">
-            Finance Evidence
-          </Link>
-        </div>
-      </div>
+        <Notice>
+          Payment batches are generated from locked payroll runs. If payslips are missing, the batch
+          is blocked until payslip generation is completed.
+        </Notice>
 
-      <div className="summary-grid">
-        <div className="summary-card">
-          <span className="summary-label">Total Payment Batches</span>
-          <strong>{data?.totalReturned ?? 0}</strong>
-        </div>
+        <div className="table-wrap">
+          <h3>Recent Payment Batches</h3>
 
-        <div className="summary-card">
-          <span className="summary-label">Approved</span>
-          <strong>{approvedCount}</strong>
-        </div>
-
-        <div className="summary-card">
-          <span className="summary-label">Prepared</span>
-          <strong>{preparedCount}</strong>
-        </div>
-
-        <div className="summary-card">
-          <span className="summary-label">Blocked</span>
-          <strong>{blockedCount}</strong>
-        </div>
-      </div>
-
-      <div className="notice">
-        Payment batches are generated from locked payroll runs. If payslips are missing, the batch is
-        blocked until payslip generation is completed.
-      </div>
-
-      <div className="table-wrap">
-        <h3>Recent Payment Batches</h3>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Batch Name</th>
-              <th>Payroll Run</th>
-              <th>Period</th>
-              <th>Status</th>
-              <th>Employees</th>
-              <th>Total Net Pay</th>
-              <th>Prepared By</th>
-              <th>Created</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {batches.length === 0 ? (
+          <table>
+            <thead>
               <tr>
-                <td colSpan={9}>No payment batches have been created yet.</td>
+                <th>Batch Name</th>
+                <th>Payroll Run</th>
+                <th>Period</th>
+                <th>Status</th>
+                <th>Employees</th>
+                <th>Total Net Pay</th>
+                <th>Prepared By</th>
+                <th>Created</th>
+                <th>Action</th>
               </tr>
-            ) : (
-              batches.map((batch: any) => (
-                <tr key={batch.id}>
-                  <td>{batch.batchName}</td>
-                  <td>{batch.payrollRun?.runName || '-'}</td>
-                  <td>{batch.payrollRun?.payrollPeriod?.periodName || '-'}</td>
-                  <td>
-                    <span className={statusClass(batch.status)}>{batch.status}</span>
-                  </td>
-                  <td>{batch.totalEmployees}</td>
-                  <td>{money(batch.totalNetPay)}</td>
-                  <td>{batch.preparedBy || '-'}</td>
-                  <td>{formatDateTime(batch.createdAt)}</td>
-                  <td>
-                    <PaymentBatchListActions batchId={batch.id} />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
 
-      <div className="notice">
-        Next, open a batch to validate bank details, prepare the payment batch, and approve it for
-        manual payment processing.
-      </div>
-    </section>
+            <tbody>
+              {batches.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>No payment batches found.</td>
+                </tr>
+              ) : (
+                batches.map((batch: any) => (
+                  <tr key={batch.id}>
+                    <td>{batch.batchName || '-'}</td>
+                    <td>{batch.payrollRun?.runName || '-'}</td>
+                    <td>{batch.payrollRun?.payrollPeriod?.periodName || '-'}</td>
+                    <td>
+                      <StatusPill status={batch.status || '-'} />
+                    </td>
+                    <td>{batch.totalEmployees ?? batch.items?.length ?? 0}</td>
+                    <td>{money(batch.totalNetPay)}</td>
+                    <td>{batch.preparedBy || '-'}</td>
+                    <td>{formatDateTime(batch.createdAt)}</td>
+                    <td>
+                      <Link className="btn-secondary" href={`/reports/payment-batches/${batch.id}`}>
+                        Open Batch
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <Notice>
+          Next step: open a batch to validate bank details, recheck payslips, approve for manual
+          payment processing, and generate finance evidence.
+        </Notice>
+      </ReportPageFrame>
+    
   );
 }

@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import { AppShell } from '@/components/AppShell';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SummaryGrid } from '@/components/ui/SummaryGrid';
 import { Notice } from '@/components/ui/Notice';
 import { StatusPill } from '@/components/ui/StatusPill';
+import { ReportPageFrame } from '@/components/reports/ReportPageFrame';
 import { getPaymentBatch, getPaymentBatchEvidenceCsvUrl } from '@/lib/api';
 import { PaymentBatchActions } from './PaymentBatchActions';
 
@@ -11,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 function money(value: unknown) {
-  return Number(value || 0).toFixed(2);
+  return `K ${Number(value || 0).toFixed(2)}`;
 }
 
 function formatDateTime(value?: string | null) {
@@ -34,6 +32,13 @@ function isBlockedPaymentStatus(status?: string | null) {
   );
 }
 
+/**
+ * Finance payment batch detail page.
+ * --------------------------------------------------------------------
+ * This page gives Finance a controlled view of payment batch readiness,
+ * bank validation, payslip generation, evidence export, and approval lock.
+ * No real bank payment is triggered from this page.
+ */
 export default async function PaymentBatchDetailPage({
   params,
 }: {
@@ -45,100 +50,105 @@ export default async function PaymentBatchDetailPage({
   const items = batch?.items || [];
   const readyItems = items.filter((item: any) => isReadyPaymentStatus(item.paymentStatus));
   const blockedItems = items.filter((item: any) => isBlockedPaymentStatus(item.paymentStatus));
-
   const isApproved = batch?.status === 'APPROVED';
 
   return (
-    <AppShell>
-      <section className="card">
-        <PageHeader
-          eyebrow="Finance Payment Batch"
-          title="Payment Batch Details"
-          description="Finance validation record for payment batch preparation and manual payment approval."
-          actions={
-            <>
-              <Link className="btn-secondary" href="/reports/payment-batches">
-                Payment Batches
-              </Link>
+    <ReportPageFrame
+      eyebrow="Finance Payment Batch"
+      title="Payment Batch Details"
+      description="Finance validation record for payment batch preparation, manual payment approval, and audit evidence."
+      actions={[
+        { label: 'Reports Centre', href: '/reports' },
+        { label: 'Payment Batches', href: '/reports/payment-batches' },
+        { label: 'Payment Prep', href: '/reports/bank-payment-preparation' },
+        { label: 'Finance Evidence', href: '/reports/finance-evidence', variant: 'primary' },
+      ]}
+    >
+      <div className="report-header-actions">
+        <Link className="btn-secondary" href={`/reports/payment-batches/${id}/evidence`}>
+          View Evidence
+        </Link>
 
-              <Link className="btn-secondary" href="/reports/bank-payment-preparation">
-                Payment Prep
-              </Link>
+        <a className="btn" href={getPaymentBatchEvidenceCsvUrl(id)}>
+          Download Evidence CSV
+        </a>
+      </div>
 
-              <Link className="btn" href="/reports/finance-evidence">
-                Finance Evidence
-              </Link>
+      <div className="report-kpi-grid">
+        <div className="summary-card">
+          <span className="summary-label">Batch Name</span>
+          <strong>{batch?.batchName || '-'}</strong>
+        </div>
 
-              <Link className="btn-secondary" href={`/reports/payment-batches/${id}/evidence`}>
-                View Evidence
-              </Link>
+        <div className="summary-card">
+          <span className="summary-label">Payroll Run</span>
+          <strong>{batch?.payrollRun?.runName || '-'}</strong>
+        </div>
 
-              <a className="btn" href={getPaymentBatchEvidenceCsvUrl(id)}>
-                Download Evidence CSV
-              </a>
-            </>
-          }
-        />
+        <div className="summary-card">
+          <span className="summary-label">Period</span>
+          <strong>{batch?.payrollRun?.payrollPeriod?.periodName || '-'}</strong>
+        </div>
 
-        <SummaryGrid
-          items={[
-            {
-              label: 'Batch Name',
-              value: batch?.batchName || '-',
-            },
-            {
-              label: 'Payroll Run',
-              value: batch?.payrollRun?.runName || '-',
-            },
-            {
-              label: 'Period',
-              value: batch?.payrollRun?.payrollPeriod?.periodName || '-',
-            },
-            {
-              label: 'Status',
-              value: batch?.status || '-',
-            },
-            {
-              label: 'Total Employees',
-              value: batch?.totalEmployees ?? items.length,
-            },
-            {
-              label: 'Total Net Pay',
-              value: money(batch?.totalNetPay),
-            },
-            {
-              label: 'Ready Items',
-              value: readyItems.length,
-            },
-            {
-              label: 'Blocked / Pending Items',
-              value: blockedItems.length,
-            },
-            {
-              label: 'Prepared By',
-              value: batch?.preparedBy || '-',
-            },
-            {
-              label: 'Prepared At',
-              value: formatDateTime(batch?.preparedAt),
-            },
-            {
-              label: 'Approved By',
-              value: batch?.approvedBy || '-',
-            },
-            {
-              label: 'Approved At',
-              value: formatDateTime(batch?.approvedAt),
-            },
-          ]}
-        />
+        <div className="summary-card">
+          <span className="summary-label">Status</span>
+          <strong>{batch?.status || '-'}</strong>
+        </div>
 
-        <Notice>
-          {batch?.evidenceNotes ||
-            'This payment batch is a controlled finance workflow record. No real bank payment has been triggered.'}
-        </Notice>
+        <div className="summary-card">
+          <span className="summary-label">Employees</span>
+          <strong>{batch?.totalEmployees ?? items.length}</strong>
+        </div>
 
-        <div className="workflow-panel">
+        <div className="summary-card">
+          <span className="summary-label">Total Net Pay</span>
+          <strong>{money(batch?.totalNetPay)}</strong>
+        </div>
+
+        <div className="summary-card">
+          <span className="summary-label">Ready Items</span>
+          <strong>{readyItems.length}</strong>
+        </div>
+
+        <div className="summary-card">
+          <span className="summary-label">Blocked / Pending</span>
+          <strong>{blockedItems.length}</strong>
+        </div>
+      </div>
+
+      <div className="report-two-column">
+        <section className="report-section">
+          <h3>Preparation and Approval</h3>
+
+          <div className="report-record-grid">
+            <div className="summary-card">
+              <span className="summary-label">Prepared By</span>
+              <strong>{batch?.preparedBy || '-'}</strong>
+            </div>
+
+            <div className="summary-card">
+              <span className="summary-label">Prepared At</span>
+              <strong>{formatDateTime(batch?.preparedAt)}</strong>
+            </div>
+
+            <div className="summary-card">
+              <span className="summary-label">Approved By</span>
+              <strong>{batch?.approvedBy || '-'}</strong>
+            </div>
+
+            <div className="summary-card">
+              <span className="summary-label">Approved At</span>
+              <strong>{formatDateTime(batch?.approvedAt)}</strong>
+            </div>
+          </div>
+
+          <Notice>
+            {batch?.evidenceNotes ||
+              'This payment batch is a controlled Finance workflow record. No real bank payment has been triggered.'}
+          </Notice>
+        </section>
+
+        <section className="report-section">
           <h3>Finance Payment Batch Actions</h3>
           <p className="muted">
             These actions are controlled workflow steps. They do not create a live bank transfer.
@@ -152,20 +162,21 @@ export default async function PaymentBatchDetailPage({
           ) : (
             <PaymentBatchActions batch={batch} />
           )}
-        </div>
+        </section>
+      </div>
 
-        <div className="table-wrap">
-          <h3>Payment Batch Items</h3>
+      <section className="report-section">
+        <h3>Payment Batch Items</h3>
 
-          <table>
+        <div className="report-table-wrap">
+          <table className="report-table">
             <thead>
               <tr>
                 <th>Employee No.</th>
                 <th>Name</th>
                 <th>Department</th>
                 <th>Net Pay</th>
-                <th>Account Name</th>
-                <th>Bank Name</th>
+                <th>Bank</th>
                 <th>Branch</th>
                 <th>Account</th>
                 <th>Bank Status</th>
@@ -177,7 +188,7 @@ export default async function PaymentBatchDetailPage({
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={11}>No payment batch items found.</td>
+                  <td colSpan={10}>No payment batch items found.</td>
                 </tr>
               ) : (
                 items.map((item: any) => (
@@ -186,7 +197,6 @@ export default async function PaymentBatchDetailPage({
                     <td>{item.employeeName || '-'}</td>
                     <td>{item.department || '-'}</td>
                     <td>{money(item.netPay)}</td>
-                    <td>{item.bankAccountName || '-'}</td>
                     <td>{item.bankName || '-'}</td>
                     <td>{item.bankBranch || '-'}</td>
                     <td>{item.bankAccountNumber || '-'}</td>
@@ -203,17 +213,17 @@ export default async function PaymentBatchDetailPage({
             </tbody>
           </table>
         </div>
-
-        <details>
-          <summary>Raw Payment Batch JSON</summary>
-          <pre className="json-preview">{JSON.stringify(batch, null, 2)}</pre>
-        </details>
-
-        <Notice>
-          Final production workflow should replace placeholder banking steps with approved
-          integrations, formal Finance controls, and restricted evidence storage.
-        </Notice>
       </section>
-    </AppShell>
+
+      <details>
+        <summary>Raw Payment Batch JSON</summary>
+        <pre className="json-preview">{JSON.stringify(batch, null, 2)}</pre>
+      </details>
+
+      <Notice>
+        Final production workflow should replace placeholder banking steps with approved
+        integrations, formal Finance controls, and restricted evidence storage.
+      </Notice>
+    </ReportPageFrame>
   );
 }

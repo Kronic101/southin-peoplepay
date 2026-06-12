@@ -1,8 +1,10 @@
 'use client';
 
+import { APP_BRAND } from '@/lib/app-branding';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+
 
 type StaffRole =
   | 'PAYROLL_OFFICER'
@@ -191,8 +193,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link className="app-brand" href="/workbench">
           <span className="app-brand-mark">SP</span>
           <span>
-            <strong>Southin PeoplePay</strong>
-            <small>HR & Payroll Portal</small>
+            <strong>{APP_BRAND.platformName}</strong>
+            <span>{APP_BRAND.peoplePayModuleName} · HR & Payroll</span>
           </span>
         </Link>
 
