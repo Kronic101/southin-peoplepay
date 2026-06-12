@@ -4113,3 +4113,171 @@ textarea:focus {
     grid-column: auto;
   }
 }
+
+/* ============================================================
+   Southin PeoplePay - Finance Expense Workflow
+   These classes keep Finance pages wide, structured, and readable.
+   They are shared by Finance module pages where card-based registers
+   are easier to read than cramped tables.
+   ============================================================ */
+
+.app-page-wide {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+}
+
+.app-section-wide {
+  margin-top: 1rem;
+}
+
+.page-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.finance-kpi-grid-wide {
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.employee-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.employee-form-grid label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 800;
+  color: #020617;
+}
+
+.employee-form-grid input,
+.employee-form-grid select,
+.employee-form-grid textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+  background: #f8fafc;
+  color: #020617;
+  font: inherit;
+}
+
+.employee-form-grid textarea {
+  resize: vertical;
+}
+
+.form-span-2 {
+  grid-column: 1 / -1;
+}
+
+.form-actions-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.expense-card-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.expense-workflow-card {
+  border: 1px solid #d8e1ee;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.expense-card-main {
+  display: grid;
+  grid-template-columns: 1.1fr 2fr 1fr 1fr 1fr 1.2fr 1.2fr 1fr 1fr 1.3fr;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.expense-field {
+  border: 1px solid #d8e1ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.75rem;
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  gap: 0.3rem;
+}
+
+.expense-field span,
+.expense-comment span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 900;
+}
+
+.expense-field strong,
+.expense-comment strong {
+  color: #020617;
+}
+
+.expense-description {
+  min-width: 220px;
+}
+
+.expense-comment {
+  margin-top: 0.75rem;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  background: #fff7ed;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.expense-actions {
+  margin-top: 0.85rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1200px) {
+  .finance-kpi-grid-wide {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+
+  .expense-card-main {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .finance-kpi-grid-wide,
+  .employee-form-grid,
+  .expense-card-main {
+    grid-template-columns: 1fr;
+  }
+
+  .page-actions,
+  .form-actions-right,
+  .expense-actions {
+    justify-content: stretch;
+  }
+
+  .page-actions a,
+  .page-actions button,
+  .form-actions-right button,
+  .expense-actions button {
+    width: 100%;
+  }
+}
