@@ -2,117 +2,241 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 
-type NavLink = {
+type StaffRole =
+  | 'PAYROLL_OFFICER'
+  | 'HR_MANAGER'
+  | 'FINANCE_MANAGER'
+  | 'DIRECTOR'
+  | 'ADMIN'
+  | 'LINE_MANAGER'
+  | 'SUPERVISOR'
+  | '';
+
+type NavItem = {
   label: string;
   href: string;
+  roles: StaffRole[];
 };
 
-type NavGroup = {
+type NavSection = {
   title: string;
-  links: NavLink[];
+  items: NavItem[];
 };
 
-const navGroups: NavGroup[] = [
+const ROLE_KEYS = [
+  'southinDevRole',
+  'southin-dev-role',
+  'southin_dev_role',
+  'devRole',
+  'role',
+  'x-user-role',
+];
+
+function normaliseRole(value: unknown): StaffRole {
+  const role = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replaceAll(' ', '_')
+    .replaceAll('-', '_');
+
+  if (role === 'HR' || role === 'HUMAN_RESOURCES' || role === 'HR_MANAGER') return 'HR_MANAGER';
+  if (role === 'PAYROLL' || role === 'PAYROLL_OFFICER') return 'PAYROLL_OFFICER';
+  if (role === 'FINANCE' || role === 'FINANCE_MANAGER') return 'FINANCE_MANAGER';
+  if (role === 'DIRECTOR' || role === 'EXECUTIVE') return 'DIRECTOR';
+  if (role === 'ADMIN' || role === 'SYSTEM_ADMIN' || role === 'SYSTEM_ADMINISTRATOR') return 'ADMIN';
+  if (role === 'LINE_MANAGER') return 'LINE_MANAGER';
+  if (role === 'SUPERVISOR') return 'SUPERVISOR';
+
+  return '';
+}
+
+function getStoredRole(): StaffRole {
+  if (typeof window === 'undefined') return '';
+
+  for (const key of ROLE_KEYS) {
+    const role = normaliseRole(localStorage.getItem(key));
+    if (role) return role;
+  }
+
+  return '';
+}
+
+function roleCanSee(item: NavItem, role: StaffRole) {
+  if (role === 'ADMIN') return true;
+  if (item.roles.includes('')) return true;
+  if (!role) return item.roles.includes('');
+  return item.roles.includes(role);
+}
+
+const navSections: NavSection[] = [
   {
     title: 'Core',
-    links: [
-      { label: 'Workbench', href: '/workbench' },
-      { label: 'Dashboard', href: '/dashboard' },
-      { label: 'Employees', href: '/employees' },
-      { label: 'HR Dashboard', href: '/hr/dashboard' },
+    items: [
+      {
+        label: 'Workbench',
+        href: '/workbench',
+        roles: ['', 'HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+      },
+      {
+        label: 'Demo Guide',
+        href: '/demo',
+        roles: ['', 'HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+      },
+      {
+        label: 'Dashboard',
+        href: '/dashboard',
+        roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
     ],
   },
   {
-    title: 'Payroll',
-    links: [
-      { label: 'Payroll', href: '/payroll' },
-      { label: 'Payroll Readiness', href: '/hr/payroll-readiness' },
-      { label: 'Readiness Gates', href: '/hr/payroll-readiness-gates' },
-      { label: 'Payroll Audit', href: '/reports/payroll-audit' },
-      { label: 'Statutory', href: '/statutory' },
+    title: 'Human Resources',
+    items: [
+      { label: 'HR Dashboard', href: '/hr/dashboard', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Employees', href: '/employees', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Leave Dashboard', href: '/hr/leave-dashboard', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      { label: 'Leave Approvals', href: '/hr/leave-approvals', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      { label: 'Payroll Readiness', href: '/hr/payroll-readiness', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Readiness Gates', href: '/hr/payroll-readiness-gates', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
     ],
   },
   {
     title: 'People Operations',
-    links: [
-      { label: 'Attendance', href: '/attendance' },
-      { label: 'Leave', href: '/leave' },
+    items: [
+      { label: 'Attendance', href: '/attendance', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      { label: 'Leave', href: '/leave', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      { label: 'Overtime', href: '/overtime', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      { label: 'Timesheets', href: '/timesheets', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+    ],
+  },
+  {
+    title: 'Payroll',
+    items: [
+      { label: 'Payroll', href: '/payroll', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Payroll Runs', href: '/payroll/runs', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Payroll Audit', href: '/reports/payroll-audit', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Statutory', href: '/statutory', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
     ],
   },
   {
     title: 'Finance',
-    links: [
-      { label: 'Finance Dashboard', href: '/finance/dashboard' },
-      { label: 'Bank Payment Prep', href: '/reports/bank-payment-preparation' },
-      { label: 'Payment Batches', href: '/reports/payment-batches' },
-      { label: 'Finance Evidence', href: '/reports/finance-evidence' },
+    items: [
+      { label: 'Finance Dashboard', href: '/finance/dashboard', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Bank Payment Prep', href: '/reports/bank-payment-preparation', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Payment Batches', href: '/reports/payment-batches', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Payroll Audit', href: '/reports/payroll-audit', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Finance Evidence', href: '/finance/approval-evidence', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Procurement Tracker', href: '/finance/procurement-tracker', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Expense Approvals', href: '/finance/expenses', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'Asset Integration', href: '/finance/asset-management-integration', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { label: 'SharePoint Package', href: '/finance/sharepoint-package', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
     ],
   },
   {
     title: 'Executive',
-    links: [
-      { label: 'Executive Dashboard', href: '/executive/dashboard' },
-      { label: 'Reports Centre', href: '/reports' },
-      { label: 'Public Summary', href: '/reports/public-summary' },
+    items: [
+      { label: 'Executive Dashboard', href: '/executive/dashboard', roles: ['DIRECTOR', 'ADMIN'] },
+      { label: 'Reports Centre', href: '/reports', roles: ['DIRECTOR', 'ADMIN'] },
+      { label: 'Public Summary', href: '/reports/public-summary', roles: ['DIRECTOR', 'ADMIN'] },
     ],
   },
   {
     title: 'Administration',
-    links: [
-      { label: 'SharePoint Integration', href: '/admin/sharepoint-integration' },
-      { label: 'Graph Setup Guide', href: '/admin/sharepoint-graph-setup' },
-      { label: 'Admin', href: '/admin' },
+    items: [
+      { label: 'SharePoint Integration', href: '/admin/sharepoint-integration', roles: ['ADMIN', 'DIRECTOR'] },
+      { label: 'Graph Setup Guide', href: '/admin/sharepoint-graph-setup', roles: ['ADMIN'] },
+      { label: 'Admin', href: '/admin', roles: ['ADMIN'] },
     ],
   },
 ];
 
-function isActivePath(pathname: string, href: string) {
-  if (href === '/dashboard') return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [role, setRole] = useState<StaffRole>('');
+
+  useEffect(() => {
+    function refreshRole() {
+      setRole(getStoredRole());
+    }
+
+    refreshRole();
+
+    const interval = window.setInterval(refreshRole, 700);
+    window.addEventListener('storage', refreshRole);
+    window.addEventListener('focus', refreshRole);
+    window.addEventListener('click', refreshRole);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('storage', refreshRole);
+      window.removeEventListener('focus', refreshRole);
+      window.removeEventListener('click', refreshRole);
+    };
+  }, []);
+
+  const visibleSections = useMemo(() => {
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => roleCanSee(item, role)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [role]);
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand-block">
-          <div className="brand-mark">SP</div>
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <Link className="app-brand" href="/workbench">
+          <span className="app-brand-mark">SP</span>
+          <span>
+            <strong>Southin PeoplePay</strong>
+            <small>HR & Payroll Portal</small>
+          </span>
+        </Link>
 
-          <div>
-            <h2>Southin PeoplePay</h2>
-            <p className="muted">HR & Payroll Portal</p>
-          </div>
+        <div className="sidebar-role-box">
+          <span>Current Staff Role</span>
+          <strong>{role ? role.replaceAll('_', ' ') : 'No role selected'}</strong>
         </div>
 
-        <nav className="sidebar-nav">
-          {navGroups.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <div className="nav-group-title">{group.title}</div>
+        <nav className="app-nav">
+          {visibleSections.map((section) => (
+            <div className="app-nav-section" key={section.title}>
+              <span className="app-nav-heading">{section.title}</span>
 
-              {group.links.map((link) => {
-                const active = isActivePath(pathname, link.href);
+              {section.items.map((item) => {
+                const active =
+                  pathname === item.href ||
+                  (item.href !== '/workbench' && pathname.startsWith(item.href));
 
                 return (
                   <Link
-                    key={link.href}
-                    href={link.href}
-                    className={active ? 'nav-link active' : 'nav-link'}
+                    className={active ? 'app-nav-link active' : 'app-nav-link'}
+                    href={item.href}
+                    key={item.href}
                   >
-                    {link.label}
+                    {item.label}
                   </Link>
                 );
               })}
             </div>
           ))}
         </nav>
+
+        <div className="employee-only-note">
+          <strong>Employee access</strong>
+          <span>Employees use employee login only and do not use this staff ribbon.</span>
+          <Link href="/employee-login">Open Employee Login</Link>
+        </div>
       </aside>
 
-      <main className="main">
-        <div className="main-inner">{children}</div>
+      <main className="app-main">
+        <div className="app-main-inner">{children}</div>
       </main>
     </div>
   );
 }
+
+export default AppShell;

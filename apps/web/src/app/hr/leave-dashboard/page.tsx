@@ -39,8 +39,119 @@ function statusClass(value: string) {
   return 'warning';
 }
 
-function isFemale(employee: any) {
-  return String(employee?.gender || '').toLowerCase().startsWith('f');
+function parseDate(value: any): Date | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+}
+
+function getEmployeeStartDate(employee: any): Date | null {
+  return (
+    parseDate(employee?.engagementDate) ||
+    parseDate(employee?.employmentDate) ||
+    parseDate(employee?.dateJoined) ||
+    parseDate(employee?.hireDate) ||
+    parseDate(employee?.startDate) ||
+    parseDate(employee?.contractStartDate) ||
+    parseDate(employee?.currentContract?.startDate) ||
+    parseDate(employee?.contract?.startDate) ||
+    parseDate(employee?.createdAt)
+  );
+}
+
+function getEmployeeEndDate(employee: any): Date | null {
+  return (
+    parseDate(employee?.contractEndDate) ||
+    parseDate(employee?.endDate) ||
+    parseDate(employee?.currentContract?.endDate) ||
+    parseDate(employee?.contract?.endDate) ||
+    null
+  );
+}
+
+function differenceInCalendarMonths(startDate: Date, endDate: Date) {
+  let months =
+    (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+    (endDate.getMonth() - startDate.getMonth());
+
+  if (endDate.getDate() < startDate.getDate()) {
+    months -= 1;
+  }
+
+  return Math.max(months, 0);
+}
+
+function getContractLengthMonths(startDate: Date | null, endDate: Date | null) {
+  if (!startDate || !endDate) return null;
+
+  const months = differenceInCalendarMonths(startDate, endDate);
+
+  return months;
+}
+
+function calculateLeaveEntitlement(employee: any, approvedDays: number) {
+  const startDate = getEmployeeStartDate(employee);
+  const endDate = getEmployeeEndDate(employee);
+  const today = new Date();
+
+  const calculationEndDate =
+    endDate && endDate.getTime() < today.getTime() ? endDate : today;
+
+  const contractLengthMonths = getContractLengthMonths(startDate, endDate);
+
+  const employmentTypeName = String(
+    employee?.employmentType?.name || employee?.employmentType || '',
+  ).toLowerCase();
+
+  const looksTemporary =
+    employmentTypeName.includes('temporary') ||
+    employmentTypeName.includes('casual') ||
+    employmentTypeName.includes('short') ||
+    employmentTypeName.includes('fixed');
+
+  const isSixMonthsOrLess =
+    contractLengthMonths !== null && contractLengthMonths <= 6;
+
+  const isLeaveEligible = Boolean(startDate) && !isSixMonthsOrLess;
+
+  const completedMonths =
+    startDate && calculationEndDate
+      ? differenceInCalendarMonths(startDate, calculationEndDate)
+      : 0;
+
+  const accrualRatePerMonth = 2;
+  const accruedDays = isLeaveEligible ? completedMonths * accrualRatePerMonth : 0;
+  const remainingDays = Math.max(accruedDays - approvedDays, 0);
+
+  let eligibilityReason = 'Eligible for leave accrual.';
+
+  if (!startDate) {
+    eligibilityReason = 'No engagement or contract start date found.';
+  } else if (isSixMonthsOrLess) {
+    eligibilityReason =
+      'Contract is 6 months or less; employee is treated as temporary and not entitled to leave.';
+  } else if (looksTemporary) {
+    eligibilityReason =
+      'Employment type appears temporary/fixed-term; eligibility is based on contract duration.';
+  }
+
+  return {
+    startDate,
+    endDate,
+    calculationEndDate,
+    contractLengthMonths,
+    completedMonths,
+    accrualRatePerMonth,
+    accruedDays,
+    approvedDays,
+    remainingDays,
+    isLeaveEligible,
+    eligibilityReason,
+  };
 }
 
 export default function HRLeaveDashboardPage() {
@@ -85,24 +196,16 @@ export default function HRLeaveDashboardPage() {
 
     return Array.from(employees.values()).map((employee) => {
       const employeeRequests = requests.filter((item) => item.employee?.id === employee.id);
+
       const approvedDays = employeeRequests
         .filter((item) => item.status === 'APPROVED')
         .reduce((sum, item) => sum + Number(item.totalDays || 0), 0);
 
-      const monthlyLeave = 2;
-      const mothersDay = isFemale(employee) ? 1 : 0;
-      const monthlyEntitlement = monthlyLeave + mothersDay;
-      const annualEstimate = monthlyLeave * 12;
-      const remainingAnnualEstimate = Math.max(annualEstimate - approvedDays, 0);
+      const entitlement = calculateLeaveEntitlement(employee, approvedDays);
 
       return {
         employee,
-        monthlyLeave,
-        mothersDay,
-        monthlyEntitlement,
-        annualEstimate,
-        approvedDays,
-        remainingAnnualEstimate,
+        ...entitlement,
       };
     });
   }, [requests]);
@@ -162,8 +265,8 @@ export default function HRLeaveDashboardPage() {
               <div className="hero-kicker">Human Resources</div>
               <h1>Leave Dashboard & Balances</h1>
               <p>
-                Track submitted leave requests, approval status, approved leave days, and simple
-                leave balance estimates for the current PeoplePay demo phase.
+                Track submitted leave requests, approval status, contract-based leave eligibility,
+                accrued leave days, approved leave taken, and estimated remaining balances.
               </p>
             </div>
 
@@ -220,11 +323,14 @@ export default function HRLeaveDashboardPage() {
                   <thead>
                     <tr>
                       <th>Employee</th>
-                      <th>Department</th>
-                      <th>Monthly Entitlement</th>
-                      <th>Annual Estimate</th>
+                      <th>Contract Start</th>
+                      <th>Contract End</th>
+                      <th>Contract Months</th>
+                      <th>Accrued Months</th>
+                      <th>Accrued Days</th>
                       <th>Approved Days</th>
-                      <th>Estimated Balance</th>
+                      <th>Balance</th>
+                      <th>Eligibility</th>
                     </tr>
                   </thead>
 
@@ -237,19 +343,40 @@ export default function HRLeaveDashboardPage() {
                           <span className="muted">{balance.employee.employeeNumber}</span>
                         </td>
 
-                        <td>{balance.employee?.department?.name || '-'}</td>
+                        <td>{formatDate(balance.startDate)}</td>
+
+                        <td>{formatDate(balance.endDate)}</td>
 
                         <td>
-                          {balance.monthlyLeave} days
-                          {balance.mothersDay ? ' + 1 Mother’s Day' : ''}
+                          {balance.contractLengthMonths === null
+                            ? 'Open-ended'
+                            : `${balance.contractLengthMonths} month(s)`}
                         </td>
 
-                        <td>{balance.annualEstimate} days</td>
-
-                        <td>{balance.approvedDays} days</td>
+                        <td>{balance.completedMonths} month(s)</td>
 
                         <td>
-                          <strong>{balance.remainingAnnualEstimate} days</strong>
+                          <strong>{balance.accruedDays} day(s)</strong>
+                          <br />
+                          <span className="muted">{balance.accrualRatePerMonth} days/month</span>
+                        </td>
+
+                        <td>{balance.approvedDays} day(s)</td>
+
+                        <td>
+                          <strong>{balance.remainingDays} day(s)</strong>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`employee-status ${
+                              balance.isLeaveEligible ? 'success' : 'danger'
+                            }`}
+                          >
+                            {balance.isLeaveEligible ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+                          </span>
+                          <br />
+                          <span className="muted">{balance.eligibilityReason}</span>
                         </td>
                       </tr>
                     ))}
@@ -318,9 +445,11 @@ export default function HRLeaveDashboardPage() {
           </section>
 
           <div className="notice" style={{ marginTop: '1rem' }}>
-            Current balance logic is for MVP/demo use. Full accrual, carry-over, opening balances,
-            leave year configuration, and HR manual adjustments will be added in the next leave
-            management phase.
+            Leave balance is now calculated from the employee engagement or contract start date.
+            Employees on contracts of 6 months or less are treated as temporary and do not accrue
+            leave. Current accrual rate is 2 days per completed month. Full opening balances,
+            carry-over, HR adjustments, leave year setup, and contract renewal history will be added
+            in the next leave management phase.
           </div>
         </section>
       </main>
