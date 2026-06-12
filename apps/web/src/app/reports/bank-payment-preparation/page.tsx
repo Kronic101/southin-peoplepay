@@ -1,4 +1,4 @@
-import Link from 'next/link';
+
 import { ReportPageFrame } from '@/components/reports/ReportPageFrame';
 import { SummaryGrid } from '@/components/ui/SummaryGrid';
 import { Notice } from '@/components/ui/Notice';
@@ -60,25 +60,28 @@ export default async function BankPaymentPreparationPage() {
         eyebrow="Finance Payment Preparation"
         title="Bank Payment Preparation"
         description="Finance-controlled salary payment preparation area for locked payroll runs. This phase prepares evidence only and does not trigger real bank transfers."
-        actions={
-          <>
-            <Link className="btn-secondary" href="/reports">
-              Reports Centre
-            </Link>
-
-            <Link className="btn-secondary" href="/reports/payment-batches">
-              Payment Batches
-            </Link>
-
-            <Link className="btn-secondary" href="/finance/approval-evidence">
-              Finance Evidence
-            </Link>
-
-            <a className="btn" href={getPayrollAuditCsvUrl(payrollRun?.id)}>
-              Download Payroll Audit CSV
-            </a>
-          </>
-        }
+        actions={[
+          {
+            label: 'Reports Centre',
+            href: '/reports',
+            variant: 'secondary',
+          },
+          {
+            label: 'Payment Batches',
+            href: '/reports/payment-batches',
+            variant: 'secondary',
+          },
+          {
+            label: 'Finance Evidence',
+            href: '/reports/finance-evidence',
+            variant: 'secondary',
+          },
+          {
+            label: 'Download Payroll Audit CSV',
+            href: getPayrollAuditCsvUrl(),
+            variant: 'primary',
+          },
+        ]}
       >
         <SummaryGrid
           items={[

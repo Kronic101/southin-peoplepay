@@ -60,22 +60,25 @@ export default function ReportsCentrePage() {
         eyebrow="Reports Centre"
         title="Southin Operations Reports"
         description="Central access point for payroll audit, Finance evidence, payment batches, readiness checks, and SharePoint-safe summaries."
-        actions={
-          <>
-            <Link className="btn-secondary" href="/workbench">
-              Workbench
-            </Link>
-
-            <Link className="btn-secondary" href="/finance/dashboard">
-              Finance Dashboard
-            </Link>
-
-            <Link className="btn" href="/executive/dashboard">
-              Executive Dashboard
-            </Link>
-          </>
-        }
+        actions={[
+            {
+              label: 'Workbench',
+              href: "/workbench",
+              variant: 'secondary',
+            },
+            {
+              label: 'Finance Dashboard',
+              href: "/finance/dashboard",
+              variant: 'secondary',
+            },
+            {
+              label: 'Executive Dashboard',
+              href: "/executive/dashboard",
+              variant: 'secondary',
+            },
+        ]}
       >
+
         <SummaryGrid
           items={[
             {

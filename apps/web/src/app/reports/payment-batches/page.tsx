@@ -49,21 +49,28 @@ export default async function PaymentBatchesPage() {
         eyebrow="Finance Payment Control"
         title="Payment Batches"
         description="Finance-controlled payment batches prepared from locked payroll runs. These records do not trigger real bank transfers."
-        actions={
-          <>
-            <Link className="btn-secondary" href="/finance/dashboard">
-              Finance Dashboard
-            </Link>
+        actions={[
+          
+            {
+              label: 'Finance Dashboard',
+              href: "/finance/dashboard",
+              variant: 'secondary',
+            },
 
-            <Link className="btn-secondary" href="/reports/bank-payment-preparation">
-              Payment Prep
-            </Link>
+            {
+              label: 'Payment Prep',
+              href: "/reports/bank-payment-preparation",
+              variant: 'secondary',
+            },
 
-            <Link className="btn" href="/finance/approval-evidence">
-              Finance Evidence
-            </Link>
-          </>
-        }
+            {
+              
+              label: 'Finance Evidence',
+              href: "/finance/approval-evidence",
+              variant: 'secondary',
+           },
+          
+        ]}
       >
         <SummaryGrid
           items={[
