@@ -795,34 +795,30 @@ export class FinanceService {
   }
 
   async getFinanceReportSummary() {
-    const [
-      expenses,
-      procurementRequests,
-      evidence,
-      paymentBatches,
-      sharePointPackages,
-      approvalRequests,
-    ] = await Promise.all([
-      this.prisma.financeExpense.findMany(),
-      this.prisma.procurementRequest.findMany(),
-      this.prisma.financePaymentEvidence.findMany(),
-      this.prisma.paymentBatch.findMany(),
-      this.prisma.hubDocument.findMany({
-        where: {
-          module: OperationsModule.FINANCE,
-        },
-      }),
-      this.prisma.approvalRequest.findMany({
-        where: {
-          OR: [
-            { sourceEntityType: 'FinanceExpense' },
-            { sourceEntityType: 'ProcurementRequest' },
-            { module: OperationsModule.FINANCE },
-            { module: OperationsModule.PROCUREMENT },
-          ],
-        },
-      }),
-    ]);
+    const expenses = await this.prisma.financeExpense.findMany();
+
+    const procurementRequests = await this.prisma.procurementRequest.findMany();
+
+    const evidence = await this.prisma.financePaymentEvidence.findMany();
+
+    const paymentBatches = await this.prisma.paymentBatch.findMany();
+
+    const sharePointPackages = await this.prisma.hubDocument.findMany({
+      where: {
+        module: OperationsModule.FINANCE,
+      },
+    });
+
+    const approvalRequests = await this.prisma.approvalRequest.findMany({
+      where: {
+        OR: [
+          { sourceEntityType: 'FinanceExpense' },
+          { sourceEntityType: 'ProcurementRequest' },
+          { module: OperationsModule.FINANCE },
+          { module: OperationsModule.PROCUREMENT },
+        ],
+      },
+    });
 
     const approvedUnpaidExpenses = expenses.filter(
       (item) => item.status === FinanceExpenseStatus.APPROVED,
@@ -912,11 +908,11 @@ export class FinanceService {
   }
 
   async getDepartmentCostReport() {
-    const [expenses, procurementRequests, paymentBatchItems] = await Promise.all([
-      this.prisma.financeExpense.findMany(),
-      this.prisma.procurementRequest.findMany(),
-      this.prisma.paymentBatchItem.findMany(),
-    ]);
+    const expenses = await this.prisma.financeExpense.findMany();
+
+    const procurementRequests = await this.prisma.procurementRequest.findMany();
+
+    const paymentBatchItems = await this.prisma.paymentBatchItem.findMany();
 
     const map = new Map<
       string,
@@ -982,10 +978,9 @@ export class FinanceService {
   }
 
   async getSiteCostReport() {
-    const [expenses, procurementRequests] = await Promise.all([
-      this.prisma.financeExpense.findMany(),
-      this.prisma.procurementRequest.findMany(),
-    ]);
+    const expenses = await this.prisma.financeExpense.findMany();
+
+    const procurementRequests = await this.prisma.procurementRequest.findMany();
 
     const map = new Map<
       string,
@@ -1043,27 +1038,27 @@ export class FinanceService {
   }
 
   async getOutstandingPaymentsReport() {
-    const [expenses, procurementRequests, paymentBatches] = await Promise.all([
-      this.prisma.financeExpense.findMany({
-        where: {
-          status: FinanceExpenseStatus.APPROVED,
+    const expenses = await this.prisma.financeExpense.findMany({
+      where: {
+        status: FinanceExpenseStatus.APPROVED,
+      },
+    });
+
+    const procurementRequests = await this.prisma.procurementRequest.findMany({
+      where: {
+        paymentStatus: {
+          not: 'PAID',
         },
-      }),
-      this.prisma.procurementRequest.findMany({
-        where: {
-          paymentStatus: {
-            not: 'PAID',
-          },
+      },
+    });
+
+    const paymentBatches = await this.prisma.paymentBatch.findMany({
+      where: {
+        status: {
+          notIn: ['PAID', 'CLOSED'],
         },
-      }),
-      this.prisma.paymentBatch.findMany({
-        where: {
-          status: {
-            notIn: ['PAID', 'CLOSED'],
-          },
-        },
-      }),
-    ]);
+      },
+    });
 
     const rows = [
       ...expenses.map((item) => ({
