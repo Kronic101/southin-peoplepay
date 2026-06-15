@@ -1587,3 +1587,11 @@ export async function getFinanceExportLogs(): Promise<FinanceExportLog[]> {
 export function getFinanceExportUrl(path: string) {
   return `${API_URL}${path}`;
 }
+
+export async function getFinanceCombinedReports(): Promise<FinanceCombinedReportsResponse> {
+  return apiGet<FinanceCombinedReportsResponse>(
+    '/finance/reports/combined',
+    'Failed to load combined finance reports',
+    true,
+  );
+}
