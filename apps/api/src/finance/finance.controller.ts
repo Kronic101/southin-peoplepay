@@ -1,20 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 
 /**
  * FinanceController
  * ------------------------------------------------------------
  * API controller for Southin Operations Hub Finance workflows.
- *
- * Base path:
- * /api/finance
- *
- * These endpoints are used by:
- * - /finance/dashboard
- * - /finance/expenses
- * - /finance/procurement-tracker
- * - /finance/approval-evidence
- * - /finance/sharepoint-package
  */
 @Controller('finance')
 export class FinanceController {
@@ -35,7 +25,7 @@ export class FinanceController {
     const expense = await this.financeService.createExpense(body);
 
     return {
-      message: 'Expense submitted successfully.',
+      message: 'Expense submitted successfully and routed for approval.',
       expense,
     };
   }
@@ -45,7 +35,7 @@ export class FinanceController {
     const expense = await this.financeService.approveExpense(id, body);
 
     return {
-      message: 'Expense approved successfully.',
+      message: 'Expense approval step completed.',
       expense,
     };
   }
@@ -80,7 +70,27 @@ export class FinanceController {
     const record = await this.financeService.createProcurementPayment(body);
 
     return {
-      message: 'Procurement payment record created successfully.',
+      message: 'Procurement payment record created and routed for approval.',
+      record,
+    };
+  }
+
+  @Patch('procurement-payments/:id/approve')
+  async approveProcurementPayment(@Param('id') id: string, @Body() body: any) {
+    const record = await this.financeService.approveProcurementPayment(id, body);
+
+    return {
+      message: 'Procurement approval step completed.',
+      record,
+    };
+  }
+
+  @Patch('procurement-payments/:id/reject')
+  async rejectProcurementPayment(@Param('id') id: string, @Body() body: any) {
+    const record = await this.financeService.rejectProcurementPayment(id, body);
+
+    return {
+      message: 'Procurement payment record rejected.',
       record,
     };
   }
@@ -197,5 +207,63 @@ export class FinanceController {
       message: 'Finance SharePoint package marked as published.',
       document,
     };
+  }
+
+  @Get('reports/summary')
+  getFinanceReportSummary() {
+    return this.financeService.getFinanceReportSummary();
+  }
+
+  @Get('reports/department-costs')
+  getDepartmentCostReport() {
+    return this.financeService.getDepartmentCostReport();
+  }
+
+  @Get('reports/site-costs')
+  getSiteCostReport() {
+    return this.financeService.getSiteCostReport();
+  }
+
+  @Get('reports/outstanding-payments')
+  getOutstandingPaymentsReport() {
+    return this.financeService.getOutstandingPaymentsReport();
+  }
+
+  @Get('reports/approval-status')
+  getApprovalStatusReport() {
+    return this.financeService.getApprovalStatusReport();
+  }
+
+  @Get('reports/export-logs')
+  getFinanceExportLogs() {
+    return this.financeService.getFinanceExportLogs();
+  }
+
+  @Get('exports/expenses.csv')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="finance-expenses.csv"')
+  exportExpensesCsv() {
+    return this.financeService.exportExpensesCsv();
+  }
+
+  @Get('exports/procurement.csv')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="finance-procurement.csv"')
+  exportProcurementCsv() {
+    return this.financeService.exportProcurementCsv();
+  }
+
+  @Get('exports/evidence.csv')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="finance-evidence.csv"')
+  exportEvidenceCsv() {
+    return this.financeService.exportEvidenceCsv();
+  }
+
+  @Get('exports/payment-batches.csv')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="finance-payment-batches.csv"')
+  exportPaymentBatchesCsv() {
+    return this.financeService.exportPaymentBatchesCsv();
   }
 }

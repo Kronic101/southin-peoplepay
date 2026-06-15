@@ -728,6 +728,29 @@ model ApprovalDecision {
   @@map("approval_decisions")
 }
 
+model FinanceReportExportLog {
+  id              String                    @id @default(uuid())
+
+  reportType      FinanceReportType
+  exportFormat    FinanceExportFormat       @default(JSON)
+  status          FinanceReportExportStatus @default(GENERATED)
+
+  requestedBy     String?
+  requestedByEmail String?
+
+  filterPayload   Json?
+  resultSummary   Json?
+  fileName        String?
+  errorMessage    String?
+
+  createdAt       DateTime                  @default(now())
+
+  @@index([reportType])
+  @@index([exportFormat])
+  @@index([createdAt])
+  @@map("finance_report_export_logs")
+}
+
 model FinanceExpense {
   id              String               @id @default(uuid())
   expenseNo       String               @unique
@@ -1445,6 +1468,30 @@ model FleetWorkshopLabour {
 
   @@index([workshopJobId])
   @@map("fleet_workshop_labour")
+}
+
+enum FinanceReportType {
+  SUMMARY
+  DEPARTMENT_COSTS
+  SITE_COSTS
+  OUTSTANDING_PAYMENTS
+  APPROVAL_STATUS
+  EXPENSE_EXPORT
+  PROCUREMENT_EXPORT
+  EVIDENCE_EXPORT
+  PAYMENT_BATCH_EXPORT
+}
+
+enum FinanceExportFormat {
+  JSON
+  CSV
+  PDF
+  EXCEL
+}
+
+enum FinanceReportExportStatus {
+  GENERATED
+  FAILED
 }
 
 enum StockItemType {
