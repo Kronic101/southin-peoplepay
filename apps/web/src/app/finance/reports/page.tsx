@@ -147,38 +147,38 @@ export default function FinanceReportsPage() {
   const [error, setError] = useState('');
 
   async function loadReports() {
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
 
+  const errors: string[] = [];
+
+  async function safeRun<T>(
+    label: string,
+    request: () => Promise<T>,
+    onSuccess: (data: T) => void,
+  ) {
     try {
-      const [
-        summaryResponse,
-        departmentResponse,
-        siteResponse,
-        outstandingResponse,
-        approvalsResponse,
-        logsResponse,
-      ] = await Promise.all([
-        getFinanceReportSummary(),
-        getFinanceDepartmentCosts(),
-        getFinanceSiteCosts(),
-        getFinanceOutstandingPayments(),
-        getFinanceApprovalStatus(),
-        getFinanceExportLogs(),
-      ]);
-
-      setSummary(summaryResponse);
-      setDepartmentCosts(departmentResponse);
-      setSiteCosts(siteResponse);
-      setOutstanding(outstandingResponse);
-      setApprovals(approvalsResponse);
-      setExportLogs(logsResponse);
+      const result = await request();
+      onSuccess(result);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load finance reports.');
-    } finally {
-      setLoading(false);
+      console.error(`${label} failed`, err);
+      errors.push(label);
     }
   }
+
+  await safeRun('Summary report', getFinanceReportSummary, setSummary);
+  await safeRun('Department cost report', getFinanceDepartmentCosts, setDepartmentCosts);
+  await safeRun('Site cost report', getFinanceSiteCosts, setSiteCosts);
+  await safeRun('Outstanding payments report', getFinanceOutstandingPayments, setOutstanding);
+  await safeRun('Approval status report', getFinanceApprovalStatus, setApprovals);
+  await safeRun('Export logs', getFinanceExportLogs, setExportLogs);
+
+  if (errors.length > 0) {
+    setError(`Some reports failed to load: ${errors.join(', ')}. Refresh again after a few seconds.`);
+  }
+
+  setLoading(false);
+}
 
   useEffect(() => {
     loadReports();
