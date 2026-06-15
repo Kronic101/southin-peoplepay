@@ -56,29 +56,25 @@ export class AssetsService {
     return movementTypes.has(movementType);
   }
 
-  async getDashboard() {
-    const [
-      assets,
-      stockItems,
-      locations,
-      movements,
-      qrTags,
-      scaffoldComponents,
-      balances,
-    ] = await Promise.all([
-      this.prisma.hubAsset.findMany(),
-      this.prisma.stockItem.findMany(),
-      this.prisma.stockLocation.findMany(),
-      this.prisma.stockMovement.findMany(),
-      this.prisma.assetQrTag.findMany(),
-      this.prisma.scaffoldComponent.findMany(),
-      this.prisma.stockBalance.findMany({
-        include: {
-          stockItem: true,
-          location: true,
-        },
-      }),
-    ]);
+    async getDashboard() {
+    const assets = await this.prisma.hubAsset.findMany();
+
+    const stockItems = await this.prisma.stockItem.findMany();
+
+    const locations = await this.prisma.stockLocation.findMany();
+
+    const movements = await this.prisma.stockMovement.findMany();
+
+    const qrTags = await this.prisma.assetQrTag.findMany();
+
+    const scaffoldComponents = await this.prisma.scaffoldComponent.findMany();
+
+    const balances = await this.prisma.stockBalance.findMany({
+      include: {
+        stockItem: true,
+        location: true,
+      },
+    });
 
     return {
       summary: {
