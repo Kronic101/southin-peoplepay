@@ -14,6 +14,7 @@ import { LeaveModule } from './leave/leave.module';
 import { OrgModule } from './org/org.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { FinanceModule } from './finance/finance.module';
+import { AssetsModule } from './assets/assets.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { FinanceModule } from './finance/finance.module';
     OrgModule,
     ApprovalsModule,
     FinanceModule,
+    AssetsModule,
   ]
 })
 export class AppModule {}
