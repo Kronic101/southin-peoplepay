@@ -209,6 +209,11 @@ export class FinanceController {
     };
   }
 
+    @Get('reports/combined')
+  getCombinedFinanceReports() {
+    return this.financeService.getCombinedFinanceReports();
+  }
+
   @Get('reports/summary')
   getFinanceReportSummary() {
     return this.financeService.getFinanceReportSummary();

@@ -775,6 +775,25 @@ export class FinanceService {
     });
   }
 
+    async getCombinedFinanceReports() {
+    const summary = await this.getFinanceReportSummary();
+    const departmentCosts = await this.getDepartmentCostReport();
+    const siteCosts = await this.getSiteCostReport();
+    const outstandingPayments = await this.getOutstandingPaymentsReport();
+    const approvalStatus = await this.getApprovalStatusReport();
+    const exportLogs = await this.getFinanceExportLogs();
+
+    return {
+      generatedAt: new Date().toISOString(),
+      summary,
+      departmentCosts,
+      siteCosts,
+      outstandingPayments,
+      approvalStatus,
+      exportLogs,
+    };
+  }
+
   async getFinanceReportSummary() {
     const [
       expenses,
