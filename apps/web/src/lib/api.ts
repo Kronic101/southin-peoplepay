@@ -128,6 +128,7 @@ async function apiPatch<T = any>(
     method: 'PATCH',
     headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
+    cache: 'no-store',
   });
 
   if (!res.ok) {
@@ -1071,4 +1072,324 @@ export async function getBankPaymentPreparation(runId?: string) {
       'Confirm bank payment preparation evidence is stored separately in Finance.',
     ],
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Finance                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export type FinanceExpense = {
+  id: string;
+  expenseNo: string;
+  category: string;
+  description: string;
+  amount: string | number;
+  department?: string | null;
+  site?: string | null;
+  payee?: string | null;
+  requestedBy?: string | null;
+  requestedByEmail?: string | null;
+  status: string;
+  evidenceStatus: string;
+  approvalRequestId?: string | null;
+  paidBy?: string | null;
+  paidAt?: string | null;
+  paymentReference?: string | null;
+  financeComment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinanceExpensesResponse = {
+  summary: {
+    totalRecords: number;
+    totalValue: number;
+    submitted: number;
+    approved: number;
+    rejected: number;
+    paid: number;
+  };
+  expenses: FinanceExpense[];
+};
+
+export async function getFinanceDashboard() {
+  return apiGet('/finance/dashboard', 'Failed to load finance dashboard', true);
+}
+
+export async function getFinanceExpenses(): Promise<FinanceExpensesResponse> {
+  return apiGet<FinanceExpensesResponse>(
+    '/finance/expenses',
+    'Failed to load finance expenses',
+    true,
+  );
+}
+
+export async function createFinanceExpense(payload: {
+  category: string;
+  description: string;
+  amount: number;
+  department?: string;
+  site?: string;
+  payee?: string;
+  requestedBy?: string;
+  requestedByEmail?: string;
+}) {
+  return apiPost<{ message: string; expense: FinanceExpense }>(
+    '/finance/expenses',
+    payload,
+    'Failed to create finance expense',
+    true,
+  );
+}
+
+export async function approveFinanceExpense(id: string, financeComment?: string) {
+  return apiPatch<{ message: string; expense: FinanceExpense }>(
+    `/finance/expenses/${id}/approve`,
+    { financeComment },
+    'Failed to approve finance expense',
+    true,
+  );
+}
+
+export async function rejectFinanceExpense(id: string, financeComment?: string) {
+  return apiPatch<{ message: string; expense: FinanceExpense }>(
+    `/finance/expenses/${id}/reject`,
+    { financeComment },
+    'Failed to reject finance expense',
+    true,
+  );
+}
+
+export async function markFinanceExpensePaid(
+  id: string,
+  payload: {
+    paidBy?: string;
+    paymentReference?: string;
+    financeComment?: string;
+  } = {},
+) {
+  return apiPatch<{ message: string; expense: FinanceExpense }>(
+    `/finance/expenses/${id}/mark-paid`,
+    payload,
+    'Failed to mark finance expense as paid',
+    true,
+  );
+}
+
+export type ProcurementPaymentRecord = {
+  id: string;
+  requisitionNo: string;
+  department: string;
+  site?: string | null;
+  requestedBy?: string | null;
+  supplierName?: string | null;
+  description: string;
+  amount: string | number;
+  procurementStage: string;
+  financeStage: string;
+  status: string;
+  invoiceStatus: string;
+  paymentStatus: string;
+  proofOfPaymentStatus: string;
+  purchaseOrderNo?: string | null;
+  invoiceNo?: string | null;
+  goodsReceivedNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProcurementPaymentsResponse = {
+  summary: {
+    totalRecords: number;
+    totalValue: number;
+    invoicePending: number;
+    paymentPending: number;
+    paid: number;
+  };
+  records: ProcurementPaymentRecord[];
+};
+
+export async function getProcurementPayments(): Promise<ProcurementPaymentsResponse> {
+  return apiGet<ProcurementPaymentsResponse>(
+    '/finance/procurement-payments',
+    'Failed to load procurement payments',
+    true,
+  );
+}
+
+export async function createProcurementPayment(payload: {
+  department: string;
+  site?: string;
+  supplierName?: string;
+  description: string;
+  amount: number;
+  requestedBy?: string;
+}) {
+  return apiPost<{ message: string; record: ProcurementPaymentRecord }>(
+    '/finance/procurement-payments',
+    payload,
+    'Failed to create procurement payment',
+    true,
+  );
+}
+
+export async function markProcurementInvoiceReceived(id: string, invoiceNo?: string) {
+  return apiPatch<{ message: string; record: ProcurementPaymentRecord }>(
+    `/finance/procurement-payments/${id}/invoice-received`,
+    { invoiceNo },
+    'Failed to mark invoice received',
+    true,
+  );
+}
+
+export async function markProcurementPaid(id: string) {
+  return apiPatch<{ message: string; record: ProcurementPaymentRecord }>(
+    `/finance/procurement-payments/${id}/mark-paid`,
+    {},
+    'Failed to mark procurement payment as paid',
+    true,
+  );
+}
+
+export async function markProcurementPopUploaded(id: string) {
+  return apiPatch<{ message: string; record: ProcurementPaymentRecord }>(
+    `/finance/procurement-payments/${id}/pop-uploaded`,
+    {},
+    'Failed to mark proof of payment uploaded',
+    true,
+  );
+}
+
+export type FinanceEvidenceRecord = {
+  id: string;
+  expenseId?: string | null;
+  paymentBatchId?: string | null;
+  procurementId?: string | null;
+  evidenceType: string;
+  title: string;
+  status: string;
+  documentId?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinanceEvidenceResponse = {
+  summary: {
+    totalRecords: number;
+    required: number;
+    uploaded: number;
+    approved: number;
+    published: number;
+  };
+  evidence: FinanceEvidenceRecord[];
+};
+
+export async function getFinanceEvidence(): Promise<FinanceEvidenceResponse> {
+  return apiGet<FinanceEvidenceResponse>(
+    '/finance/evidence',
+    'Failed to load finance evidence',
+    true,
+  );
+}
+
+export async function markFinanceEvidenceUploaded(id: string, documentId?: string) {
+  return apiPatch<{ message: string; evidence: FinanceEvidenceRecord }>(
+    `/finance/evidence/${id}/mark-uploaded`,
+    { documentId },
+    'Failed to mark finance evidence uploaded',
+    true,
+  );
+}
+
+export async function approveFinanceEvidence(id: string) {
+  return apiPatch<{ message: string; evidence: FinanceEvidenceRecord }>(
+    `/finance/evidence/${id}/approve`,
+    {},
+    'Failed to approve finance evidence',
+    true,
+  );
+}
+
+export async function markFinanceEvidencePublishReady(id: string) {
+  return apiPatch<{ message: string; evidence: FinanceEvidenceRecord }>(
+    `/finance/evidence/${id}/publish-ready`,
+    {},
+    'Failed to mark finance evidence ready for SharePoint',
+    true,
+  );
+}
+
+export type FinanceSharePointDocument = {
+  id: string;
+  module: string;
+  sourceEntityType?: string | null;
+  sourceEntityId?: string | null;
+  title: string;
+  documentType: string;
+  fileName?: string | null;
+  storageProvider: string;
+  storagePath?: string | null;
+  sharePointUrl?: string | null;
+  status: string;
+  confidentiality: string;
+  uploadedBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinanceSharePointPackageResponse = {
+  summary: {
+    totalRecords: number;
+    draft: number;
+    uploaded: number;
+    approved: number;
+    published: number;
+  };
+  documents: FinanceSharePointDocument[];
+};
+
+export async function getFinanceSharePointPackage(): Promise<FinanceSharePointPackageResponse> {
+  return apiGet<FinanceSharePointPackageResponse>(
+    '/finance/sharepoint-package',
+    'Failed to load finance SharePoint package',
+    true,
+  );
+}
+
+export async function prepareFinanceSharePointPackage(payload: {
+  title: string;
+  documentType?: string;
+  sourceEntityType?: string;
+  sourceEntityId?: string;
+  confidentiality?: string;
+  uploadedBy?: string;
+}) {
+  return apiPost<{ message: string; document: FinanceSharePointDocument }>(
+    '/finance/sharepoint-package/prepare',
+    payload,
+    'Failed to prepare finance SharePoint package',
+    true,
+  );
+}
+
+export async function markFinanceSharePointPackageReady(id: string) {
+  return apiPatch<{ message: string; document: FinanceSharePointDocument }>(
+    `/finance/sharepoint-package/${id}/mark-ready`,
+    {},
+    'Failed to mark finance package ready',
+    true,
+  );
+}
+
+export async function markFinanceSharePointPackagePublished(id: string, sharePointUrl?: string) {
+  return apiPatch<{ message: string; document: FinanceSharePointDocument }>(
+    `/finance/sharepoint-package/${id}/mark-published`,
+    { sharePointUrl },
+    'Failed to mark finance package published',
+    true,
+  );
 }

@@ -1,244 +1,305 @@
 'use client';
 
-import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { AppShell } from '@/components/AppShell';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Notice } from '@/components/ui/Notice';
+import { useEffect, useMemo, useState } from 'react';
 
-/**
- * Finance SharePoint Publishing Package
- * --------------------------------------------------------------------
- * Purpose:
- * This page prepares controlled Finance records for future SharePoint
- * publishing using Microsoft Graph.
- *
- * Current phase:
- * - Demo package checklist.
- *
- * Future phase:
- * - The API will produce a publishing package containing:
- *   - Payroll audit CSV
- *   - Payment batch evidence
- *   - Statutory obligations
- *   - Expense approvals
- *   - Procurement payment evidence
- * - Microsoft Graph will publish approved records to SharePoint libraries/pages.
- */
+import AppShell from '../../../components/AppShell';
+import {
+  getFinanceSharePointPackage,
+  markFinanceSharePointPackagePublished,
+  markFinanceSharePointPackageReady,
+  prepareFinanceSharePointPackage,
+  type FinanceSharePointDocument,
+  type FinanceSharePointPackageResponse,
+} from '../../../lib/api';
 
-type PackageStatus = 'Pending' | 'Ready' | 'Published' | 'Blocked';
+function formatDate(value?: string | null) {
+  if (!value) return '-';
 
-type PackageItem = {
-  id: string;
-  title: string;
-  source: string;
-  destination: string;
-  status: PackageStatus;
-  notes: string;
-};
-
-const seedItems: PackageItem[] = [
-  {
-    id: 'pkg-001',
-    title: 'Payroll Audit Pack',
-    source: 'Payroll Audit Reports',
-    destination: 'Finance → Payroll Audit Reports',
-    status: 'Ready',
-    notes: 'Includes payroll run totals, approval timeline, and employee payroll line summary.',
-  },
-  {
-    id: 'pkg-002',
-    title: 'Payment Batch Pack',
-    source: 'Payment Batches',
-    destination: 'Finance Restricted Library',
-    status: 'Ready',
-    notes: 'Includes payment batch status, employee payment readiness, and manual payment evidence checklist.',
-  },
-  {
-    id: 'pkg-003',
-    title: 'Expense Approval Pack',
-    source: 'Finance Expenses',
-    destination: 'Finance → Expense Approvals',
-    status: 'Pending',
-    notes: 'Will include approved expenses, paid status, and proof-of-payment documents.',
-  },
-  {
-    id: 'pkg-004',
-    title: 'Procurement Payment Pack',
-    source: 'Procurement Tracker',
-    destination: 'Finance → Procurement Payments',
-    status: 'Pending',
-    notes: 'Will include supplier invoice status, PO references, and proof-of-payment tracking.',
-  },
-  {
-    id: 'pkg-005',
-    title: 'Statutory Evidence Pack',
-    source: 'PAYE / NAPSA / NHIMA',
-    destination: 'Finance → Statutory Records',
-    status: 'Blocked',
-    notes: 'Blocked until statutory payment files and certificates are introduced.',
-  },
-];
-
-function statusClass(status: PackageStatus) {
-  if (status === 'Published' || status === 'Ready') return 'employee-status success';
-  if (status === 'Blocked') return 'employee-status danger';
-  return 'employee-status warning';
+  return new Intl.DateTimeFormat('en-ZM', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }
 
+function statusClass(status: string) {
+  const value = String(status || '').toUpperCase();
+
+  if (['APPROVED', 'PUBLISHED_TO_SHAREPOINT'].includes(value)) {
+    return 'status-pill success';
+  }
+
+  if (['REJECTED', 'ARCHIVED'].includes(value)) {
+    return 'status-pill danger';
+  }
+
+  if (['DRAFT', 'UPLOADED'].includes(value)) {
+    return 'status-pill warning';
+  }
+
+  return 'status-pill';
+}
+
+const emptyResponse: FinanceSharePointPackageResponse = {
+  summary: {
+    totalRecords: 0,
+    draft: 0,
+    uploaded: 0,
+    approved: 0,
+    published: 0,
+  },
+  documents: [],
+};
+
 export default function FinanceSharePointPackagePage() {
-  const [items, setItems] = useState(seedItems);
+  const [data, setData] = useState<FinanceSharePointPackageResponse>(emptyResponse);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const totals = useMemo(() => {
-    return {
-      total: items.length,
-      ready: items.filter((item) => item.status === 'Ready').length,
-      pending: items.filter((item) => item.status === 'Pending').length,
-      blocked: items.filter((item) => item.status === 'Blocked').length,
-      published: items.filter((item) => item.status === 'Published').length,
-    };
-  }, [items]);
+  async function loadPackages() {
+    setLoading(true);
+    setError('');
 
-  function markReady(id: string) {
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, status: 'Ready' } : item)));
+    try {
+      const response = await getFinanceSharePointPackage();
+      setData(response);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load SharePoint package records.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function markPublished(id: string) {
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, status: 'Published' } : item)),
-    );
+  useEffect(() => {
+    loadPackages();
+  }, []);
+
+  const documents = useMemo(() => data.documents || [], [data.documents]);
+
+  async function handlePrepare(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage('');
+    setError('');
+
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      await prepareFinanceSharePointPackage({
+        title: String(formData.get('title') || ''),
+        documentType: String(formData.get('documentType') || 'FINANCE_EVIDENCE_PACKAGE'),
+        sourceEntityType: String(formData.get('sourceEntityType') || 'FinanceExpense'),
+        confidentiality: String(formData.get('confidentiality') || 'CONFIDENTIAL_FINANCE'),
+        uploadedBy: String(formData.get('uploadedBy') || 'finance@southincon.com'),
+      });
+
+      event.currentTarget.reset();
+      setMessage('Finance SharePoint package prepared.');
+      await loadPackages();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to prepare SharePoint package.');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function resetPackage() {
-    setItems(seedItems);
+  async function handleReady(record: FinanceSharePointDocument) {
+    setMessage('');
+    setError('');
+
+    try {
+      await markFinanceSharePointPackageReady(record.id);
+      setMessage(`${record.title} marked ready.`);
+      await loadPackages();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to mark package ready.');
+    }
+  }
+
+  async function handlePublished(record: FinanceSharePointDocument) {
+    setMessage('');
+    setError('');
+
+    try {
+      await markFinanceSharePointPackagePublished(
+        record.id,
+        record.sharePointUrl || 'https://southincon.sharepoint.com/sites/finance',
+      );
+      setMessage(`${record.title} marked as published.`);
+      await loadPackages();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to mark package published.');
+    }
   }
 
   return (
     <AppShell>
-      <section className="card wide-page-card">
-        <PageHeader
-          eyebrow="Finance Document Control"
-          title="SharePoint Finance Publishing Package"
-          description="Prepare approved Finance records for future SharePoint document control, audit evidence, and departmental dashboard publishing."
-        />
+      <section className="page-stack finance-live-page">
+        <div className="finance-live-card">
+          <div className="finance-live-header">
+            <div>
+              <p className="eyebrow">Finance Workflow</p>
+              <h1>Finance SharePoint Package</h1>
+              <p className="muted">
+                Prepares finance document packages for controlled SharePoint publishing. SharePoint
+                is the publishing layer only; Supabase remains the source of truth.
+              </p>
+            </div>
 
-        <div className="action-row" style={{ marginBottom: '1rem' }}>
-          <Link className="btn-secondary" href="/finance/dashboard">
-            Back to Finance Dashboard
-          </Link>
+            <button className="btn-secondary" onClick={loadPackages} type="button">
+              Refresh
+            </button>
+          </div>
 
-          <Link className="btn-secondary" href="/finance/approval-evidence">
-            Finance Evidence
-          </Link>
+          {message && <div className="finance-notice success">{message}</div>}
+          {error && <div className="finance-notice danger">{error}</div>}
 
-          <Link className="btn-secondary" href="/admin/sharepoint-integration">
-            SharePoint Integration
-          </Link>
-
-          <button className="btn" type="button" onClick={resetPackage}>
-            Reset Demo Package
-          </button>
+          <div className="finance-summary-grid">
+            <div className="finance-summary-card">
+              <span>Total Records</span>
+              <strong>{data.summary.totalRecords}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Draft</span>
+              <strong>{data.summary.draft}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Uploaded</span>
+              <strong>{data.summary.uploaded}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Approved</span>
+              <strong>{data.summary.approved}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Published</span>
+              <strong>{data.summary.published}</strong>
+            </div>
+          </div>
         </div>
 
-        <Notice>
-          This page does not publish live data yet. It prepares the control structure for future
-          Microsoft Graph publishing. Once enabled, only approved and locked Finance records should
-          be published to SharePoint.
-        </Notice>
+        <div className="finance-live-card">
+          <h2>Prepare Package</h2>
 
-        <section className="finance-kpi-grid">
-          <div className="employee-panel">
-            <h2>Total Items</h2>
-            <div className="leave-summary-card">
-              <span>Package records</span>
-              <strong>{totals.total}</strong>
-            </div>
+          <form className="finance-form-grid" onSubmit={handlePrepare}>
+            <label>
+              Package Title
+              <input
+                name="title"
+                defaultValue="Finance Expense Evidence Package"
+                placeholder="Package title"
+                required
+              />
+            </label>
+
+            <label>
+              Document Type
+              <input name="documentType" defaultValue="FINANCE_EVIDENCE_PACKAGE" />
+            </label>
+
+            <label>
+              Source Entity Type
+              <input name="sourceEntityType" defaultValue="FinanceExpense" />
+            </label>
+
+            <label>
+              Confidentiality
+              <select name="confidentiality" defaultValue="CONFIDENTIAL_FINANCE">
+                <option value="INTERNAL">Internal</option>
+                <option value="CONFIDENTIAL_FINANCE">Confidential Finance</option>
+                <option value="CONFIDENTIAL_EXECUTIVE">Confidential Executive</option>
+              </select>
+            </label>
+
+            <label>
+              Uploaded By
+              <input name="uploadedBy" defaultValue="finance@southincon.com" />
+            </label>
+
+            <button className="btn" disabled={saving} type="submit">
+              {saving ? 'Preparing...' : 'Prepare Package'}
+            </button>
+          </form>
+        </div>
+
+        <div className="finance-live-card">
+          <h2>Package Register</h2>
+
+          <div className="finance-table-wrap">
+            <table className="finance-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Document Type</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th>Confidentiality</th>
+                  <th>Uploaded By</th>
+                  <th>Approved By</th>
+                  <th>SharePoint URL</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={10}>Loading SharePoint package records...</td>
+                  </tr>
+                ) : documents.length === 0 ? (
+                  <tr>
+                    <td colSpan={10}>No finance SharePoint package records found.</td>
+                  </tr>
+                ) : (
+                  documents.map((record) => (
+                    <tr key={record.id}>
+                      <td>{record.title}</td>
+                      <td>{record.documentType}</td>
+                      <td>{record.sourceEntityType || '-'}</td>
+                      <td>
+                        <span className={statusClass(record.status)}>{record.status}</span>
+                      </td>
+                      <td>{record.confidentiality}</td>
+                      <td>{record.uploadedBy || '-'}</td>
+                      <td>{record.approvedBy || '-'}</td>
+                      <td>{record.sharePointUrl || '-'}</td>
+                      <td>{formatDate(record.createdAt)}</td>
+                      <td>
+                        <div className="finance-inline-actions">
+                          {record.status === 'DRAFT' && (
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleReady(record)}
+                              type="button"
+                            >
+                              Mark Ready
+                            </button>
+                          )}
+
+                          {record.status === 'APPROVED' && (
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handlePublished(record)}
+                              type="button"
+                            >
+                              Mark Published
+                            </button>
+                          )}
+
+                          {!['DRAFT', 'APPROVED'].includes(record.status) && (
+                            <span className="muted">No action</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-
-          <div className="employee-panel">
-            <h2>Ready</h2>
-            <div className="leave-summary-card">
-              <span>Ready to publish</span>
-              <strong>{totals.ready}</strong>
-            </div>
-          </div>
-
-          <div className="employee-panel">
-            <h2>Pending</h2>
-            <div className="leave-summary-card">
-              <span>Needs completion</span>
-              <strong>{totals.pending}</strong>
-            </div>
-          </div>
-
-          <div className="employee-panel">
-            <h2>Blocked</h2>
-            <div className="leave-summary-card">
-              <span>Cannot publish</span>
-              <strong>{totals.blocked}</strong>
-            </div>
-          </div>
-
-          <div className="employee-panel">
-            <h2>Published</h2>
-            <div className="leave-summary-card">
-              <span>Sent to SharePoint</span>
-              <strong>{totals.published}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="employee-panel" style={{ marginTop: '1rem' }}>
-          <h2>Publishing Package Register</h2>
-
-          <div className="record-card-list">
-            {items.map((item) => (
-              <article className="workflow-record-card" key={item.id}>
-                <div className="workflow-record-grid">
-                  <div className="leave-summary-card wide-field">
-                    <span>Package Item</span>
-                    <strong>{item.title}</strong>
-                  </div>
-
-                  <div className="leave-summary-card">
-                    <span>Source</span>
-                    <strong>{item.source}</strong>
-                  </div>
-
-                  <div className="leave-summary-card wide-field">
-                    <span>Destination</span>
-                    <strong>{item.destination}</strong>
-                  </div>
-
-                  <div className="leave-summary-card">
-                    <span>Status</span>
-                    <strong>
-                      <span className={statusClass(item.status)}>{item.status}</span>
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="notice" style={{ marginTop: '1rem' }}>
-                  {item.notes}
-                </div>
-
-                <div className="action-row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-                  {item.status === 'Pending' && (
-                    <button className="btn-secondary" type="button" onClick={() => markReady(item.id)}>
-                      Mark Ready
-                    </button>
-                  )}
-
-                  {item.status === 'Ready' && (
-                    <button className="btn" type="button" onClick={() => markPublished(item.id)}>
-                      Mark Published
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        </div>
       </section>
     </AppShell>
   );
