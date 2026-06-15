@@ -126,6 +126,7 @@ const navSections: NavSection[] = [
     title: 'Finance',
     items: [
       { label: 'Finance Dashboard', href: '/finance/dashboard', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      { href: '/finance/reports', label: 'Finance Reports', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
       { label: 'Bank Payment Prep', href: '/reports/bank-payment-preparation', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
       { label: 'Payment Batches', href: '/reports/payment-batches', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
       { label: 'Payroll Audit', href: '/reports/payroll-audit', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },

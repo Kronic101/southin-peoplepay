@@ -1393,3 +1393,197 @@ export async function markFinanceSharePointPackagePublished(id: string, sharePoi
     true,
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Finance Reports                                                            */
+/* -------------------------------------------------------------------------- */
+
+export type FinanceReportSummaryResponse = {
+  generatedAt: string;
+  currency: string;
+  summary: {
+    expenses: {
+      totalRecords: number;
+      totalValue: number;
+      submitted: number;
+      inReview: number;
+      approved: number;
+      rejected: number;
+      paid: number;
+      outstandingApprovedValue: number;
+    };
+    procurement: {
+      totalRecords: number;
+      totalValue: number;
+      submitted: number;
+      approved: number;
+      paid: number;
+      pendingPayment: number;
+      pendingPaymentValue: number;
+    };
+    evidence: {
+      totalRecords: number;
+      required: number;
+      uploaded: number;
+      approved: number;
+      readyForSharePoint: number;
+      published: number;
+    };
+    payrollPayments: {
+      paymentBatchRecords: number;
+      totalNetPay: number;
+      approvedBatches: number;
+    };
+    sharePointPackages: {
+      totalRecords: number;
+      draft: number;
+      approved: number;
+      published: number;
+    };
+    approvals: {
+      totalRecords: number;
+      submitted: number;
+      inReview: number;
+      approved: number;
+      rejected: number;
+    };
+  };
+};
+
+export type FinanceDepartmentCostRow = {
+  department: string;
+  expenseValue: number;
+  procurementValue: number;
+  payrollNetValue: number;
+  totalValue: number;
+};
+
+export type FinanceDepartmentCostResponse = {
+  generatedAt: string;
+  currency: string;
+  rows: FinanceDepartmentCostRow[];
+};
+
+export type FinanceSiteCostRow = {
+  site: string;
+  expenseValue: number;
+  procurementValue: number;
+  totalValue: number;
+};
+
+export type FinanceSiteCostResponse = {
+  generatedAt: string;
+  currency: string;
+  rows: FinanceSiteCostRow[];
+};
+
+export type FinanceOutstandingPaymentRow = {
+  source: string;
+  reference: string;
+  department?: string | null;
+  site?: string | null;
+  payee?: string | null;
+  description: string;
+  amount: number;
+  status: string;
+  paymentStatus: string;
+  createdAt: string;
+};
+
+export type FinanceOutstandingPaymentsResponse = {
+  generatedAt: string;
+  currency: string;
+  summary: {
+    totalRecords: number;
+    totalValue: number;
+  };
+  rows: FinanceOutstandingPaymentRow[];
+};
+
+export type FinanceApprovalStatusRow = {
+  id: string;
+  module: string;
+  workflowType: string;
+  requestReference?: string | null;
+  requestTitle: string;
+  sourceEntityType?: string | null;
+  sourceEntityId?: string | null;
+  amount: number;
+  status: string;
+  currentStep: number;
+  pendingRole?: string | null;
+  totalSteps: number;
+  approvedSteps: number;
+  rejectedSteps: number;
+  submittedAt: string;
+  closedAt?: string | null;
+};
+
+export type FinanceApprovalStatusResponse = {
+  generatedAt: string;
+  rows: FinanceApprovalStatusRow[];
+};
+
+export type FinanceExportLog = {
+  id: string;
+  reportType: string;
+  exportFormat: string;
+  status: string;
+  requestedBy?: string | null;
+  requestedByEmail?: string | null;
+  fileName?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+};
+
+export async function getFinanceReportSummary(): Promise<FinanceReportSummaryResponse> {
+  return apiGet<FinanceReportSummaryResponse>(
+    '/finance/reports/summary',
+    'Failed to load finance report summary',
+    true,
+  );
+}
+
+export async function getFinanceDepartmentCosts(): Promise<FinanceDepartmentCostResponse> {
+  return apiGet<FinanceDepartmentCostResponse>(
+    '/finance/reports/department-costs',
+    'Failed to load department cost report',
+    true,
+  );
+}
+
+export async function getFinanceSiteCosts(): Promise<FinanceSiteCostResponse> {
+  return apiGet<FinanceSiteCostResponse>(
+    '/finance/reports/site-costs',
+    'Failed to load site cost report',
+    true,
+  );
+}
+
+export async function getFinanceOutstandingPayments(): Promise<FinanceOutstandingPaymentsResponse> {
+  return apiGet<FinanceOutstandingPaymentsResponse>(
+    '/finance/reports/outstanding-payments',
+    'Failed to load outstanding payments report',
+    true,
+  );
+}
+
+export async function getFinanceApprovalStatus(): Promise<FinanceApprovalStatusResponse> {
+  return apiGet<FinanceApprovalStatusResponse>(
+    '/finance/reports/approval-status',
+    'Failed to load approval status report',
+    true,
+  );
+}
+
+export async function getFinanceExportLogs(): Promise<FinanceExportLog[]> {
+  return apiGet<FinanceExportLog[]>(
+    '/finance/reports/export-logs',
+    'Failed to load finance export logs',
+    true,
+  );
+}
+
+export function getFinanceExportUrl(path: string) {
+  return `${API_URL}${path}`;
+}
