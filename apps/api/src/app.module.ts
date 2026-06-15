@@ -13,6 +13,7 @@ import { PaymentModule } from './payment/payment.module';
 import { LeaveModule } from './leave/leave.module';
 import { OrgModule } from './org/org.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
     LeaveModule,
     OrgModule,
     ApprovalsModule,
+    FinanceModule,
   ]
 })
 export class AppModule {}
