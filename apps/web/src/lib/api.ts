@@ -1595,3 +1595,248 @@ export async function getFinanceCombinedReports(): Promise<FinanceCombinedReport
     true,
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Asset Management + Stores + Scaffold QR API                                */
+/* -------------------------------------------------------------------------- */
+
+export type AssetDashboardResponse = {
+  summary: {
+    assets: number;
+    activeAssets: number;
+    stockItems: number;
+    locations: number;
+    movements: number;
+    pendingMovements: number;
+    qrTags: number;
+    scaffoldComponents: number;
+    availableScaffolds: number;
+    issuedScaffolds: number;
+    damagedScaffolds: number;
+  };
+  lowStock: Array<{
+    itemCode: string;
+    itemName: string;
+    locationCode: string;
+    locationName: string;
+    quantityOnHand: number;
+    minimumLevel: number;
+  }>;
+};
+
+export type StockItemRecord = {
+  id: string;
+  itemCode: string;
+  itemName: string;
+  itemType: string;
+  category?: string | null;
+  description?: string | null;
+  unitOfMeasure: string;
+  minimumLevel?: string | number | null;
+  reorderLevel?: string | number | null;
+  standardCost?: string | number | null;
+  isSerialized: boolean;
+  isQrTracked: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  balances?: StockBalanceRecord[];
+  qrTags?: AssetQrTagRecord[];
+};
+
+export type StockLocationRecord = {
+  id: string;
+  locationCode: string;
+  locationName: string;
+  locationType: string;
+  site?: string | null;
+  branch?: string | null;
+  department?: string | null;
+  isActive: boolean;
+};
+
+export type StockBalanceRecord = {
+  id: string;
+  stockItemId: string;
+  locationId: string;
+  quantityOnHand: string | number;
+  quantityIssued: string | number;
+  quantityDamaged: string | number;
+  quantityLost: string | number;
+  updatedAt: string;
+  stockItem?: StockItemRecord;
+  location?: StockLocationRecord;
+};
+
+export type StockMovementRecord = {
+  id: string;
+  movementNo: string;
+  movementType: string;
+  status: string;
+  fromLocationId?: string | null;
+  toLocationId?: string | null;
+  requestedBy?: string | null;
+  requestedByEmail?: string | null;
+  department?: string | null;
+  site?: string | null;
+  projectCode?: string | null;
+  reason?: string | null;
+  submittedAt?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  fromLocation?: StockLocationRecord | null;
+  toLocation?: StockLocationRecord | null;
+  lines?: Array<{
+    id: string;
+    stockItemId: string;
+    quantity: string | number;
+    unitCost?: string | number | null;
+    totalCost?: string | number | null;
+    notes?: string | null;
+    stockItem?: StockItemRecord;
+    qrTag?: AssetQrTagRecord | null;
+  }>;
+};
+
+export type AssetQrTagRecord = {
+  id: string;
+  tagCode: string;
+  qrPayload?: string | null;
+  barcodeValue?: string | null;
+  stockItemId?: string | null;
+  assetId?: string | null;
+  scaffoldComponentId?: string | null;
+  assignedLocationId?: string | null;
+  status: string;
+  lastScannedAt?: string | null;
+  lastScannedBy?: string | null;
+  lastScanSite?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stockItem?: StockItemRecord | null;
+  assignedLocation?: StockLocationRecord | null;
+};
+
+export type ScaffoldComponentRecord = {
+  id: string;
+  componentNo: string;
+  componentType: string;
+  description?: string | null;
+  stockItemId?: string | null;
+  currentSite?: string | null;
+  currentLocation?: string | null;
+  conditionStatus: string;
+  tagStatus: string;
+  purchaseDate?: string | null;
+  purchaseValue?: string | number | null;
+  lastInspectionDate?: string | null;
+  nextInspectionDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stockItem?: StockItemRecord | null;
+  qrTags?: AssetQrTagRecord[];
+};
+
+export async function getAssetDashboard(): Promise<AssetDashboardResponse> {
+  return apiGet<AssetDashboardResponse>(
+    '/assets/dashboard',
+    'Failed to load asset dashboard',
+    true,
+  );
+}
+
+export async function getAssetStockItems(): Promise<StockItemRecord[]> {
+  return apiGet<StockItemRecord[]>('/assets/stock-items', 'Failed to load stock items', true);
+}
+
+export async function createAssetStockItem(payload: {
+  itemCode: string;
+  itemName: string;
+  itemType: string;
+  category?: string;
+  unitOfMeasure?: string;
+  minimumLevel?: number;
+  reorderLevel?: number;
+  standardCost?: number;
+  isSerialized?: boolean;
+  isQrTracked?: boolean;
+}) {
+  return apiPost<StockItemRecord>('/assets/stock-items', payload, 'Failed to create stock item', true);
+}
+
+export async function getAssetLocations(): Promise<StockLocationRecord[]> {
+  return apiGet<StockLocationRecord[]>('/assets/locations', 'Failed to load asset locations', true);
+}
+
+export async function getAssetBalances(): Promise<StockBalanceRecord[]> {
+  return apiGet<StockBalanceRecord[]>('/assets/balances', 'Failed to load stock balances', true);
+}
+
+export async function getAssetMovements(): Promise<StockMovementRecord[]> {
+  return apiGet<StockMovementRecord[]>('/assets/movements', 'Failed to load stock movements', true);
+}
+
+export async function createAssetMovement(payload: {
+  movementType: string;
+  fromLocationId?: string;
+  toLocationId?: string;
+  requestedBy?: string;
+  requestedByEmail?: string;
+  department?: string;
+  site?: string;
+  projectCode?: string;
+  reason?: string;
+  lines: Array<{
+    stockItemId: string;
+    quantity: number;
+    unitCost?: number;
+    qrTagId?: string;
+    notes?: string;
+  }>;
+}) {
+  return apiPost<StockMovementRecord>(
+    '/assets/movements',
+    payload,
+    'Failed to create stock movement',
+    true,
+  );
+}
+
+export async function approveAssetMovement(id: string, approvedBy = 'Asset Manager') {
+  return apiPatch<StockMovementRecord>(
+    `/assets/movements/${id}/approve`,
+    { approvedBy },
+    'Failed to approve stock movement',
+    true,
+  );
+}
+
+export async function postAssetMovement(id: string, postedBy = 'Asset Manager') {
+  return apiPatch<StockMovementRecord>(
+    `/assets/movements/${id}/post`,
+    { postedBy },
+    'Failed to post stock movement',
+    true,
+  );
+}
+
+export async function getAssetQrTags(): Promise<AssetQrTagRecord[]> {
+  return apiGet<AssetQrTagRecord[]>('/assets/qr-tags', 'Failed to load QR tags', true);
+}
+
+export async function scanAssetQrTag(tagCode: string, payload: { scannedBy?: string; site?: string }) {
+  return apiPost<AssetQrTagRecord>(
+    `/assets/qr-tags/${encodeURIComponent(tagCode)}/scan`,
+    payload,
+    'Failed to scan QR tag',
+    true,
+  );
+}
+
+export async function getScaffoldComponents(): Promise<ScaffoldComponentRecord[]> {
+  return apiGet<ScaffoldComponentRecord[]>('/assets/scaffolds', 'Failed to load scaffolds', true);
+}

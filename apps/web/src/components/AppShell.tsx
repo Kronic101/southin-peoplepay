@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-
 type StaffRole =
   | 'PAYROLL_OFFICER'
   | 'HR_MANAGER'
@@ -14,6 +13,9 @@ type StaffRole =
   | 'ADMIN'
   | 'LINE_MANAGER'
   | 'SUPERVISOR'
+  | 'ASSET_MANAGER'
+  | 'STORES_OFFICER'
+  | 'PROCUREMENT_OFFICER'
   | '';
 
 type NavItem = {
@@ -51,6 +53,27 @@ function normaliseRole(value: unknown): StaffRole {
   if (role === 'LINE_MANAGER') return 'LINE_MANAGER';
   if (role === 'SUPERVISOR') return 'SUPERVISOR';
 
+  if (
+    role === 'ASSET' ||
+    role === 'ASSET_MANAGER' ||
+    role === 'ASSET_OFFICER' ||
+    role === 'ASSET_CONTROLLER'
+  ) {
+    return 'ASSET_MANAGER';
+  }
+
+  if (role === 'STORES' || role === 'STORE_OFFICER' || role === 'STORES_OFFICER') {
+    return 'STORES_OFFICER';
+  }
+
+  if (
+    role === 'PROCUREMENT' ||
+    role === 'PROCUREMENT_OFFICER' ||
+    role === 'PROCUREMENT_MANAGER'
+  ) {
+    return 'PROCUREMENT_OFFICER';
+  }
+
   return '';
 }
 
@@ -79,12 +102,36 @@ const navSections: NavSection[] = [
       {
         label: 'Workbench',
         href: '/workbench',
-        roles: ['', 'HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+        roles: [
+          '',
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'FINANCE_MANAGER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+          'ASSET_MANAGER',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+        ],
       },
       {
         label: 'Demo Guide',
         href: '/demo',
-        roles: ['', 'HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+        roles: [
+          '',
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'FINANCE_MANAGER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+          'ASSET_MANAGER',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+        ],
       },
       {
         label: 'Dashboard',
@@ -97,60 +144,228 @@ const navSections: NavSection[] = [
     title: 'Human Resources',
     items: [
       { label: 'HR Dashboard', href: '/hr/dashboard', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Employees', href: '/employees', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Leave Dashboard', href: '/hr/leave-dashboard', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
-      { label: 'Leave Approvals', href: '/hr/leave-approvals', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
-      { label: 'Payroll Readiness', href: '/hr/payroll-readiness', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Readiness Gates', href: '/hr/payroll-readiness-gates', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      {
+        label: 'Employees',
+        href: '/employees',
+        roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Leave Dashboard',
+        href: '/hr/leave-dashboard',
+        roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+      },
+      {
+        label: 'Leave Approvals',
+        href: '/hr/leave-approvals',
+        roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+      },
+      {
+        label: 'Payroll Readiness',
+        href: '/hr/payroll-readiness',
+        roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Readiness Gates',
+        href: '/hr/payroll-readiness-gates',
+        roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
     ],
   },
   {
     title: 'People Operations',
     items: [
-      { label: 'Attendance', href: '/attendance', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
-      { label: 'Leave', href: '/leave', roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
-      { label: 'Overtime', href: '/overtime', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
-      { label: 'Timesheets', href: '/timesheets', roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'] },
+      {
+        label: 'Attendance',
+        href: '/attendance',
+        roles: [
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
+      {
+        label: 'Leave',
+        href: '/leave',
+        roles: ['HR_MANAGER', 'DIRECTOR', 'ADMIN', 'LINE_MANAGER', 'SUPERVISOR'],
+      },
+      {
+        label: 'Overtime',
+        href: '/overtime',
+        roles: [
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'FINANCE_MANAGER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
+      {
+        label: 'Timesheets',
+        href: '/timesheets',
+        roles: [
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
     ],
   },
   {
     title: 'Payroll',
     items: [
-      { label: 'Payroll', href: '/payroll', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Payroll Runs', href: '/payroll/runs', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Payroll Audit', href: '/reports/payroll-audit', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Statutory', href: '/statutory', roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      {
+        label: 'Payroll',
+        href: '/payroll',
+        roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Payroll Runs',
+        href: '/payroll/runs',
+        roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Payroll Audit',
+        href: '/reports/payroll-audit',
+        roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Statutory',
+        href: '/statutory',
+        roles: ['PAYROLL_OFFICER', 'FINANCE_MANAGER', 'HR_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { label: 'Finance Dashboard', href: '/finance/dashboard', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { href: '/finance/reports', label: 'Finance Reports', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Bank Payment Prep', href: '/reports/bank-payment-preparation', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Payment Batches', href: '/reports/payment-batches', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Payroll Audit', href: '/reports/payroll-audit', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Finance Evidence', href: '/finance/approval-evidence', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Procurement Tracker', href: '/finance/procurement-tracker', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Expense Approvals', href: '/finance/expenses', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'Asset Integration', href: '/finance/asset-management-integration', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
-      { label: 'SharePoint Package', href: '/finance/sharepoint-package', roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'] },
+      {
+        label: 'Finance Dashboard',
+        href: '/finance/dashboard',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Finance Reports',
+        href: '/finance/reports',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Bank Payment Prep',
+        href: '/reports/bank-payment-preparation',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Payment Batches',
+        href: '/reports/payment-batches',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Payroll Audit',
+        href: '/reports/payroll-audit',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Finance Evidence',
+        href: '/finance/approval-evidence',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Procurement Tracker',
+        href: '/finance/procurement-tracker',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'PROCUREMENT_OFFICER'],
+      },
+      {
+        label: 'Expense Approvals',
+        href: '/finance/expenses',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Asset Integration',
+        href: '/finance/asset-management-integration',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN', 'ASSET_MANAGER'],
+      },
+      {
+        label: 'SharePoint Package',
+        href: '/finance/sharepoint-package',
+        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+    ],
+  },
+  {
+    title: 'Asset Management',
+    items: [
+      {
+        label: 'Asset Dashboard',
+        href: '/assets/dashboard',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'Stores & Stock',
+        href: '/assets/stock',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'Stock Movements',
+        href: '/assets/movements',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'Scaffolds',
+        href: '/assets/scaffolds',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'QR Scan Centre',
+        href: '/assets/qr-scan',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
     ],
   },
   {
     title: 'Executive',
     items: [
-      { label: 'Executive Dashboard', href: '/executive/dashboard', roles: ['DIRECTOR', 'ADMIN'] },
-      { label: 'Reports Centre', href: '/reports', roles: ['DIRECTOR', 'ADMIN'] },
-      { label: 'Public Summary', href: '/reports/public-summary', roles: ['DIRECTOR', 'ADMIN'] },
+      {
+        label: 'Executive Dashboard',
+        href: '/executive/dashboard',
+        roles: ['DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Reports Centre',
+        href: '/reports',
+        roles: ['DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Public Summary',
+        href: '/reports/public-summary',
+        roles: ['DIRECTOR', 'ADMIN'],
+      },
     ],
   },
   {
     title: 'Administration',
     items: [
-      { label: 'SharePoint Integration', href: '/admin/sharepoint-integration', roles: ['ADMIN', 'DIRECTOR'] },
-      { label: 'Graph Setup Guide', href: '/admin/sharepoint-graph-setup', roles: ['ADMIN'] },
-      { label: 'Admin', href: '/admin', roles: ['ADMIN'] },
+      {
+        label: 'SharePoint Integration',
+        href: '/admin/sharepoint-integration',
+        roles: ['ADMIN', 'DIRECTOR'],
+      },
+      {
+        label: 'Graph Setup Guide',
+        href: '/admin/sharepoint-graph-setup',
+        roles: ['ADMIN'],
+      },
+      {
+        label: 'Admin',
+        href: '/admin',
+        roles: ['ADMIN'],
+      },
     ],
   },
 ];
