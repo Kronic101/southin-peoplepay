@@ -566,6 +566,1134 @@ model LeaveRequest {
   @@index([supervisorEmail])
 }
 
+model OrgDepartment {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions OrgPosition[]
+  approvalMatrixRules ApprovalMatrixRule[]
+
+  @@map("org_departments")
+}
+
+model OrgRole {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isStaffRole Boolean  @default(true)
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions OrgPosition[]
+
+  @@map("org_roles")
+}
+
+model OrgPosition {
+  id           String  @id @default(uuid())
+  title        String
+  positionCode String? @unique
+  site         String?
+  branch       String?
+  isHod        Boolean @default(false)
+  isActive     Boolean @default(true)
+
+  departmentId String?
+  department   OrgDepartment? @relation(fields: [departmentId], references: [id])
+
+  roleId String?
+  role   OrgRole? @relation(fields: [roleId], references: [id])
+
+  reportsToPositionId String?
+  reportsToPosition   OrgPosition?  @relation("PositionReportingLine", fields: [reportsToPositionId], references: [id])
+  directReports       OrgPosition[] @relation("PositionReportingLine")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("org_positions")
+}
+
+model ApprovalMatrixRule {
+  id           String               @id @default(uuid())
+  module       OperationsModule
+  workflowType ApprovalWorkflowType
+
+  name        String
+  description String?
+
+  departmentId String?
+  department   OrgDepartment? @relation(fields: [departmentId], references: [id])
+
+  site        String?
+  branch      String?
+
+  minAmount   Decimal? @db.Decimal(18, 2)
+  maxAmount   Decimal? @db.Decimal(18, 2)
+
+  requiresFinance Boolean @default(false)
+  requiresDirector Boolean @default(false)
+
+  // JSON approval steps example:
+  // [
+  //   { "sequence": 1, "role": "LINE_MANAGER", "required": true },
+  //   { "sequence": 2, "role": "HOD", "required": true },
+  //   { "sequence": 3, "role": "FINANCE_MANAGER", "required": true }
+  // ]
+  approvalSteps Json
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approvalRequests ApprovalRequest[]
+
+  @@index([module, workflowType])
+  @@map("approval_matrix_rules")
+}
+
+model ApprovalRequest {
+  id           String                @id @default(uuid())
+  module       OperationsModule
+  workflowType ApprovalWorkflowType
+
+  requestTitle       String
+  requestReference   String?
+  requestDescription String?
+
+  requesterEmployeeId String?
+  requesterName       String?
+  requesterRole       String?
+  requesterDepartment String?
+  requesterSite       String?
+
+  amount Decimal? @db.Decimal(18, 2)
+
+  sourceEntityType String?
+  sourceEntityId   String?
+
+  status ApprovalRequestStatus @default(SUBMITTED)
+  currentStep       Int       @default(1)
+
+  approvalMatrixRuleId String?
+  approvalMatrixRule   ApprovalMatrixRule? @relation(fields: [approvalMatrixRuleId], references: [id])
+
+  payload Json?
+
+  submittedAt DateTime @default(now())
+  closedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  decisions ApprovalDecision[]
+
+  @@index([module, workflowType])
+  @@index([sourceEntityType, sourceEntityId])
+  @@map("approval_requests")
+}
+
+model ApprovalDecision {
+  id String @id @default(uuid())
+
+  approvalRequestId String
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+
+  sequence Int
+  role     ApprovalStepRole
+
+  approverEmployeeId String?
+  approverName       String?
+  approverEmail      String?
+
+  status   ApprovalDecisionStatus @default(PENDING)
+  comments String?
+
+  decidedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([approvalRequestId])
+  @@map("approval_decisions")
+}
+
+model FinanceExpense {
+  id              String               @id @default(uuid())
+  expenseNo       String               @unique
+
+  category        String
+  description     String
+  amount          Decimal              @db.Decimal(18, 2)
+  department      String?
+  site            String?
+  payee           String?
+  requestedBy     String?
+  requestedByEmail String?
+
+  status          FinanceExpenseStatus @default(SUBMITTED)
+  evidenceStatus  FinanceEvidenceStatus @default(REQUIRED)
+
+  approvalRequestId String?
+  paidBy          String?
+  paidAt          DateTime?
+  paymentReference String?
+
+  financeComment  String?
+  payload          Json?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([status])
+  @@index([department])
+  @@index([site])
+  @@map("finance_expenses")
+}
+
+model FinancePaymentEvidence {
+  id              String   @id @default(uuid())
+  expenseId       String?
+  paymentBatchId  String?
+  procurementId   String?
+
+  evidenceType    String
+  title           String
+  status          String   @default("REQUIRED")
+  documentId      String?
+  notes           String?
+
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([expenseId])
+  @@index([paymentBatchId])
+  @@index([procurementId])
+  @@map("finance_payment_evidence")
+}
+
+model HubDocument {
+  id              String                    @id @default(uuid())
+  module          OperationsModule
+  sourceEntityType String?
+  sourceEntityId   String?
+
+  title           String
+  documentType    String
+  fileName        String?
+  mimeType        String?
+  fileSizeBytes   Int?
+  storageProvider String                    @default("LOCAL_DEV")
+  storagePath     String?
+  sharePointUrl   String?
+
+  status          HubDocumentStatus         @default(DRAFT)
+  confidentiality HubDocumentConfidentiality @default(INTERNAL)
+
+  uploadedBy      String?
+  approvedBy      String?
+  approvedAt      DateTime?
+
+  metadata        Json?
+
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([module])
+  @@index([sourceEntityType, sourceEntityId])
+  @@map("hub_documents")
+}
+
+model ProcurementRequest {
+  id                String                   @id @default(uuid())
+  requisitionNo     String                   @unique
+
+  department        String
+  site              String?
+  requestedBy       String?
+  supplierName      String?
+  description       String
+  amount            Decimal                  @db.Decimal(18, 2)
+
+  procurementStage  String                   @default("REQUISITION_SUBMITTED")
+  financeStage      String                   @default("NOT_REVIEWED")
+  status            ProcurementRequestStatus @default(SUBMITTED)
+
+  invoiceStatus     String                   @default("PENDING")
+  paymentStatus     String                   @default("NOT_PAID")
+  proofOfPaymentStatus String                @default("NOT_UPLOADED")
+
+  purchaseOrderNo   String?
+  invoiceNo         String?
+  goodsReceivedNote String?
+
+  approvalRequestId String?
+  payload           Json?
+
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([department])
+  @@index([site])
+  @@map("procurement_requests")
+}
+
+model HubAsset {
+  id              String        @id @default(uuid())
+  assetNo         String        @unique
+  assetTag        String?
+  category        AssetCategory
+  name            String
+  description     String?
+
+  department      String?
+  site            String?
+  location        String?
+
+  serialNumber    String?
+  purchaseDate    DateTime?
+  purchaseValue   Decimal?      @db.Decimal(18, 2)
+  currentValue    Decimal?      @db.Decimal(18, 2)
+
+  supplierName    String?
+  procurementRequestId String?
+
+  status          AssetStatus   @default(ACTIVE)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  movements       HubAssetMovement[]
+  inspections     HubAssetInspection[]
+  qrTags          AssetQrTag[]
+
+  @@index([category])
+  @@index([status])
+  @@index([site])
+  @@map("hub_assets")
+}
+
+model HubAssetMovement {
+  id              String   @id @default(uuid())
+  assetId         String
+  asset           HubAsset @relation(fields: [assetId], references: [id])
+
+  movementType    String
+  fromLocation    String?
+  toLocation      String?
+  requestedBy     String?
+  approvedBy      String?
+  movedAt         DateTime @default(now())
+  notes           String?
+
+  approvalRequestId String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([assetId])
+  @@map("hub_asset_movements")
+}
+
+model HubAssetInspection {
+  id              String   @id @default(uuid())
+  assetId         String
+  asset           HubAsset @relation(fields: [assetId], references: [id])
+
+  inspectionType  String
+  inspectionDate  DateTime @default(now())
+  inspectedBy     String?
+  conditionStatus String
+  findings        String?
+  correctiveAction String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([assetId])
+  @@map("hub_asset_inspections")
+}
+
+enum FleetVehicleStatus {
+  ACTIVE
+  ASSIGNED
+  IN_WORKSHOP
+  OUT_OF_SERVICE
+  RETIRED
+}
+
+model FleetVehicle {
+  id              String              @id @default(uuid())
+  registrationNo  String              @unique
+  assetId         String?
+  make            String
+  model           String
+  year            Int?
+  vehicleType     String
+  department      String?
+  site            String?
+
+  odometerCurrent Decimal             @default(0) @db.Decimal(18, 2)
+  status          FleetVehicleStatus  @default(ACTIVE)
+
+  insuranceExpiry DateTime?
+  fitnessExpiry   DateTime?
+  roadTaxExpiry   DateTime?
+
+  telematicsProvider String?
+  telematicsUnitId   String?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  inspections     FleetInspection[]
+  defects         FleetDefect[]
+  trips           FleetTrip[]
+  fuelLogs        FleetFuelLog[]
+  workshopJobs    FleetWorkshopJob[]
+
+  @@index([status])
+  @@index([site])
+  @@map("fleet_vehicles")
+}
+
+model FleetInspection {
+  id              String                @id @default(uuid())
+  vehicleId       String
+  vehicle         FleetVehicle           @relation(fields: [vehicleId], references: [id])
+
+  employeeId      String?
+  employeeNumber  String?
+  driverName      String?
+
+  inspectionDate  DateTime              @default(now())
+  odometer        Decimal               @db.Decimal(18, 2)
+  checklistPhase  String
+  overallStatus   FleetInspectionStatus @default(SUBMITTED)
+  notes           String?
+  payload         Json?
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([vehicleId])
+  @@index([employeeId])
+  @@map("fleet_inspections")
+}
+
+model FleetDefect {
+  id              String       @id @default(uuid())
+  defectNo        String       @unique
+
+  vehicleId       String
+  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+  workshopJobs    FleetWorkshopJob[]
+
+  reportedBy      String?
+  title           String
+  description     String
+  severity        String
+  status          String       @default("OPEN")
+
+  reportedAt      DateTime     @default(now())
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([vehicleId])
+  @@index([status])
+  @@map("fleet_defects")
+}
+
+model FleetTrip {
+  id              String       @id @default(uuid())
+  vehicleId       String
+  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+
+  driverEmployeeId String?
+  driverName      String?
+
+  tripDate        DateTime
+  origin          String
+  destination     String
+  purpose         String
+  openingOdometer Decimal      @db.Decimal(18, 2)
+  closingOdometer Decimal?     @db.Decimal(18, 2)
+  distanceKm      Decimal?     @db.Decimal(18, 2)
+  status          String       @default("PLANNED")
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([vehicleId])
+  @@index([tripDate])
+  @@map("fleet_trips")
+}
+
+model FleetFuelLog {
+  id              String       @id @default(uuid())
+  vehicleId       String
+  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+
+  fuelDate        DateTime
+  stationName     String
+  litres          Decimal      @db.Decimal(18, 2)
+  amount          Decimal      @db.Decimal(18, 2)
+  odometer        Decimal      @db.Decimal(18, 2)
+  receiptDocumentId String?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([vehicleId])
+  @@map("fleet_fuel_logs")
+}
+
+model SafetyIncident {
+  id              String               @id @default(uuid())
+  incidentNo      String               @unique
+
+  incidentDate    DateTime
+  reportedBy      String?
+  department      String?
+  site            String?
+  location        String?
+
+  incidentType    String
+  severity        String
+  description     String
+
+  status          SafetyIncidentStatus @default(REPORTED)
+  correctiveAction String?
+  closedBy        String?
+  closedAt        DateTime?
+
+  approvalRequestId String?
+  payload         Json?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([status])
+  @@index([site])
+  @@map("safety_incidents")
+}
+
+model QualityRecord {
+  id              String              @id @default(uuid())
+  recordNo        String              @unique
+
+  recordType      String
+  department      String?
+  site            String?
+  raisedBy        String?
+  title           String
+  description     String
+
+  status          QualityRecordStatus @default(OPEN)
+  correctiveAction String?
+  closedBy        String?
+  closedAt        DateTime?
+
+  payload         Json?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([site])
+  @@map("quality_records")
+}
+
+model StockItem {
+  id              String        @id @default(uuid())
+  itemCode        String        @unique
+  itemName        String
+  itemType        StockItemType
+  category        String?
+  description     String?
+
+  unitOfMeasure   String        @default("EA")
+  minimumLevel    Decimal?      @db.Decimal(18, 2)
+  reorderLevel    Decimal?      @db.Decimal(18, 2)
+  standardCost    Decimal?      @db.Decimal(18, 2)
+
+  isSerialized    Boolean       @default(false)
+  isQrTracked     Boolean       @default(false)
+  isActive        Boolean       @default(true)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  balances        StockBalance[]
+  movements       StockMovementLine[]
+  qrTags          AssetQrTag[]
+  scaffoldComponents ScaffoldComponent[] @relation("StockItemScaffoldComponents")
+  workshopParts   FleetWorkshopPart[]
+
+  @@index([itemType])
+  @@index([category])
+  @@map("stock_items")
+}
+
+model StockLocation {
+  id              String   @id @default(uuid())
+  locationCode    String   @unique
+  locationName    String
+  locationType    String   @default("SITE_STORE")
+
+  site            String?
+  branch          String?
+  department      String?
+
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  balances        StockBalance[]
+  movementsFrom   StockMovement[] @relation("StockMovementFromLocation")
+  movementsTo     StockMovement[] @relation("StockMovementToLocation")
+  assignedQrTags  AssetQrTag[] @relation("QrTagAssignedLocation")
+
+  @@index([site])
+  @@index([branch])
+  @@map("stock_locations")
+}
+
+model StockBalance {
+  id              String        @id @default(uuid())
+
+  stockItemId     String
+  stockItem       StockItem     @relation(fields: [stockItemId], references: [id])
+
+  locationId      String
+  location        StockLocation @relation(fields: [locationId], references: [id])
+
+  quantityOnHand  Decimal       @default(0) @db.Decimal(18, 2)
+  quantityIssued  Decimal       @default(0) @db.Decimal(18, 2)
+  quantityDamaged Decimal       @default(0) @db.Decimal(18, 2)
+  quantityLost    Decimal       @default(0) @db.Decimal(18, 2)
+
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([stockItemId, locationId])
+  @@index([locationId])
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id                String              @id @default(uuid())
+  movementNo        String              @unique
+
+  movementType      StockMovementType
+  status            StockMovementStatus @default(DRAFT)
+
+  fromLocationId    String?
+  fromLocation      StockLocation?      @relation("StockMovementFromLocation", fields: [fromLocationId], references: [id])
+
+  toLocationId      String?
+  toLocation        StockLocation?      @relation("StockMovementToLocation", fields: [toLocationId], references: [id])
+
+  requestedBy       String?
+  requestedByEmail  String?
+  department        String?
+  site              String?
+  projectCode       String?
+
+  reason            String?
+  referenceType     String?
+  referenceId       String?
+
+  approvalRequestId String?
+
+  submittedAt       DateTime?
+  approvedBy        String?
+  approvedAt        DateTime?
+  postedBy          String?
+  postedAt          DateTime?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  lines             StockMovementLine[]
+
+  @@index([movementType])
+  @@index([status])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@map("stock_movements")
+}
+
+model StockMovementLine {
+  id              String        @id @default(uuid())
+
+  movementId      String
+  movement        StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  stockItemId     String
+  stockItem       StockItem     @relation(fields: [stockItemId], references: [id])
+
+  quantity        Decimal       @db.Decimal(18, 2)
+  unitCost        Decimal?      @db.Decimal(18, 2)
+  totalCost       Decimal?      @db.Decimal(18, 2)
+
+  qrTagId         String?
+  qrTag           AssetQrTag?   @relation(fields: [qrTagId], references: [id])
+
+  notes           String?
+
+  createdAt       DateTime      @default(now())
+
+  @@index([movementId])
+  @@index([stockItemId])
+  @@index([qrTagId])
+  @@map("stock_movement_lines")
+}
+
+model AssetQrTag {
+  id              String            @id @default(uuid())
+  tagCode         String            @unique
+  qrPayload       String?
+  barcodeValue    String?
+
+  stockItemId     String?
+  stockItem       StockItem?        @relation(fields: [stockItemId], references: [id])
+
+  assetId         String?
+  asset           HubAsset?         @relation(fields: [assetId], references: [id])
+
+  scaffoldComponentId String?
+  scaffoldComponent   ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
+
+  assignedLocationId String?
+  assignedLocation   StockLocation? @relation("QrTagAssignedLocation", fields: [assignedLocationId], references: [id])
+
+  status          ScaffoldTagStatus @default(AVAILABLE)
+
+  lastScannedAt   DateTime?
+  lastScannedBy   String?
+  lastScanSite    String?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  movementLines   StockMovementLine[]
+
+  @@index([tagCode])
+  @@index([assetId])
+  @@index([stockItemId])
+  @@index([assignedLocationId])
+  @@map("asset_qr_tags")
+}
+
+model ScaffoldComponent {
+  id              String                @id @default(uuid())
+  componentNo     String                @unique
+
+  componentType   ScaffoldComponentType
+  description     String?
+
+  stockItemId     String?
+  stockItem       StockItem?            @relation("StockItemScaffoldComponents", fields: [stockItemId], references: [id])
+
+  currentSite     String?
+  currentLocation String?
+
+  conditionStatus String                @default("GOOD")
+  tagStatus       ScaffoldTagStatus     @default(AVAILABLE)
+
+  purchaseDate    DateTime?
+  purchaseValue   Decimal?              @db.Decimal(18, 2)
+
+  lastInspectionDate DateTime?
+  nextInspectionDate DateTime?
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  qrTags          AssetQrTag[]
+  inspections     ScaffoldInspection[]
+
+  @@index([componentType])
+  @@index([tagStatus])
+  @@index([currentSite])
+  @@map("scaffold_components")
+}
+
+model ScaffoldInspection {
+  id                  String             @id @default(uuid())
+
+  scaffoldComponentId String
+  scaffoldComponent   ScaffoldComponent  @relation(fields: [scaffoldComponentId], references: [id])
+
+  inspectionDate      DateTime           @default(now())
+  inspectedBy         String?
+  conditionStatus     String
+  findings            String?
+  actionRequired      String?
+  isSafeForUse        Boolean            @default(true)
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([scaffoldComponentId])
+  @@map("scaffold_inspections")
+}
+
+model FleetWorkshopJob {
+  id              String              @id @default(uuid())
+  jobCardNo       String              @unique
+
+  vehicleId       String
+  vehicle         FleetVehicle         @relation(fields: [vehicleId], references: [id])
+
+  defectId        String?
+  defect          FleetDefect?         @relation(fields: [defectId], references: [id])
+
+  jobType         WorkshopJobType
+  priority        WorkshopJobPriority  @default(MEDIUM)
+  status          WorkshopJobStatus    @default(OPEN)
+
+  title           String
+  description     String?
+  diagnosis       String?
+  workDone        String?
+
+  openedBy        String?
+  assignedTo      String?
+  approvedBy      String?
+  releasedBy      String?
+
+  openedAt        DateTime             @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  approvedAt      DateTime?
+  releasedAt      DateTime?
+  closedAt        DateTime?
+
+  odometerIn      Decimal?             @db.Decimal(18, 2)
+  odometerOut     Decimal?             @db.Decimal(18, 2)
+
+  labourCost      Decimal?             @db.Decimal(18, 2)
+  partsCost       Decimal?             @db.Decimal(18, 2)
+  totalCost       Decimal?             @db.Decimal(18, 2)
+
+  approvalRequestId String?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  parts           FleetWorkshopPart[]
+  labourLines     FleetWorkshopLabour[]
+
+  @@index([vehicleId])
+  @@index([defectId])
+  @@index([status])
+  @@map("fleet_workshop_jobs")
+}
+
+model FleetWorkshopPart {
+  id              String           @id @default(uuid())
+
+  workshopJobId   String
+  workshopJob     FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
+
+  stockItemId     String?
+  stockItem       StockItem?       @relation(fields: [stockItemId], references: [id])
+
+  partName        String
+  quantity        Decimal          @db.Decimal(18, 2)
+  unitCost        Decimal?         @db.Decimal(18, 2)
+  totalCost       Decimal?         @db.Decimal(18, 2)
+
+  issuedMovementId String?
+
+  createdAt       DateTime         @default(now())
+
+  @@index([workshopJobId])
+  @@index([stockItemId])
+  @@map("fleet_workshop_parts")
+}
+
+model FleetWorkshopLabour {
+  id              String           @id @default(uuid())
+
+  workshopJobId   String
+  workshopJob     FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
+
+  technicianName  String
+  labourHours     Decimal          @db.Decimal(18, 2)
+  hourlyRate      Decimal?         @db.Decimal(18, 2)
+  labourCost      Decimal?         @db.Decimal(18, 2)
+  notes           String?
+
+  createdAt       DateTime         @default(now())
+
+  @@index([workshopJobId])
+  @@map("fleet_workshop_labour")
+}
+
+enum StockItemType {
+  CONSUMABLE
+  TOOL
+  PPE
+  SCAFFOLD_COMPONENT
+  SPARE_PART
+  FUEL
+  MATERIAL
+  EQUIPMENT
+  OTHER
+}
+
+enum StockMovementType {
+  RECEIPT
+  ISSUE
+  RETURN
+  TRANSFER
+  ADJUSTMENT
+  LOSS
+  DAMAGE
+  WRITE_OFF
+}
+
+enum StockMovementStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  POSTED
+  CANCELLED
+}
+
+enum ScaffoldComponentType {
+  STANDARD
+  LEDGER
+  TRANSOM
+  BASE_JACK
+  TOE_BOARD
+  PLATFORM
+  COUPLER
+  LADDER
+  GUARD_RAIL
+  BRACE
+  OTHER
+}
+
+enum ScaffoldTagStatus {
+  AVAILABLE
+  ISSUED
+  IN_USE
+  DAMAGED
+  LOST
+  RETIRED
+}
+
+enum WorkshopJobStatus {
+  OPEN
+  DIAGNOSIS
+  AWAITING_PARTS
+  IN_PROGRESS
+  QUALITY_CHECK
+  COMPLETED
+  RELEASED
+  CLOSED
+  CANCELLED
+}
+
+enum WorkshopJobPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WorkshopJobType {
+  SERVICE
+  REPAIR
+  INSPECTION
+  DEFECT_REPAIR
+  BREAKDOWN
+  PREVENTIVE_MAINTENANCE
+  ACCIDENT_REPAIR
+  OTHER
+}
+
+enum QualityRecordStatus {
+  OPEN
+  UNDER_REVIEW
+  ACTION_REQUIRED
+  CLOSED
+}
+
+enum SafetyIncidentStatus {
+  REPORTED
+  UNDER_REVIEW
+  ACTION_REQUIRED
+  CLOSED
+}
+
+enum FleetInspectionStatus {
+  PASSED
+  FAILED
+  DEFECT_REPORTED
+  SUBMITTED
+}
+
+enum AssetStatus {
+  DRAFT
+  ACTIVE
+  IN_USE
+  IN_STORE
+  UNDER_REPAIR
+  LOST
+  DAMAGED
+  RETIRED
+  DISPOSED
+}
+
+enum AssetCategory {
+  EQUIPMENT
+  TOOL
+  VEHICLE
+  SCAFFOLD
+  CONSUMABLE
+  IT_EQUIPMENT
+  PPE
+  OTHER
+}
+
+enum ProcurementRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PO_ISSUED
+  GOODS_RECEIVED
+  INVOICE_RECEIVED
+  PAYMENT_REVIEW
+  PAID
+  CLOSED
+}
+
+enum HubDocumentStatus {
+  DRAFT
+  UPLOADED
+  APPROVED
+  REJECTED
+  PUBLISHED_TO_SHAREPOINT
+  ARCHIVED
+}
+
+enum HubDocumentConfidentiality {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL_HR
+  CONFIDENTIAL_FINANCE
+  CONFIDENTIAL_OPERATIONS
+  CONFIDENTIAL_EXECUTIVE
+}
+
+
+enum FinanceExpenseStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  READY_FOR_PAYMENT
+  PAID
+  CANCELLED
+}
+
+enum FinanceEvidenceStatus {
+  REQUIRED
+  UPLOADED
+  APPROVED
+  READY_FOR_SHAREPOINT
+  PUBLISHED
+}
+
+enum OperationsModule {
+  HR
+  PAYROLL
+  FINANCE
+  PROCUREMENT
+  ASSET_MANAGEMENT
+  FLEET
+  STORES
+  SAFETY
+  QUALITY_ADMIN
+  OPERATIONS
+  SHAREPOINT
+  SYSTEM_ADMIN
+}
+
+enum ApprovalWorkflowType {
+  LEAVE_REQUEST
+  EXPENSE_REQUEST
+  PROCUREMENT_REQUEST
+  ASSET_PURCHASE
+  ASSET_MOVEMENT
+  FLEET_REQUEST
+  SAFETY_INCIDENT
+  STORES_REQUISITION
+  PAYROLL_RUN
+  PAYMENT_BATCH
+  SHAREPOINT_PUBLISH
+  GENERAL_REQUEST
+}
+
+enum ApprovalRequestStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+  CLOSED
+}
+
+enum ApprovalDecisionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum ApprovalStepRole {
+  REQUESTER
+  SUPERVISOR
+  LINE_MANAGER
+  FOREMAN
+  BRANCH_MANAGER
+  HOD
+  HR_MANAGER
+  FINANCE_MANAGER
+  PROCUREMENT_OFFICER
+  ASSET_MANAGER
+  OPERATIONS_MANAGER
+  QUALITY_ADMIN_MANAGER
+  SAFETY_OFFICER
+  DIRECTOR_FINANCE
+  DIRECTOR_OPERATIONS
+  DIRECTOR
+  ADMIN
+}
+
 enum LeaveRequestStatus {
   PENDING_SUPERVISOR
   APPROVED

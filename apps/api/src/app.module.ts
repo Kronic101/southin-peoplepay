@@ -11,6 +11,8 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { ExecutiveModule } from './executive/executive.module';
 import { PaymentModule } from './payment/payment.module';
 import { LeaveModule } from './leave/leave.module';
+import { OrgModule } from './org/org.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { LeaveModule } from './leave/leave.module';
     ExecutiveModule,
     PaymentModule,
     LeaveModule,
+    OrgModule,
+    ApprovalsModule,
   ]
 })
 export class AppModule {}
