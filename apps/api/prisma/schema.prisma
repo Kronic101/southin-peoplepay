@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Role {
@@ -1468,6 +1469,94 @@ model FleetWorkshopLabour {
 
   @@index([workshopJobId])
   @@map("fleet_workshop_labour")
+}
+
+model AssetImportBatch {
+  id          String                 @id @default(uuid())
+  batchNo     String                 @unique
+  sourceType  String
+  fileName    String?
+  status      AssetImportBatchStatus @default(DRAFT)
+
+  totalRows   Int                    @default(0)
+  validRows   Int                    @default(0)
+  warningRows Int                    @default(0)
+  errorRows   Int                    @default(0)
+  postedRows  Int                    @default(0)
+
+  createdBy   String?
+  postedBy    String?
+  postedAt    DateTime?
+  notes       String?
+  rawPayload  Json?
+
+  lines       AssetImportLine[]
+
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+}
+
+model AssetImportLine {
+  id                 String                @id @default(uuid())
+  batchId            String
+  batch              AssetImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  rowNumber          Int
+  itemCode           String?
+  itemName           String?
+  itemType           String?
+  category           String?
+  unitOfMeasure      String?
+  locationCode       String?
+  locationName       String?
+  locationType       String?
+  site               String?
+  branch             String?
+  department         String?
+
+  quantityOnHand     Decimal?              @db.Decimal(18, 2)
+  minimumLevel       Decimal?              @db.Decimal(18, 2)
+  reorderLevel       Decimal?              @db.Decimal(18, 2)
+  standardCost       Decimal?              @db.Decimal(18, 2)
+
+  scaffoldComponentNo String?
+  componentType       String?
+  conditionStatus     String?
+  tagStatus           String?
+  qrTagCode           String?
+
+  status             AssetImportLineStatus @default(VALID)
+  validationErrors   Json?
+  rawPayload         Json?
+
+  postedStockItemId  String?
+  postedLocationId   String?
+  postedBalanceId    String?
+  postedMovementId   String?
+
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([batchId])
+  @@index([itemCode])
+  @@index([locationCode])
+  @@index([qrTagCode])
+}
+
+enum AssetImportBatchStatus {
+  DRAFT
+  VALIDATED
+  POSTED
+  FAILED
+  CANCELLED
+}
+
+enum AssetImportLineStatus {
+  VALID
+  WARNING
+  ERROR
+  POSTED
+  SKIPPED
 }
 
 enum FinanceReportType {

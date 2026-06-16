@@ -326,6 +326,10 @@ const navSections: NavSection[] = [
         href: '/assets/qr-scan',
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
       },
+      { label: 'Omni Core Import', 
+        href: '/assets/import-preview', 
+        roles: ['DIRECTOR', 'ADMIN', 'ASSET_MANAGER', 'STORES_OFFICER'] 
+      },
     ],
   },
   {
