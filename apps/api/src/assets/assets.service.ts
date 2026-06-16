@@ -25,6 +25,118 @@ export class AssetsService {
     return `MOV-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
   }
 
+    private normaliseStockItemType(value: unknown): StockItemType {
+    const cleanValue = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replaceAll(' ', '_')
+      .replaceAll('-', '_');
+
+    const allowedValues = Object.values(StockItemType) as string[];
+
+    if (allowedValues.includes(cleanValue)) {
+      return cleanValue as StockItemType;
+    }
+
+    if (cleanValue.includes('SCAFFOLD')) {
+      return StockItemType.SCAFFOLD_COMPONENT;
+    }
+
+    if (cleanValue.includes('PPE')) {
+      return StockItemType.PPE;
+    }
+
+    if (cleanValue.includes('TOOL') && allowedValues.includes('TOOL')) {
+      return 'TOOL' as StockItemType;
+    }
+
+    if (
+      (cleanValue.includes('SPARE') || cleanValue.includes('WORKSHOP')) &&
+      allowedValues.includes('SPARE')
+    ) {
+      return 'SPARE' as StockItemType;
+    }
+
+    if (cleanValue.includes('CONSUMABLE') && allowedValues.includes('CONSUMABLE')) {
+      return 'CONSUMABLE' as StockItemType;
+    }
+
+    if (cleanValue.includes('MATERIAL') && allowedValues.includes('MATERIAL')) {
+      return 'MATERIAL' as StockItemType;
+    }
+
+    return StockItemType.OTHER;
+  }
+
+  private buildStockCodePrefix(body: any) {
+    const itemType = String(body?.itemType || '').toUpperCase();
+    const category = String(body?.category || '').toUpperCase();
+
+    if (itemType.includes('SCAFFOLD') || category.includes('SCAFFOLD')) return 'SCF';
+    if (itemType.includes('PPE') || category.includes('PPE')) return 'PPE';
+    if (itemType.includes('TOOL') || category.includes('TOOL')) return 'TOOL';
+    if (category.includes('WORKSHOP') || category.includes('FLEET') || itemType.includes('SPARE')) {
+      return 'WKS';
+    }
+    if (category.includes('CONSUMABLE')) return 'CON';
+    if (category.includes('MATERIAL')) return 'MAT';
+    if (category.includes('SAFETY')) return 'SFT';
+    if (category.includes('ASSET')) return 'AST';
+
+    return 'STK';
+  }
+
+  private cleanStockCode(value: unknown) {
+    return String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Z0-9-_]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  async previewStockItemCode(body: any) {
+    const codeMode = String(body?.codeMode || 'AUTO').toUpperCase();
+
+    if (codeMode === 'MANUAL' || codeMode === 'EXTERNAL') {
+      const providedCode = this.cleanStockCode(body?.itemCode || body?.externalItemCode);
+
+      if (!providedCode) {
+        throw new BadRequestException('Manual or external item code is required.');
+      }
+
+      return {
+        codeMode,
+        itemCode: providedCode,
+        sequencePrefix: null,
+        sequenceNumber: null,
+        source: codeMode === 'EXTERNAL' ? body?.externalSystem || 'EXTERNAL' : 'MANUAL',
+      };
+    }
+
+    const prefix = this.buildStockCodePrefix(body);
+
+    const count = await this.prisma.stockItem.count({
+      where: {
+        itemCode: {
+          startsWith: `${prefix}-`,
+        },
+      },
+    });
+
+    const nextNumber = count + 1;
+    const itemCode = `${prefix}-${String(nextNumber).padStart(5, '0')}`;
+
+    return {
+      codeMode: 'AUTO',
+      itemCode,
+      sequencePrefix: prefix,
+      sequenceNumber: nextNumber,
+      source: 'SOUTHIN_OPERATIONS_HUB',
+    };
+  }
+
   private async nextScaffoldNo() {
     const count = await this.prisma.scaffoldComponent.count();
     return `SCF-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
@@ -128,44 +240,98 @@ export class AssetsService {
     });
   }
 
-  async createStockItem(body: any) {
-    if (!body?.itemCode) {
-      throw new BadRequestException('Item code is required.');
-    }
-
+    async createStockItem(body: any) {
     if (!body?.itemName) {
       throw new BadRequestException('Item name is required.');
     }
 
-    return this.prisma.stockItem.upsert({
-      where: { itemCode: String(body.itemCode) },
-      update: {
-        itemName: String(body.itemName),
-        itemType: body.itemType || StockItemType.OTHER,
-        category: body.category || null,
-        description: body.description || null,
-        unitOfMeasure: body.unitOfMeasure || 'EA',
-        minimumLevel: body.minimumLevel === undefined ? undefined : this.decimal(body.minimumLevel),
-        reorderLevel: body.reorderLevel === undefined ? undefined : this.decimal(body.reorderLevel),
-        standardCost:
-          body.standardCost === undefined ? undefined : this.decimal(body.standardCost),
-        isSerialized: Boolean(body.isSerialized || false),
-        isQrTracked: Boolean(body.isQrTracked || false),
-        isActive: true,
+    const codeMode = String(body?.codeMode || 'AUTO').toUpperCase();
+    const preview = await this.previewStockItemCode(body);
+    const itemCode = this.cleanStockCode(preview.itemCode);
+
+    if (!itemCode) {
+      throw new BadRequestException('Item code could not be generated.');
+    }
+
+    const itemType = this.normaliseStockItemType(body.itemType);
+    const category = String(body.category || 'General').trim() || 'General';
+
+    const existing = await this.prisma.stockItem.findUnique({
+      where: {
+        itemCode,
       },
-      create: {
-        itemCode: String(body.itemCode),
-        itemName: String(body.itemName),
-        itemType: body.itemType || StockItemType.OTHER,
-        category: body.category || null,
-        description: body.description || null,
-        unitOfMeasure: body.unitOfMeasure || 'EA',
-        minimumLevel: body.minimumLevel === undefined ? undefined : this.decimal(body.minimumLevel),
-        reorderLevel: body.reorderLevel === undefined ? undefined : this.decimal(body.reorderLevel),
-        standardCost:
-          body.standardCost === undefined ? undefined : this.decimal(body.standardCost),
-        isSerialized: Boolean(body.isSerialized || false),
-        isQrTracked: Boolean(body.isQrTracked || false),
+    });
+
+    if (existing && body?.allowUpdate !== true) {
+      throw new BadRequestException(
+        `Stock item code ${itemCode} already exists. Enable update mode or choose another code.`,
+      );
+    }
+
+    const descriptionParts = [
+      body.description ? String(body.description) : '',
+      codeMode === 'EXTERNAL'
+        ? `External source: ${body.externalSystem || 'EXTERNAL'}; External code: ${
+            body.externalItemCode || body.itemCode
+          }`
+        : '',
+      body.isRfidTracked ? 'RFID/UHF tracking prepared.' : '',
+    ].filter(Boolean);
+
+    const data = {
+      itemName: String(body.itemName).trim(),
+      itemType,
+      category,
+      description: descriptionParts.length > 0 ? descriptionParts.join('\n') : null,
+      unitOfMeasure: String(body.unitOfMeasure || 'EA').trim().toUpperCase(),
+      minimumLevel:
+        body.minimumLevel === undefined || body.minimumLevel === ''
+          ? new Prisma.Decimal(0)
+          : this.decimal(body.minimumLevel),
+      reorderLevel:
+        body.reorderLevel === undefined || body.reorderLevel === ''
+          ? new Prisma.Decimal(0)
+          : this.decimal(body.reorderLevel),
+      standardCost:
+        body.standardCost === undefined || body.standardCost === ''
+          ? null
+          : this.decimal(body.standardCost),
+      isSerialized: Boolean(body.isSerialized || false),
+      isQrTracked: Boolean(body.isQrTracked || body.isRfidTracked || false),
+      isActive: body.isActive === undefined ? true : Boolean(body.isActive),
+    };
+
+    if (existing) {
+      return this.prisma.stockItem.update({
+        where: {
+          itemCode,
+        },
+        data,
+        include: {
+          balances: {
+            include: {
+              location: true,
+            },
+          },
+          qrTags: true,
+          scaffoldComponents: true,
+        },
+      });
+    }
+
+    return this.prisma.stockItem.create({
+      data: {
+        itemCode,
+        ...data,
+      },
+      include: {
+        balances: {
+          include: {
+            location: true,
+          },
+        },
+        qrTags: true,
+        scaffoldComponents: true,
       },
     });
   }

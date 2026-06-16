@@ -20,6 +20,11 @@ export class AssetsController {
     return this.assetsService.createStockItem(body);
   }
 
+  @Post('stock-items/preview-code')
+  previewStockItemCode(@Body() body: any) {
+    return this.assetsService.previewStockItemCode(body);
+  }
+
   @Get('locations')
   getLocations() {
     return this.assetsService.getLocations();
