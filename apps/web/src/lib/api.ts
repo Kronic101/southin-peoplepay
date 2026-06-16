@@ -1588,6 +1588,16 @@ export function getFinanceExportUrl(path: string) {
   return `${API_URL}${path}`;
 }
 
+export type FinanceCombinedReportsResponse = {
+  generatedAt: string;
+  summary: FinanceReportSummaryResponse;
+  departmentCosts: FinanceDepartmentCostResponse;
+  siteCosts: FinanceSiteCostResponse;
+  outstandingPayments: FinanceOutstandingPaymentsResponse;
+  approvalStatus: FinanceApprovalStatusResponse;
+  exportLogs: FinanceExportLog[];
+};
+
 export async function getFinanceCombinedReports(): Promise<FinanceCombinedReportsResponse> {
   return apiGet<FinanceCombinedReportsResponse>(
     '/finance/reports/combined',
