@@ -1,13 +1,8 @@
 'use client';
 
-import AppShell from '@/components/AppShell';
-import {
-  AssetQrTag,
-  getAssetQrTags,
-  scanAssetTag,
-  type ScanAssetTagPayload,
-} from '@/lib/assets-api';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import AppShell from '../../../components/AppShell';
+import { AssetQrTag, getAssetQrTags, scanAssetQrTag } from '@/lib/assets-api';
 
 type BarcodeDetectorResult = {
   rawValue: string;
@@ -43,28 +38,14 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function statusClass(status: string) {
-  const upper = String(status || '').toUpperCase();
-
-  if (['AVAILABLE', 'ACTIVE', 'POSTED', 'APPROVED'].includes(upper)) {
-    return 'status-pill success';
-  }
-
-  if (['DAMAGED', 'LOST', 'RETIRED', 'REJECTED'].includes(upper)) {
-    return 'status-pill danger';
-  }
-
-  return 'status-pill warning';
-}
-
 export default function AssetQrScanPage() {
   const [mounted, setMounted] = useState(false);
   const [tags, setTags] = useState<AssetQrTag[]>([]);
   const [tagCode, setTagCode] = useState('QR-SCF-0001');
-  const [scanType, setScanType] = useState<ScanAssetTagPayload['scanType']>('QR_CODE');
+  const [scanType, setScanType] = useState<'QR' | 'RFID' | 'BARCODE'>('QR');
   const [scannedBy, setScannedBy] = useState('Asset Manager');
   const [site, setSite] = useState('Kitwe Main Distribution Centre');
-  const [message, setMessage] = useState('Ready to scan QR, RFID or barcode tag.');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -78,6 +59,7 @@ export default function AssetQrScanPage() {
 
   useEffect(() => {
     setMounted(true);
+
     setCameraSupported(
       typeof window !== 'undefined' &&
         typeof navigator !== 'undefined' &&
@@ -92,19 +74,10 @@ export default function AssetQrScanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const summary = useMemo(() => {
-    return {
-      total: tags.length,
-      available: tags.filter((tag) => tag.status === 'AVAILABLE').length,
-      issued: tags.filter((tag) => tag.status === 'ISSUED').length,
-      damaged: tags.filter((tag) => tag.status === 'DAMAGED').length,
-      scanned: tags.filter((tag) => Boolean(tag.lastScannedAt)).length,
-    };
-  }, [tags]);
-
   async function loadTags() {
     setLoading(true);
     setError('');
+    setMessage('');
 
     const result = await getAssetQrTags();
 
@@ -122,7 +95,7 @@ export default function AssetQrScanPage() {
     const cleanCode = String(nextCode || tagCode || '').trim();
 
     if (!cleanCode) {
-      setError('Enter or scan a tag code first.');
+      setError('Enter or scan a QR/RFID/barcode tag first.');
       return;
     }
 
@@ -130,12 +103,11 @@ export default function AssetQrScanPage() {
     setError('');
     setMessage('');
 
-    const result = await scanAssetTag({
-      tagCode: cleanCode,
-      scanType,
+    const result = await scanAssetQrTag(cleanCode, {
       scannedBy: scannedBy || 'Asset Manager',
       site: site || 'Unknown site',
-    });
+      scanType,
+    } as any);
 
     if (!result.ok) {
       setError(result.error || `Tag ${cleanCode} could not be scanned.`);
@@ -143,8 +115,8 @@ export default function AssetQrScanPage() {
       return;
     }
 
+    setMessage(`${scanType} tag ${cleanCode} scanned successfully.`);
     setTagCode(cleanCode);
-    setMessage(`${scanType.replaceAll('_', ' ')} tag ${cleanCode} scanned successfully.`);
     await loadTags();
     setLoading(false);
   }
@@ -153,18 +125,15 @@ export default function AssetQrScanPage() {
     setError('');
     setCameraMessage('');
 
-    if (scanType !== 'QR_CODE') {
-      setCameraMessage('Camera scanning is for QR codes. Use manual entry for UHF RFID and barcode scanner input.');
-      return;
-    }
-
     if (!cameraSupported) {
-      setCameraMessage('Camera scanning is not available in this browser. Use manual QR entry.');
+      setCameraMessage('Camera scanning is not available in this browser. Use manual entry.');
       return;
     }
 
     if (!window.BarcodeDetector) {
-      setCameraMessage('This browser does not support built-in QR detection. Manual QR entry remains available.');
+      setCameraMessage(
+        'This browser does not support built-in QR detection. Manual QR/RFID/barcode entry remains available.',
+      );
       return;
     }
 
@@ -185,9 +154,7 @@ export default function AssetQrScanPage() {
       scanningRef.current = true;
       runCameraLoop();
     } catch (err) {
-      setCameraMessage(
-        err instanceof Error ? err.message : 'Unable to open camera. Use manual QR entry.',
-      );
+      setCameraMessage(err instanceof Error ? err.message : 'Unable to open camera.');
     }
   }
 
@@ -205,7 +172,9 @@ export default function AssetQrScanPage() {
   async function runCameraLoop() {
     if (!videoRef.current || !window.BarcodeDetector) return;
 
-    const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+    const detector = new window.BarcodeDetector({
+      formats: ['qr_code', 'code_128', 'code_39'],
+    });
 
     const loop = async () => {
       if (!scanningRef.current || !videoRef.current) return;
@@ -222,7 +191,7 @@ export default function AssetQrScanPage() {
           return;
         }
       } catch {
-        // Keep manual fallback available.
+        // Keep scanner quiet; manual entry remains available.
       }
 
       window.setTimeout(loop, 700);
@@ -230,6 +199,14 @@ export default function AssetQrScanPage() {
 
     loop();
   }
+
+  const summary = {
+    total: tags.length,
+    available: tags.filter((tag) => tag.status === 'AVAILABLE').length,
+    issued: tags.filter((tag) => tag.status === 'ISSUED').length,
+    damaged: tags.filter((tag) => tag.status === 'DAMAGED').length,
+    scanned: tags.filter((tag) => tag.lastScannedAt).length,
+  };
 
   if (!mounted) return null;
 
@@ -244,18 +221,18 @@ export default function AssetQrScanPage() {
               <p className="muted">
                 Unified scanning point for scaffold components, tools, stores stock, disposable
                 equipment and high-value assets. QR scanning is active now; RFID support is prepared
-                for UHF scanner integration.
+                for UHF scanner input.
               </p>
             </div>
 
             <button className="btn-secondary" type="button" onClick={loadTags}>
-              Refresh
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
 
-          {error && <div className="finance-notice danger">{error}</div>}
-          {message && <div className="finance-notice success">{message}</div>}
-          {cameraMessage && <div className="finance-notice warning">{cameraMessage}</div>}
+          {error ? <div className="finance-notice danger">{error}</div> : null}
+          {message ? <div className="finance-notice success">{message}</div> : null}
+          {cameraMessage ? <div className="finance-notice warning">{cameraMessage}</div> : null}
 
           <div className="finance-summary-grid">
             <div className="finance-summary-card">
@@ -287,9 +264,9 @@ export default function AssetQrScanPage() {
           <div className="finance-form-grid">
             <label>
               Scan Type
-              <select value={scanType} onChange={(event) => setScanType(event.target.value as ScanAssetTagPayload['scanType'])}>
-                <option value="QR_CODE">QR Code</option>
-                <option value="RFID_UHF">UHF RFID</option>
+              <select value={scanType} onChange={(event) => setScanType(event.target.value as any)}>
+                <option value="QR">QR Code</option>
+                <option value="RFID">RFID / UHF Tag</option>
                 <option value="BARCODE">Barcode</option>
               </select>
             </label>
@@ -299,30 +276,22 @@ export default function AssetQrScanPage() {
               <input
                 value={tagCode}
                 onChange={(event) => setTagCode(event.target.value)}
-                placeholder="QR-SCF-0001 or RFID EPC"
+                placeholder="QR-SCF-0001 or RFID EPC code"
               />
             </label>
 
             <label>
               Scanned By
-              <input
-                value={scannedBy}
-                onChange={(event) => setScannedBy(event.target.value)}
-                placeholder="Asset Manager"
-              />
+              <input value={scannedBy} onChange={(event) => setScannedBy(event.target.value)} />
             </label>
 
             <label>
               Site
-              <input
-                value={site}
-                onChange={(event) => setSite(event.target.value)}
-                placeholder="Kitwe Main Distribution Centre"
-              />
+              <input value={site} onChange={(event) => setSite(event.target.value)} />
             </label>
 
             <button className="btn" type="button" disabled={loading} onClick={() => handleScan()}>
-              {loading ? 'Scanning...' : 'Submit Scan'}
+              {loading ? 'Submitting...' : 'Submit Scan'}
             </button>
           </div>
         </div>
@@ -337,20 +306,20 @@ export default function AssetQrScanPage() {
               </p>
             </div>
 
-            <div className="finance-inline-actions">
-              {!cameraActive ? (
-                <button className="btn-secondary" type="button" onClick={startCamera}>
-                  Start Camera
-                </button>
-              ) : (
-                <button className="btn-secondary danger" type="button" onClick={stopCamera}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn-secondary" type="button" onClick={startCamera}>
+                Start Camera
+              </button>
+
+              {cameraActive ? (
+                <button className="btn-secondary" type="button" onClick={stopCamera}>
                   Stop Camera
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 
-          <div className="finance-table-wrap">
+          <div className="finance-camera-box">
             <video
               ref={videoRef}
               muted
@@ -358,17 +327,17 @@ export default function AssetQrScanPage() {
               style={{
                 width: '100%',
                 maxHeight: 320,
-                borderRadius: 16,
-                background: '#0f172a',
+                borderRadius: 14,
+                background: '#020617',
                 display: cameraActive ? 'block' : 'none',
               }}
             />
 
-            {!cameraActive && (
-              <div className="finance-notice">
+            {!cameraActive ? (
+              <div className="finance-notice warning">
                 Camera inactive. Click Start Camera or continue with manual QR/RFID entry.
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -389,6 +358,7 @@ export default function AssetQrScanPage() {
                   <th>Last Scanned</th>
                 </tr>
               </thead>
+
               <tbody>
                 {tags.length === 0 ? (
                   <tr>
@@ -402,7 +372,7 @@ export default function AssetQrScanPage() {
                       <td>{tag.stockItem?.itemName || '-'}</td>
                       <td>{tag.assignedLocation?.locationName || '-'}</td>
                       <td>
-                        <span className={statusClass(tag.status)}>{tag.status}</span>
+                        <span className="status-pill">{tag.status || '-'}</span>
                       </td>
                       <td>{tag.lastScannedBy || '-'}</td>
                       <td>{tag.lastScanSite || '-'}</td>

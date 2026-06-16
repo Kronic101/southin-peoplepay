@@ -1,29 +1,41 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../../../components/AppShell';
-import {
-  AssetQrTag,
-  getAssetQrTags,
-  scanAssetQrTag,
-} from '@/lib/assets-api';
 
-type BarcodeDetectorResult = {
-  rawValue: string;
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000/api';
+
+type AssetDashboardResponse = {
+  summary?: {
+    assets?: number;
+    activeAssets?: number;
+    stockItems?: number;
+    locations?: number;
+    movements?: number;
+    pendingMovements?: number;
+    qrTags?: number;
+    scaffoldComponents?: number;
+    availableScaffolds?: number;
+    issuedScaffolds?: number;
+    damagedScaffolds?: number;
+  };
+  lowStock?: Array<{
+    itemCode?: string;
+    itemName?: string;
+    locationCode?: string;
+    locationName?: string;
+    quantityOnHand?: number | string;
+    minimumLevel?: number | string;
+    reorderLevel?: number | string;
+  }>;
+  recentMovements?: Array<any>;
+  recentQrScans?: Array<any>;
 };
 
-type BarcodeDetectorInstance = {
-  detect(source: HTMLVideoElement): Promise<BarcodeDetectorResult[]>;
-};
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorInstance;
-
-declare global {
-  interface Window {
-    BarcodeDetector?: BarcodeDetectorConstructor;
-  }
+function asNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatDateTime(value?: string | null) {
@@ -42,342 +54,226 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-export default function AssetQrScanPage() {
+async function apiGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    cache: 'no-store',
+  });
+
+  let body: any = null;
+
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(body?.message || body?.error || `Request failed with status ${response.status}`);
+  }
+
+  return body as T;
+}
+
+export default function AssetDashboardPage() {
   const [mounted, setMounted] = useState(false);
-  const [tags, setTags] = useState<AssetQrTag[]>([]);
-  const [tagCode, setTagCode] = useState('QR-SCF-0001');
-  const [scannedBy, setScannedBy] = useState('Asset Manager');
-  const [site, setSite] = useState('Kitwe Main Distribution Centre');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [data, setData] = useState<AssetDashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [cameraSupported, setCameraSupported] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraMessage, setCameraMessage] = useState('');
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanningRef = useRef(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setMounted(true);
-    setCameraSupported(
-      typeof window !== 'undefined' &&
-        typeof navigator !== 'undefined' &&
-        Boolean(navigator.mediaDevices?.getUserMedia),
-    );
-    loadTags();
-
-    return () => {
-      stopCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadDashboard();
   }, []);
 
-  async function loadTags() {
+  async function loadDashboard() {
     setLoading(true);
     setError('');
-    setMessage('');
-
-    const result = await getAssetQrTags();
-
-    if (!result.ok) {
-      setError(result.error || 'Unable to load QR tag register.');
-      setLoading(false);
-      return;
-    }
-
-    setTags(result.data || []);
-    setLoading(false);
-  }
-
-  async function handleScan(nextCode?: string) {
-    const cleanCode = String(nextCode || tagCode || '').trim();
-
-    if (!cleanCode) {
-      setError('Enter or scan a QR tag code first.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    const result = await scanAssetQrTag(cleanCode, {
-      scannedBy: scannedBy || 'Asset Manager',
-      site: site || 'Unknown site',
-    });
-
-    if (!result.ok) {
-      setError(result.error || `QR tag ${cleanCode} could not be scanned.`);
-      setLoading(false);
-      return;
-    }
-
-    setMessage(`QR tag ${cleanCode} scanned successfully.`);
-    setTagCode(cleanCode);
-    await loadTags();
-    setLoading(false);
-  }
-
-  async function startCamera() {
-    setError('');
-    setCameraMessage('');
-
-    if (!cameraSupported) {
-      setCameraMessage(
-        'Camera scanning is not available in this browser. Use manual QR entry.',
-      );
-      return;
-    }
-
-    if (!window.BarcodeDetector) {
-      setCameraMessage(
-        'This browser does not support built-in QR detection. Manual QR entry remains available.',
-      );
-      return;
-    }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-        },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setCameraActive(true);
-      scanningRef.current = true;
-      runCameraLoop();
+      const result = await apiGet<AssetDashboardResponse>('/assets/dashboard');
+      setData(result);
     } catch (err) {
-      setCameraMessage(
-        err instanceof Error
-          ? err.message
-          : 'Unable to open camera. Use manual QR entry.',
-      );
+      setError(err instanceof Error ? err.message : 'Unable to load asset dashboard.');
+    } finally {
+      setLoading(false);
     }
   }
 
-  function stopCamera() {
-    scanningRef.current = false;
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    setCameraActive(false);
-  }
-
-  async function runCameraLoop() {
-    if (!videoRef.current || !window.BarcodeDetector) return;
-
-    const detector = new window.BarcodeDetector({
-      formats: ['qr_code'],
-    });
-
-    const loop = async () => {
-      if (!scanningRef.current || !videoRef.current) return;
-
-      try {
-        const codes = await detector.detect(videoRef.current);
-        const firstCode = codes[0]?.rawValue?.trim();
-
-        if (firstCode) {
-          scanningRef.current = false;
-          stopCamera();
-          setTagCode(firstCode);
-          await handleScan(firstCode);
-          return;
-        }
-      } catch {
-        // Keep scanning quietly. Manual entry remains fallback.
-      }
-
-      window.setTimeout(loop, 700);
+  const summary = useMemo(() => {
+    return {
+      assets: asNumber(data?.summary?.assets),
+      activeAssets: asNumber(data?.summary?.activeAssets),
+      stockItems: asNumber(data?.summary?.stockItems),
+      locations: asNumber(data?.summary?.locations),
+      movements: asNumber(data?.summary?.movements),
+      pendingMovements: asNumber(data?.summary?.pendingMovements),
+      qrTags: asNumber(data?.summary?.qrTags),
+      scaffoldComponents: asNumber(data?.summary?.scaffoldComponents),
+      availableScaffolds: asNumber(data?.summary?.availableScaffolds),
+      issuedScaffolds: asNumber(data?.summary?.issuedScaffolds),
+      damagedScaffolds: asNumber(data?.summary?.damagedScaffolds),
     };
+  }, [data]);
 
-    loop();
-  }
-
-  const summary = {
-    total: tags.length,
-    available: tags.filter((tag) => tag.status === 'AVAILABLE').length,
-    issued: tags.filter((tag) => tag.status === 'ISSUED').length,
-    damaged: tags.filter((tag) => tag.status === 'DAMAGED').length,
-  };
-
-  if (!mounted) {
-    return null;
-  }
+  if (!mounted) return null;
 
   return (
     <AppShell>
-    <section className="finance-page">
-      <div className="finance-card finance-hero-card">
-        <div>
-          <p className="eyebrow">Asset Management</p>
-          <h1>QR Scan Centre</h1>
-          <p className="muted">
-            Manual QR scan entry for now, with camera QR scanning where supported by the browser.
-          </p>
-        </div>
+      <section className="page-stack finance-live-page">
+        <div className="finance-live-card">
+          <div className="finance-live-header">
+            <div>
+              <p className="eyebrow">Asset Management</p>
+              <h1>Asset, Stores & Scaffold Dashboard</h1>
+              <p className="muted">
+                Central view for stores, scaffolds, QR/RFID tracking, stock balances, site movement
+                control and low-stock alerts.
+              </p>
+            </div>
 
-        <button className="dark-button" type="button" onClick={loadTags}>
-          Refresh
-        </button>
-      </div>
-
-      {error ? <div className="error-banner">{error}</div> : null}
-      {message ? <div className="success-banner">{message}</div> : null}
-      {cameraMessage ? <div className="warning-banner">{cameraMessage}</div> : null}
-
-      <div className="metric-grid">
-        <div className="metric-card">
-          <span>Total QR Tags</span>
-          <strong>{summary.total}</strong>
-        </div>
-        <div className="metric-card">
-          <span>Available</span>
-          <strong>{summary.available}</strong>
-        </div>
-        <div className="metric-card">
-          <span>Issued</span>
-          <strong>{summary.issued}</strong>
-        </div>
-        <div className="metric-card">
-          <span>Damaged</span>
-          <strong>{summary.damaged}</strong>
-        </div>
-      </div>
-
-      <div className="finance-card">
-        <h2>Scan QR Tag</h2>
-
-        <div className="form-grid two">
-          <label>
-            QR Tag Code
-            <input
-              value={tagCode}
-              onChange={(event) => setTagCode(event.target.value)}
-              placeholder="QR-SCF-0001"
-            />
-          </label>
-
-          <label>
-            Scanned By
-            <input
-              value={scannedBy}
-              onChange={(event) => setScannedBy(event.target.value)}
-              placeholder="Asset Manager"
-            />
-          </label>
-
-          <label>
-            Site
-            <input
-              value={site}
-              onChange={(event) => setSite(event.target.value)}
-              placeholder="Kitwe Main Distribution Centre"
-            />
-          </label>
-
-          <div className="button-row align-end">
-            <button
-              className="primary-button"
-              type="button"
-              disabled={loading}
-              onClick={() => handleScan()}
-            >
-              {loading ? 'Scanning...' : 'Scan QR Tag'}
+            <button className="btn-secondary" type="button" onClick={loadDashboard}>
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
-        </div>
-      </div>
 
-      <div className="finance-card">
-        <div className="section-header-row">
-          <div>
-            <h2>Camera Scanner</h2>
-            <p className="muted">
-              Works on supported browsers. Manual entry remains the production fallback.
-            </p>
-          </div>
+          {error ? <div className="finance-notice danger">{error}</div> : null}
 
-          <div className="button-row">
-            {!cameraActive ? (
-              <button className="dark-button" type="button" onClick={startCamera}>
-                Start Camera
-              </button>
-            ) : (
-              <button className="danger-button" type="button" onClick={stopCamera}>
-                Stop Camera
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="camera-box">
-          <video ref={videoRef} muted playsInline className="camera-video" />
-          {!cameraActive ? (
-            <div className="camera-placeholder">
-              Camera inactive. Click Start Camera or use manual QR entry.
+          <div className="finance-summary-grid">
+            <div className="finance-summary-card">
+              <span>Assets</span>
+              <strong>{summary.assets}</strong>
             </div>
-          ) : null}
+            <div className="finance-summary-card">
+              <span>Active Assets</span>
+              <strong>{summary.activeAssets}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Stock Items</span>
+              <strong>{summary.stockItems}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Locations</span>
+              <strong>{summary.locations}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Movements</span>
+              <strong>{summary.movements}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Pending Movements</span>
+              <strong>{summary.pendingMovements}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>QR / RFID Tags</span>
+              <strong>{summary.qrTags}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Scaffold Components</span>
+              <strong>{summary.scaffoldComponents}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Available Scaffolds</span>
+              <strong>{summary.availableScaffolds}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Issued Scaffolds</span>
+              <strong>{summary.issuedScaffolds}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Damaged Scaffolds</span>
+              <strong>{summary.damagedScaffolds}</strong>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="finance-card">
-        <h2>QR Tag Register</h2>
+        <div className="finance-live-card">
+          <h2>Low Stock Alerts</h2>
 
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Tag Code</th>
-                <th>Payload</th>
-                <th>Stock Item</th>
-                <th>Location</th>
-                <th>Status</th>
-                <th>Last Scanned By</th>
-                <th>Last Scan Site</th>
-                <th>Last Scanned</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tags.length === 0 ? (
+          <div className="finance-table-wrap">
+            <table className="finance-table">
+              <thead>
                 <tr>
-                  <td colSpan={8}>No QR tags found.</td>
+                  <th>Item Code</th>
+                  <th>Item Name</th>
+                  <th>Location Code</th>
+                  <th>Location</th>
+                  <th>On Hand</th>
+                  <th>Minimum</th>
+                  <th>Reorder</th>
+                  <th>Status</th>
                 </tr>
-              ) : (
-                tags.map((tag) => (
-                  <tr key={tag.id}>
-                    <td>{tag.tagCode}</td>
-                    <td>{tag.qrPayload}</td>
-                    <td>{tag.stockItem?.itemName || '-'}</td>
-                    <td>{tag.assignedLocation?.locationName || '-'}</td>
-                    <td>
-                      <span className="status-pill">{tag.status}</span>
-                    </td>
-                    <td>{tag.lastScannedBy || '-'}</td>
-                    <td>{tag.lastScanSite || '-'}</td>
-                    <td>{formatDateTime(tag.lastScannedAt)}</td>
+              </thead>
+
+              <tbody>
+                {!data?.lowStock || data.lowStock.length === 0 ? (
+                  <tr>
+                    <td colSpan={8}>No low stock alerts found.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  data.lowStock.map((row, index) => (
+                    <tr key={`${row.itemCode || 'item'}-${row.locationCode || 'loc'}-${index}`}>
+                      <td>{row.itemCode || '-'}</td>
+                      <td>{row.itemName || '-'}</td>
+                      <td>{row.locationCode || '-'}</td>
+                      <td>{row.locationName || '-'}</td>
+                      <td>{asNumber(row.quantityOnHand)}</td>
+                      <td>{asNumber(row.minimumLevel)}</td>
+                      <td>{asNumber(row.reorderLevel)}</td>
+                      <td>
+                        <span className="status-pill warning">LOW STOCK</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    </section>
+
+        <div className="finance-live-card">
+          <h2>Recent Stock Movements</h2>
+
+          <div className="finance-table-wrap">
+            <table className="finance-table">
+              <thead>
+                <tr>
+                  <th>Movement No.</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Requested By</th>
+                  <th>Reason</th>
+                  <th>Posted</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {!data?.recentMovements || data.recentMovements.length === 0 ? (
+                  <tr>
+                    <td colSpan={8}>No recent movements found.</td>
+                  </tr>
+                ) : (
+                  data.recentMovements.map((movement) => (
+                    <tr key={movement.id}>
+                      <td>{movement.movementNo || '-'}</td>
+                      <td>{movement.movementType || '-'}</td>
+                      <td>
+                        <span className="status-pill">{movement.status || '-'}</span>
+                      </td>
+                      <td>{movement.fromLocation?.locationCode || '-'}</td>
+                      <td>{movement.toLocation?.locationCode || '-'}</td>
+                      <td>{movement.requestedBy || '-'}</td>
+                      <td>{movement.reason || '-'}</td>
+                      <td>{formatDateTime(movement.postedAt)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </AppShell>
   );
 }

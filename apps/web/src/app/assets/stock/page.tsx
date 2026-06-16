@@ -45,10 +45,6 @@ function money(value: unknown) {
   })}`;
 }
 
-function statusClass(isLow: boolean) {
-  return isLow ? 'status-pill warning' : 'status-pill success';
-}
-
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
@@ -96,6 +92,10 @@ const initialForm: CreateStockForm = {
   isRfidTracked: false,
   allowUpdate: false,
 };
+
+function controlStatusClass(isLow: boolean) {
+  return isLow ? 'status-pill warning' : 'status-pill success';
+}
 
 export default function AssetStockPage() {
   const [mounted, setMounted] = useState(false);
@@ -200,6 +200,7 @@ export default function AssetStockPage() {
       const created = await postJson<StockItem>('/assets/stock-items', payload);
 
       setMessage(`Stock item ${created.itemCode} saved successfully.`);
+
       setForm({
         ...initialForm,
         itemType: form.itemType,
@@ -218,10 +219,15 @@ export default function AssetStockPage() {
   const summary = useMemo(() => {
     const qrTracked = items.filter((item) => item.isQrTracked).length;
     const serialized = items.filter((item) => item.isSerialized).length;
+
     const lowStock = balances.filter((balance) => {
       const item = balance.stockItem;
       if (!item) return false;
-      return asNumber(balance.quantityOnHand) <= asNumber(item.minimumLevel);
+
+      const min = asNumber(item.minimumLevel);
+      if (min <= 0) return false;
+
+      return asNumber(balance.quantityOnHand) <= min;
     }).length;
 
     return {
@@ -263,18 +269,22 @@ export default function AssetStockPage() {
               <span>Stock Items</span>
               <strong>{summary.stockItems}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Balances</span>
               <strong>{summary.balances}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>QR / RFID Ready</span>
               <strong>{summary.qrTracked}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Serialized</span>
               <strong>{summary.serialized}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Low Stock</span>
               <strong>{summary.lowStock}</strong>
@@ -284,6 +294,10 @@ export default function AssetStockPage() {
 
         <div className="finance-live-card">
           <h2>Create Stock Item</h2>
+          <p className="muted">
+            Create new stock items while allowing existing Omni Core item codes and Southin-generated
+            item code sequences.
+          </p>
 
           <div className="finance-form-grid">
             <label>
@@ -351,7 +365,10 @@ export default function AssetStockPage() {
 
             <label>
               Item Type
-              <select value={form.itemType} onChange={(event) => updateForm('itemType', event.target.value)}>
+              <select
+                value={form.itemType}
+                onChange={(event) => updateForm('itemType', event.target.value)}
+              >
                 <option value="OTHER">Other</option>
                 <option value="PPE">PPE</option>
                 <option value="SCAFFOLD_COMPONENT">Scaffold Component</option>
@@ -478,10 +495,13 @@ export default function AssetStockPage() {
                   <th>Serialized</th>
                 </tr>
               </thead>
+
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={10}>{loading ? 'Loading stock items...' : 'No stock items found.'}</td>
+                    <td colSpan={10}>
+                      {loading ? 'Loading stock items...' : 'No stock items found.'}
+                    </td>
                   </tr>
                 ) : (
                   items.map((item) => (
@@ -522,6 +542,7 @@ export default function AssetStockPage() {
                   <th>Control Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 {balances.length === 0 ? (
                   <tr>
@@ -546,7 +567,9 @@ export default function AssetStockPage() {
                         <td>{asNumber(balance.quantityDamaged)}</td>
                         <td>{asNumber(balance.quantityLost)}</td>
                         <td>
-                          <span className={statusClass(isLow)}>{isLow ? 'LOW STOCK' : 'OK'}</span>
+                          <span className={controlStatusClass(isLow)}>
+                            {isLow ? 'LOW STOCK' : 'OK'}
+                          </span>
                         </td>
                       </tr>
                     );
