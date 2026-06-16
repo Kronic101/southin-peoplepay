@@ -1,101 +1,249 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-import AppShell from '../../../components/AppShell';
+import AppShell from '@/components/AppShell';
 import {
-  approveAssetMovement,
-  createAssetMovement,
-  getAssetLocations,
-  getAssetMovements,
-  getAssetStockItems,
-  postAssetMovement,
-  type StockItemRecord,
-  type StockLocationRecord,
-  type StockMovementRecord,
-} from '../../../lib/api';
+  approveStockMovement,
+  createStockMovement,
+  getStockItems,
+  getStockLocations,
+  getStockMovements,
+  postStockMovement,
+  rejectStockMovement,
+  type StockItem,
+  type StockLocation,
+  type StockMovement,
+} from '@/lib/assets-api';
+import { useEffect, useMemo, useState } from 'react';
 
 function statusClass(status: string) {
-  if (['APPROVED', 'POSTED'].includes(status)) return 'status-pill success';
-  if (['REJECTED', 'CANCELLED'].includes(status)) return 'status-pill danger';
+  const upper = String(status || '').toUpperCase();
+
+  if (['POSTED', 'APPROVED'].includes(upper)) return 'status-pill success';
+  if (['REJECTED', 'CANCELLED'].includes(upper)) return 'status-pill danger';
   return 'status-pill warning';
 }
 
-export default function AssetMovementsPage() {
-  const [movements, setMovements] = useState<StockMovementRecord[]>([]);
-  const [items, setItems] = useState<StockItemRecord[]>([]);
-  const [locations, setLocations] = useState<StockLocationRecord[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+function movementNeedsDirector(movement: StockMovement) {
+  const movementType = String(movement.movementType || '').toUpperCase();
 
-  async function loadData() {
-    setError('');
+  if (['LOSS', 'WRITE_OFF', 'DAMAGE'].includes(movementType)) return true;
 
-    try {
-      const [movementData, itemData, locationData] = await Promise.all([
-        getAssetMovements(),
-        getAssetStockItems(),
-        getAssetLocations(),
-      ]);
+  const total = (movement.lines || []).reduce((sum, line) => {
+    const qty = Number(line.quantity || 0);
+    const cost = Number(line.unitCost || 0);
+    return sum + qty * cost;
+  }, 0);
 
-      setMovements(movementData);
-      setItems(itemData);
-      setLocations(locationData);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load movements.');
-    }
+  return total >= 10000;
+}
+
+function approvalPathLabel(movement: StockMovement) {
+  if (movement.status === 'POSTED') return 'Completed and posted';
+  if (movement.status === 'APPROVED') return 'Approved, awaiting Stores posting';
+  if (movement.status === 'REJECTED') return 'Rejected';
+
+  if (movementNeedsDirector(movement)) {
+    return 'Requester → Line Manager → Branch/Site Manager → Director → Stores Posting';
   }
 
+  return 'Requester → Line Manager → Branch/Site Manager → Stores Posting';
+}
+
+export default function AssetMovementsPage() {
+  const [mounted, setMounted] = useState(false);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [items, setItems] = useState<StockItem[]>([]);
+  const [locations, setLocations] = useState<StockLocation[]>([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [movementType, setMovementType] = useState('ISSUE');
+  const [stockItemId, setStockItemId] = useState('');
+  const [fromLocationId, setFromLocationId] = useState('');
+  const [toLocationId, setToLocationId] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
+  const [requestedBy, setRequestedBy] = useState('Asset Manager');
+  const [requestedByEmail, setRequestedByEmail] = useState('assets@southincon.com');
+  const [department, setDepartment] = useState('Operations');
+  const [site, setSite] = useState('Kitwe Main Distribution Centre');
+  const [reason, setReason] = useState('');
+
   useEffect(() => {
+    setMounted(true);
     loadData();
   }, []);
 
-  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setMessage('');
+  const summary = useMemo(() => {
+    return {
+      total: movements.length,
+      submitted: movements.filter((movement) => movement.status === 'SUBMITTED').length,
+      approved: movements.filter((movement) => movement.status === 'APPROVED').length,
+      posted: movements.filter((movement) => movement.status === 'POSTED').length,
+      rejected: movements.filter((movement) => movement.status === 'REJECTED').length,
+    };
+  }, [movements]);
+
+  async function loadData() {
+    setLoading(true);
     setError('');
 
-    const formData = new FormData(event.currentTarget);
+    const [movementResult, itemResult, locationResult] = await Promise.all([
+      getStockMovements(),
+      getStockItems(),
+      getStockLocations(),
+    ]);
 
-    try {
-      await createAssetMovement({
-        movementType: String(formData.get('movementType') || 'ISSUE'),
-        fromLocationId: String(formData.get('fromLocationId') || '') || undefined,
-        toLocationId: String(formData.get('toLocationId') || '') || undefined,
-        requestedBy: String(formData.get('requestedBy') || 'Asset Manager'),
-        department: String(formData.get('department') || 'Operations'),
-        site: String(formData.get('site') || 'Kitwe Main Distribution Centre'),
-        reason: String(formData.get('reason') || ''),
-        lines: [
-          {
-            stockItemId: String(formData.get('stockItemId') || ''),
-            quantity: Number(formData.get('quantity') || 1),
-            unitCost: Number(formData.get('unitCost') || 0),
-          },
-        ],
-      });
-
-      event.currentTarget.reset();
-      setMessage('Movement created successfully.');
-      await loadData();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create movement.');
-    } finally {
-      setSaving(false);
+    if (!movementResult.ok) {
+      setError(movementResult.error || 'Unable to load stock movements.');
+      setLoading(false);
+      return;
     }
+
+    if (!itemResult.ok) {
+      setError(itemResult.error || 'Unable to load stock items.');
+      setLoading(false);
+      return;
+    }
+
+    if (!locationResult.ok) {
+      setError(locationResult.error || 'Unable to load stock locations.');
+      setLoading(false);
+      return;
+    }
+
+    setMovements(movementResult.data || []);
+    setItems(itemResult.data || []);
+    setLocations(locationResult.data || []);
+
+    if (!stockItemId && itemResult.data?.[0]?.id) {
+      setStockItemId(itemResult.data[0].id);
+    }
+
+    setLoading(false);
   }
 
-  async function handleApprove(id: string) {
-    await approveAssetMovement(id);
+  async function handleCreateMovement() {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    if (!stockItemId) {
+      setError('Select a stock item first.');
+      setLoading(false);
+      return;
+    }
+
+    const result = await createStockMovement({
+      movementType,
+      fromLocationId: fromLocationId || undefined,
+      toLocationId: toLocationId || undefined,
+      requestedBy,
+      requestedByEmail,
+      department,
+      site,
+      reason: reason || `${movementType} movement request`,
+      referenceType: 'MANUAL_ASSET_MOVEMENT',
+      referenceNo: '',
+      lines: [
+        {
+          stockItemId,
+          quantity: Number(quantity || 0),
+          unitCost: Number(unitCost || 0),
+          notes: reason || '',
+        },
+      ],
+    });
+
+    if (!result.ok) {
+      setError(result.error || 'Unable to create movement.');
+      setLoading(false);
+      return;
+    }
+
+    setMessage(
+      'Movement created. Production approval path: Requester → Line Manager → Branch/Site Manager → Director where required → Stores posting.',
+    );
+    setReason('');
     await loadData();
+    setLoading(false);
   }
 
-  async function handlePost(id: string) {
-    await postAssetMovement(id);
+  async function handleApprove(movement: StockMovement) {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    const result = await approveStockMovement(movement.id, {
+      approvedBy: 'Line Manager / Branch Manager',
+      comments: 'Movement approved for next step.',
+    });
+
+    if (!result.ok) {
+      setError(result.error || 'Unable to approve movement.');
+      setLoading(false);
+      return;
+    }
+
+    setMessage('Movement approval step completed.');
     await loadData();
+    setLoading(false);
   }
+
+  async function handleReject(movement: StockMovement) {
+    const reasonText = window.prompt('Enter rejection reason:', 'Rejected during review.');
+
+    if (!reasonText) return;
+
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    const result = await rejectStockMovement(movement.id, {
+      rejectedBy: 'Line Manager',
+      reason: reasonText,
+    });
+
+    if (!result.ok) {
+      setError(result.error || 'Unable to reject movement.');
+      setLoading(false);
+      return;
+    }
+
+    setMessage('Movement rejected.');
+    await loadData();
+    setLoading(false);
+  }
+
+  async function handlePost(movement: StockMovement) {
+    const confirmed = window.confirm(
+      `Post movement ${movement.movementNo}? This updates stock balances.`,
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    const result = await postStockMovement(movement.id, {
+      postedBy: 'Stores Officer',
+      comments: 'Movement posted to live stock balance.',
+    });
+
+    if (!result.ok) {
+      setError(result.error || 'Unable to post movement.');
+      setLoading(false);
+      return;
+    }
+
+    setMessage('Movement posted and stock balances updated.');
+    await loadData();
+    setLoading(false);
+  }
+
+  if (!mounted) return null;
 
   return (
     <AppShell>
@@ -104,36 +252,53 @@ export default function AssetMovementsPage() {
           <div className="finance-live-header">
             <div>
               <p className="eyebrow">Asset Management</p>
-              <h1>Stock Movements</h1>
+              <h1>Stock Movement Control</h1>
               <p className="muted">
-                Create, approve and post receipts, issues, transfers, returns, damage, losses and
-                write-offs between stores, yards and sites.
+                Movement workflow for stores, scaffolds, disposable equipment, tools, site transfers,
+                losses, damages and write-offs. Approval path prepared for Line Manager, Branch/Site
+                Manager and Director control.
               </p>
             </div>
 
-            <button className="btn-secondary" onClick={loadData} type="button">
+            <button className="btn-secondary" type="button" onClick={loadData}>
               Refresh
             </button>
           </div>
 
-          {message && <div className="finance-notice success">{message}</div>}
           {error && <div className="finance-notice danger">{error}</div>}
+          {message && <div className="finance-notice success">{message}</div>}
 
           <div className="finance-summary-grid">
-            <div className="finance-summary-card"><span>Total Movements</span><strong>{movements.length}</strong></div>
-            <div className="finance-summary-card"><span>Submitted</span><strong>{movements.filter((m) => m.status === 'SUBMITTED').length}</strong></div>
-            <div className="finance-summary-card"><span>Approved</span><strong>{movements.filter((m) => m.status === 'APPROVED').length}</strong></div>
-            <div className="finance-summary-card"><span>Posted</span><strong>{movements.filter((m) => m.status === 'POSTED').length}</strong></div>
+            <div className="finance-summary-card">
+              <span>Total Movements</span>
+              <strong>{summary.total}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Submitted</span>
+              <strong>{summary.submitted}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Approved</span>
+              <strong>{summary.approved}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Posted</span>
+              <strong>{summary.posted}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Rejected</span>
+              <strong>{summary.rejected}</strong>
+            </div>
           </div>
         </div>
 
         <div className="finance-live-card">
-          <h2>Create Movement</h2>
+          <h2>Create Movement Request</h2>
 
-          <form className="finance-form-grid" onSubmit={handleCreate}>
+          <div className="finance-form-grid">
             <label>
               Movement Type
-              <select name="movementType" defaultValue="ISSUE">
+              <select value={movementType} onChange={(event) => setMovementType(event.target.value)}>
                 <option value="RECEIPT">Receipt</option>
                 <option value="ISSUE">Issue</option>
                 <option value="RETURN">Return</option>
@@ -146,7 +311,7 @@ export default function AssetMovementsPage() {
 
             <label>
               Stock Item
-              <select name="stockItemId" required>
+              <select value={stockItemId} onChange={(event) => setStockItemId(event.target.value)}>
                 <option value="">Select item</option>
                 {items.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -158,7 +323,7 @@ export default function AssetMovementsPage() {
 
             <label>
               From Location
-              <select name="fromLocationId">
+              <select value={fromLocationId} onChange={(event) => setFromLocationId(event.target.value)}>
                 <option value="">None</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
@@ -170,7 +335,7 @@ export default function AssetMovementsPage() {
 
             <label>
               To Location
-              <select name="toLocationId">
+              <select value={toLocationId} onChange={(event) => setToLocationId(event.target.value)}>
                 <option value="">None</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
@@ -180,16 +345,63 @@ export default function AssetMovementsPage() {
               </select>
             </label>
 
-            <label>Quantity<input name="quantity" type="number" defaultValue="1" min="1" required /></label>
-            <label>Unit Cost<input name="unitCost" type="number" step="0.01" defaultValue="0" /></label>
-            <label>Requested By<input name="requestedBy" defaultValue="Asset Manager" /></label>
-            <label>Department<input name="department" defaultValue="Operations" /></label>
-            <label className="span-2">Reason<textarea name="reason" placeholder="Reason for movement" /></label>
+            <label>
+              Quantity
+              <input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(event) => setQuantity(Number(event.target.value))}
+              />
+            </label>
 
-            <button className="btn" disabled={saving} type="submit">
-              {saving ? 'Creating...' : 'Create Movement'}
+            <label>
+              Unit Cost / Value
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={unitCost}
+                onChange={(event) => setUnitCost(Number(event.target.value))}
+              />
+            </label>
+
+            <label>
+              Requested By
+              <input value={requestedBy} onChange={(event) => setRequestedBy(event.target.value)} />
+            </label>
+
+            <label>
+              Requester Email
+              <input
+                value={requestedByEmail}
+                onChange={(event) => setRequestedByEmail(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Department
+              <input value={department} onChange={(event) => setDepartment(event.target.value)} />
+            </label>
+
+            <label>
+              Site / Branch
+              <input value={site} onChange={(event) => setSite(event.target.value)} />
+            </label>
+
+            <label className="span-2">
+              Reason
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Reason for stock issue, return, transfer, loss, damage or write-off."
+              />
+            </label>
+
+            <button className="btn" type="button" disabled={loading} onClick={handleCreateMovement}>
+              {loading ? 'Processing...' : 'Create Movement Request'}
             </button>
-          </form>
+          </div>
         </div>
 
         <div className="finance-live-card">
@@ -199,12 +411,14 @@ export default function AssetMovementsPage() {
             <table className="finance-table">
               <thead>
                 <tr>
-                  <th>Movement No</th>
+                  <th>Movement No.</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Approval Path</th>
                   <th>From</th>
                   <th>To</th>
                   <th>Requested By</th>
+                  <th>Site</th>
                   <th>Reason</th>
                   <th>Lines</th>
                   <th>Actions</th>
@@ -212,30 +426,56 @@ export default function AssetMovementsPage() {
               </thead>
               <tbody>
                 {movements.length === 0 ? (
-                  <tr><td colSpan={9}>No movements found.</td></tr>
+                  <tr>
+                    <td colSpan={11}>{loading ? 'Loading movements...' : 'No movements found.'}</td>
+                  </tr>
                 ) : (
                   movements.map((movement) => (
                     <tr key={movement.id}>
                       <td>{movement.movementNo}</td>
                       <td>{movement.movementType}</td>
-                      <td><span className={statusClass(movement.status)}>{movement.status}</span></td>
+                      <td>
+                        <span className={statusClass(movement.status)}>{movement.status}</span>
+                      </td>
+                      <td>{approvalPathLabel(movement)}</td>
                       <td>{movement.fromLocation?.locationName || '-'}</td>
                       <td>{movement.toLocation?.locationName || '-'}</td>
                       <td>{movement.requestedBy || '-'}</td>
+                      <td>{movement.site || '-'}</td>
                       <td>{movement.reason || '-'}</td>
                       <td>{movement.lines?.length || 0}</td>
                       <td>
                         <div className="finance-inline-actions">
                           {movement.status === 'SUBMITTED' && (
-                            <button className="btn-secondary" onClick={() => handleApprove(movement.id)} type="button">
-                              Approve
-                            </button>
+                            <>
+                              <button
+                                className="btn-secondary"
+                                type="button"
+                                onClick={() => handleApprove(movement)}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="btn-secondary danger"
+                                type="button"
+                                onClick={() => handleReject(movement)}
+                              >
+                                Reject
+                              </button>
+                            </>
                           )}
+
                           {movement.status === 'APPROVED' && (
-                            <button className="btn-secondary" onClick={() => handlePost(movement.id)} type="button">
+                            <button
+                              className="btn-secondary"
+                              type="button"
+                              onClick={() => handlePost(movement)}
+                            >
                               Post
                             </button>
                           )}
+
+                          {movement.status === 'POSTED' && <span className="status-pill success">Posted</span>}
                         </div>
                       </td>
                     </tr>
