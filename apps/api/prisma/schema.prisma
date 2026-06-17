@@ -503,6 +503,26 @@ model AuditLog {
   createdAt   DateTime @default(now())
 }
 
+model SystemAuditLog {
+  id          String   @id @default(uuid())
+  module      String
+  entityType  String
+  entityId    String?
+  action      String
+  description String?
+  performedBy String?
+  performedAt DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+
+  @@index([module])
+  @@index([entityType, entityId])
+  @@index([performedAt])
+  @@index([performedBy])
+  @@map("system_audit_logs")
+}
+
 model DashboardSnapshot {
   id                    String   @id @default(uuid())
   snapshotType          String
@@ -779,6 +799,11 @@ model FinanceExpense {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
+  stockMovements      StockMovement[]
+  stockLedgerEntries  StockLedger[]
+  custodyAssignments  AssetCustodyAssignment[]
+  scaffoldDeployments ScaffoldDeployment[]
+
   @@index([status])
   @@index([department])
   @@index([site])
@@ -847,6 +872,7 @@ model ProcurementRequest {
   site              String?
   requestedBy       String?
   supplierName      String?
+  supplierId        String?
   description       String
   amount            Decimal                  @db.Decimal(18, 2)
 
@@ -868,9 +894,14 @@ model ProcurementRequest {
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
+  supplier           Supplier?               @relation(fields: [supplierId], references: [id])
+  stockMovements     StockMovement[]
+  stockLedgerEntries StockLedger[]
+
   @@index([status])
   @@index([department])
   @@index([site])
+  @@index([supplierId])
   @@map("procurement_requests")
 }
 
@@ -891,7 +922,14 @@ model HubAsset {
   purchaseValue   Decimal?      @db.Decimal(18, 2)
   currentValue    Decimal?      @db.Decimal(18, 2)
 
+  purchaseCurrency String?
+  currentBookValue Decimal?      @db.Decimal(18, 2)
+  accumulatedDepreciation Decimal? @db.Decimal(18, 2)
+  depreciationMethod String?
+  monthlyDepreciationRate Decimal? @db.Decimal(8, 4)
+
   supplierName    String?
+  supplierId      String?
   procurementRequestId String?
 
   status          AssetStatus   @default(ACTIVE)
@@ -906,7 +944,12 @@ model HubAsset {
   @@index([category])
   @@index([status])
   @@index([site])
+  @@index([supplierId])
   @@map("hub_assets")
+
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  custodyAssignments AssetCustodyAssignment[]
+  depreciationHistory AssetDepreciationHistory[]
 }
 
 model HubAssetMovement {
@@ -947,14 +990,6 @@ model HubAssetInspection {
 
   @@index([assetId])
   @@map("hub_asset_inspections")
-}
-
-enum FleetVehicleStatus {
-  ACTIVE
-  ASSIGNED
-  IN_WORKSHOP
-  OUT_OF_SERVICE
-  RETIRED
 }
 
 model FleetVehicle {
@@ -1142,6 +1177,31 @@ model QualityRecord {
   @@map("quality_records")
 }
 
+model Supplier {
+  id              String   @id @default(uuid())
+  supplierCode    String?  @unique
+  supplierName    String
+  contactName     String?
+  email           String?
+  phone           String?
+  address         String?
+  paymentTerms    String?
+  taxNumber       String?
+  bankName        String?
+  bankAccountName String?
+  bankAccountNo   String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  stockItems          StockItem[]
+  procurementRequests ProcurementRequest[]
+  hubAssets           HubAsset[]
+
+  @@index([supplierName])
+  @@map("suppliers")
+}
+
 model StockItem {
   id              String        @id @default(uuid())
   itemCode        String        @unique
@@ -1155,21 +1215,37 @@ model StockItem {
   reorderLevel    Decimal?      @db.Decimal(18, 2)
   standardCost    Decimal?      @db.Decimal(18, 2)
 
+  supplierId      String?
+  supplierCode    String?
+  supplierName    String?
+  poNumber        String?
+  legacyCode      String?
+  legacySource    String?
+
   isSerialized    Boolean       @default(false)
   isQrTracked     Boolean       @default(false)
+  isRfidTracked   Boolean       @default(false)
   isActive        Boolean       @default(true)
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
   balances        StockBalance[]
   movements       StockMovementLine[]
   qrTags          AssetQrTag[]
   scaffoldComponents ScaffoldComponent[] @relation("StockItemScaffoldComponents")
   workshopParts   FleetWorkshopPart[]
 
+  ledgerEntries   StockLedger[]
+  stockCountLines StockCountLine[]
+  custodyAssignments AssetCustodyAssignment[]
+  scaffoldDeployments ScaffoldDeployment[]
+
   @@index([itemType])
   @@index([category])
+  @@index([supplierId])
+  @@index([legacyCode])
   @@map("stock_items")
 }
 
@@ -1192,6 +1268,12 @@ model StockLocation {
   movementsFrom   StockMovement[] @relation("StockMovementFromLocation")
   movementsTo     StockMovement[] @relation("StockMovementToLocation")
   assignedQrTags  AssetQrTag[] @relation("QrTagAssignedLocation")
+
+  ledgerEntries   StockLedger[]
+  stockCountSessions StockCountSession[]
+  stockCountLines StockCountLine[]
+  custodyAssignments AssetCustodyAssignment[]
+  scaffoldDeployments ScaffoldDeployment[]
 
   @@index([site])
   @@index([branch])
@@ -1219,6 +1301,56 @@ model StockBalance {
   @@map("stock_balances")
 }
 
+model StockCountSession {
+  id             String   @id @default(uuid())
+  countNo        String   @unique
+
+  title          String
+  locationId     String?
+  locationName   String?
+  department     String?
+  site           String?
+  branch         String?
+
+  status         String   @default("DRAFT")
+  startedBy      String?
+  startedAt      DateTime?
+  submittedBy    String?
+  submittedAt    DateTime?
+  approvedBy     String?
+  approvedAt     DateTime?
+  postedBy       String?
+  postedAt       DateTime?
+
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  location       StockLocation? @relation(fields: [locationId], references: [id])
+  lines          StockCountLine[]
+
+  @@index([locationId])
+  @@index([status])
+  @@map("stock_count_sessions")
+}
+
+model AssetDepreciationHistory {
+  id              String   @id @default(uuid())
+  assetId         String
+  period          String
+  depreciationAmount Decimal @db.Decimal(18, 2)
+  accumulatedDepreciation Decimal @db.Decimal(18, 2)
+  bookValue       Decimal @db.Decimal(18, 2)
+  calculatedBy    String?
+  calculatedAt    DateTime @default(now())
+
+  asset           HubAsset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@index([period])
+  @@map("asset_depreciation_history")
+}
+
 model StockMovement {
   id                String              @id @default(uuid())
   movementNo        String              @unique
@@ -1236,29 +1368,51 @@ model StockMovement {
   requestedByEmail  String?
   department        String?
   site              String?
+  branch            String?
   projectCode       String?
 
   reason            String?
   referenceType     String?
   referenceId       String?
+  referenceNo       String?
+
+  financeExpenseId     String?
+  procurementRequestId String?
+  workshopJobId        String?
 
   approvalRequestId String?
+  approvalPath      String?
+  currentApprovalStep Int? @default(0)
+  approvalStatus    String?
 
   submittedAt       DateTime?
   approvedBy        String?
   approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  rejectionReason   String?
   postedBy          String?
   postedAt          DateTime?
 
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
+  financeExpense     FinanceExpense?     @relation(fields: [financeExpenseId], references: [id])
+  procurementRequest ProcurementRequest? @relation(fields: [procurementRequestId], references: [id])
+  workshopJob        FleetWorkshopJob?   @relation(fields: [workshopJobId], references: [id])
+
   lines             StockMovementLine[]
+  ledgerEntries     StockLedger[]
+  workshopPartsIssued FleetWorkshopPart[]
 
   @@index([movementType])
   @@index([status])
   @@index([fromLocationId])
   @@index([toLocationId])
+  @@index([financeExpenseId])
+  @@index([procurementRequestId])
+  @@index([workshopJobId])
+  @@index([referenceType, referenceId])
   @@map("stock_movements")
 }
 
@@ -1282,10 +1436,235 @@ model StockMovementLine {
 
   createdAt       DateTime      @default(now())
 
+  ledgerEntries   StockLedger[]
+
   @@index([movementId])
   @@index([stockItemId])
   @@index([qrTagId])
   @@map("stock_movement_lines")
+}
+
+model StockLedger {
+  id              String   @id @default(uuid())
+  stockItemId     String
+  locationId      String
+
+  movementId      String?
+  movementLineId  String?
+
+  financeExpenseId     String?
+  procurementRequestId String?
+  workshopJobId        String?
+
+  transactionType String
+  quantityIn      Decimal  @default(0) @db.Decimal(18, 2)
+  quantityOut     Decimal  @default(0) @db.Decimal(18, 2)
+  balanceAfter    Decimal  @default(0) @db.Decimal(18, 2)
+
+  unitCost        Decimal? @db.Decimal(18, 2)
+  totalCost       Decimal? @db.Decimal(18, 2)
+
+  referenceType   String?
+  referenceId     String?
+  referenceNo     String?
+
+  department      String?
+  site            String?
+  branch          String?
+  projectCode     String?
+
+  notes           String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  stockItem       StockItem          @relation(fields: [stockItemId], references: [id])
+  location        StockLocation      @relation(fields: [locationId], references: [id])
+  movement        StockMovement?     @relation(fields: [movementId], references: [id])
+  movementLine    StockMovementLine? @relation(fields: [movementLineId], references: [id])
+  financeExpense  FinanceExpense?    @relation(fields: [financeExpenseId], references: [id])
+  procurementRequest ProcurementRequest? @relation(fields: [procurementRequestId], references: [id])
+  workshopJob     FleetWorkshopJob?  @relation(fields: [workshopJobId], references: [id])
+
+  @@index([stockItemId])
+  @@index([locationId])
+  @@index([movementId])
+  @@index([movementLineId])
+  @@index([financeExpenseId])
+  @@index([procurementRequestId])
+  @@index([workshopJobId])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  @@map("stock_ledger")
+}
+
+model StockCountLine {
+  id              String   @id @default(uuid())
+  sessionId       String
+  stockItemId     String
+  locationId      String?
+
+  systemQuantity  Decimal  @default(0) @db.Decimal(18, 2)
+  countedQuantity Decimal  @default(0) @db.Decimal(18, 2)
+  variance        Decimal  @default(0) @db.Decimal(18, 2)
+
+  varianceReason  String?
+  adjustmentPosted Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  session         StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  stockItem       StockItem         @relation(fields: [stockItemId], references: [id])
+  location        StockLocation?    @relation(fields: [locationId], references: [id])
+
+  @@index([sessionId])
+  @@index([stockItemId])
+  @@index([locationId])
+  @@map("stock_count_lines")
+}
+
+model AssetCustodyAssignment {
+  id              String   @id @default(uuid())
+  assignmentNo    String   @unique
+
+  assetId         String?
+  stockItemId     String?
+  qrTagId         String?
+  locationId      String?
+  financeExpenseId String?
+
+  assignedToType  String
+  assignedToName  String
+  assignedToEmail String?
+  employeeNumber  String?
+
+  department      String?
+  site            String?
+  branch          String?
+
+  assignedBy      String?
+  assignedAt      DateTime @default(now())
+
+  expectedReturnAt DateTime?
+  returnedBy      String?
+  returnedAt      DateTime?
+
+  status          String   @default("ASSIGNED")
+  conditionOut    String?
+  conditionIn     String?
+  notes           String?
+
+  approvalRequestId String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  asset           HubAsset?       @relation(fields: [assetId], references: [id])
+  stockItem       StockItem?      @relation(fields: [stockItemId], references: [id])
+  qrTag           AssetQrTag?     @relation(fields: [qrTagId], references: [id])
+  location        StockLocation?  @relation(fields: [locationId], references: [id])
+  financeExpense  FinanceExpense? @relation(fields: [financeExpenseId], references: [id])
+
+  @@index([assetId])
+  @@index([stockItemId])
+  @@index([qrTagId])
+  @@index([locationId])
+  @@index([financeExpenseId])
+  @@index([status])
+  @@index([assignedToName])
+  @@map("asset_custody_assignments")
+}
+
+model ScaffoldDeployment {
+  id              String   @id @default(uuid())
+  deploymentNo    String   @unique
+
+  scaffoldComponentId String?
+  stockItemId     String?
+  qrTagId         String?
+  movementId      String?
+  issuedToLocationId String?
+  financeExpenseId String?
+
+  issuedToSite    String
+  issuedToPerson  String?
+  issuedBy        String?
+
+  quantity        Decimal  @default(1) @db.Decimal(18, 2)
+  status          String   @default("ISSUED")
+
+  issuedAt        DateTime @default(now())
+  expectedReturnAt DateTime?
+  returnedAt      DateTime?
+  returnedBy      String?
+
+  conditionOut    String?
+  conditionIn     String?
+  returnNotes     String?
+
+  approvalRequestId String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scaffoldComponent ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
+  stockItem       StockItem?           @relation(fields: [stockItemId], references: [id])
+  qrTag           AssetQrTag?          @relation(fields: [qrTagId], references: [id])
+  issuedToLocation StockLocation?      @relation(fields: [issuedToLocationId], references: [id])
+  financeExpense  FinanceExpense?      @relation(fields: [financeExpenseId], references: [id])
+
+  @@index([scaffoldComponentId])
+  @@index([stockItemId])
+  @@index([qrTagId])
+  @@index([movementId])
+  @@index([issuedToLocationId])
+  @@index([financeExpenseId])
+  @@index([status])
+  @@index([issuedToSite])
+  @@map("scaffold_deployments")
+}
+
+
+model ScaffoldInspection {
+  id                  String             @id @default(uuid())
+  inspectionNo        String?            @unique
+
+  scaffoldComponentId String?
+  scaffoldComponent   ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
+
+  qrTagId             String?
+  qrTag               AssetQrTag?        @relation(fields: [qrTagId], references: [id])
+
+  inspectionType      String             @default("GENERAL")
+  inspectionStatus    String             @default("OPEN")
+
+  inspectionDate      DateTime           @default(now())
+  inspectedAt         DateTime           @default(now())
+  inspectedBy         String?
+
+  site                String?
+  location            String?
+
+  conditionStatus     String?
+  findings            String?
+  actionRequired      String?
+  correctiveAction    String?
+  isSafeForUse        Boolean            @default(true)
+
+  defectsFound        Boolean            @default(false)
+  defectNotes         String?
+  nextInspectionDate  DateTime?
+
+  evidenceDocumentId  String?
+  approvalRequestId   String?
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([scaffoldComponentId])
+  @@index([qrTagId])
+  @@index([inspectionStatus])
+  @@index([inspectedAt])
+  @@map("scaffold_inspections")
 }
 
 model AssetQrTag {
@@ -1316,6 +1695,9 @@ model AssetQrTag {
   updatedAt       DateTime          @updatedAt
 
   movementLines   StockMovementLine[]
+  custodyAssignments AssetCustodyAssignment[]
+  scaffoldDeployments ScaffoldDeployment[]
+  scaffoldInspections ScaffoldInspection[]
 
   @@index([tagCode])
   @@index([assetId])
@@ -1350,32 +1732,13 @@ model ScaffoldComponent {
   updatedAt       DateTime              @updatedAt
 
   qrTags          AssetQrTag[]
+  deployments     ScaffoldDeployment[]
   inspections     ScaffoldInspection[]
 
   @@index([componentType])
   @@index([tagStatus])
   @@index([currentSite])
   @@map("scaffold_components")
-}
-
-model ScaffoldInspection {
-  id                  String             @id @default(uuid())
-
-  scaffoldComponentId String
-  scaffoldComponent   ScaffoldComponent  @relation(fields: [scaffoldComponentId], references: [id])
-
-  inspectionDate      DateTime           @default(now())
-  inspectedBy         String?
-  conditionStatus     String
-  findings            String?
-  actionRequired      String?
-  isSafeForUse        Boolean            @default(true)
-
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-
-  @@index([scaffoldComponentId])
-  @@map("scaffold_inspections")
 }
 
 model FleetWorkshopJob {
@@ -1423,6 +1786,8 @@ model FleetWorkshopJob {
 
   parts           FleetWorkshopPart[]
   labourLines     FleetWorkshopLabour[]
+  stockMovements  StockMovement[]
+  stockLedgerEntries StockLedger[]
 
   @@index([vehicleId])
   @@index([defectId])
@@ -1445,11 +1810,13 @@ model FleetWorkshopPart {
   totalCost       Decimal?         @db.Decimal(18, 2)
 
   issuedMovementId String?
+  issuedMovement   StockMovement? @relation(fields: [issuedMovementId], references: [id])
 
   createdAt       DateTime         @default(now())
 
   @@index([workshopJobId])
   @@index([stockItemId])
+  @@index([issuedMovementId])
   @@map("fleet_workshop_parts")
 }
 
@@ -1529,6 +1896,11 @@ model AssetImportLine {
   validationErrors   Json?
   rawPayload         Json?
 
+  legacySourceTable  String?
+  legacyRecordId     String?
+  legacyCode         String?
+  legacyPayload      Json?
+
   postedStockItemId  String?
   postedLocationId   String?
   postedBalanceId    String?
@@ -1541,6 +1913,15 @@ model AssetImportLine {
   @@index([itemCode])
   @@index([locationCode])
   @@index([qrTagCode])
+  @@index([legacyCode])
+}
+
+enum FleetVehicleStatus {
+  ACTIVE
+  ASSIGNED
+  IN_WORKSHOP
+  OUT_OF_SERVICE
+  RETIRED
 }
 
 enum AssetImportBatchStatus {
@@ -1604,11 +1985,15 @@ enum StockMovementType {
   LOSS
   DAMAGE
   WRITE_OFF
+  WORKSHOP_ISSUE
+  SCAFFOLD_ISSUE
+  SCAFFOLD_RETURN
 }
 
 enum StockMovementStatus {
   DRAFT
   SUBMITTED
+  IN_REVIEW
   APPROVED
   REJECTED
   POSTED
@@ -1695,6 +2080,7 @@ enum AssetStatus {
   IN_USE
   IN_STORE
   UNDER_REPAIR
+  QUARANTINED
   LOST
   DAMAGED
   RETIRED
@@ -1784,9 +2170,14 @@ enum ApprovalWorkflowType {
   PROCUREMENT_REQUEST
   ASSET_PURCHASE
   ASSET_MOVEMENT
+  ASSET_CUSTODY
+  STOCK_COUNT
+  SCAFFOLD_DEPLOYMENT
+  SCAFFOLD_INSPECTION
   FLEET_REQUEST
   SAFETY_INCIDENT
   STORES_REQUISITION
+  WORKSHOP_PARTS_ISSUE
   PAYROLL_RUN
   PAYMENT_BATCH
   SHAREPOINT_PUBLISH
