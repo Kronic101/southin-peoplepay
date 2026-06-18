@@ -262,7 +262,7 @@ export default function AssetMovementsPage() {
         current.map((item) => (item.id === movement.id ? updated : item)),
       );
 
-      setMessage(result?.message || `Movement ${updated.movementNo} posted.`);
+      setMessage(`Movement ${updated.movementNo} posted.`);
     } catch (err: any) {
       setError(err?.message || 'Failed to post movement.');
     } finally {

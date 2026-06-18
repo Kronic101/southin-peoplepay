@@ -322,6 +322,21 @@ const navSections: NavSection[] = [
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
       },
       {
+        label: 'Stock Counts',
+        href: '/assets/stock-counts',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'Custody',
+        href: '/assets/custody',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
+        label: 'Deployments',
+        href: '/assets/deployments',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
         label: 'Scaffolds',
         href: '/assets/scaffolds',
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],

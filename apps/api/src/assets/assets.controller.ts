@@ -50,6 +50,51 @@ export class AssetsController {
     return this.assetsService.getMovements();
   }
 
+  @Get('stock-counts')
+  getStockCounts() {
+    return this.assetsService.getStockCounts();
+  }
+
+  @Post('stock-counts')
+  createStockCount(@Body() body: any) {
+    return this.assetsService.createStockCount(body);
+  }
+
+  @Patch('stock-counts/:id/approve')
+  approveStockCount(@Param('id') id: string, @Body() body: any) {
+    return this.assetsService.approveStockCount(id, body);
+  }
+
+  @Get('custody')
+  getCustodyAssignments() {
+    return this.assetsService.getCustodyAssignments();
+  }
+
+  @Post('custody')
+  createCustodyAssignment(@Body() body: any) {
+    return this.assetsService.createCustodyAssignment(body);
+  }
+
+  @Patch('custody/:id/return')
+  returnCustodyAssignment(@Param('id') id: string, @Body() body: any) {
+    return this.assetsService.returnCustodyAssignment(id, body);
+  }
+
+  @Get('deployments')
+  getScaffoldDeployments() {
+    return this.assetsService.getScaffoldDeployments();
+  }
+
+  @Post('deployments')
+  createScaffoldDeployment(@Body() body: any) {
+    return this.assetsService.createScaffoldDeployment(body);
+  }
+
+  @Patch('deployments/:id/close')
+  closeScaffoldDeployment(@Param('id') id: string, @Body() body: any) {
+    return this.assetsService.closeScaffoldDeployment(id, body);
+  }
+
   @Get('movements/:id')
   getMovement(@Param('id') id: string) {
     return this.assetsService.getMovement(id);

@@ -470,31 +470,224 @@ export class AssetsService {
     });
   }
 
-    async getStockLedger() {
-      const db = this.db();
+  async getStockLedger() {
+    const db = this.db();
 
-      if (!db.stockLedger?.findMany) {
-        return [];
-      }
+    if (!db.stockLedger?.findMany) {
+      return [];
+    }
 
-      return db.stockLedger.findMany({
-        orderBy: [
-          {
-            createdAt: 'desc',
-          },
-        ],
-        include: {
-          stockItem: true,
-          location: true,
-          movement: true,
-          movementLine: {
-            include: {
-              qrTag: true,
-            },
+    return db.stockLedger.findMany({
+      orderBy: [
+        {
+          createdAt: 'desc',
+        },
+      ],
+      include: {
+        stockItem: true,
+        location: true,
+        movement: true,
+        movementLine: {
+          include: {
+            qrTag: true,
           },
         },
-      });
+      },
+    });
+  }
+
+  async getStockCounts() {
+    return this.db().stockCountSession.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        location: true,
+        lines: {
+          include: {
+            stockItem: true,
+            location: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createStockCount(body: any) {
+    const countedBy = clean(body.countedBy) || 'Asset Manager';
+    const locationId = clean(body.locationId);
+    const notes = clean(body.notes);
+
+    if (!locationId) {
+      throw new BadRequestException('Location is required.');
     }
+
+    const location = await this.db().stockLocation.findUnique({
+      where: { id: locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Stock location not found.');
+    }
+
+    const balances = await this.db().stockBalance.findMany({
+      where: { locationId },
+      include: {
+        stockItem: true,
+      },
+    });
+
+    const sessionNo = `CNT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    return this.db().stockCountSession.create({
+      data: {
+        sessionNo,
+        status: 'DRAFT',
+        locationId,
+        countedBy,
+        notes: notes || null,
+        lines: {
+          create: balances.map((balance: any) => ({
+            stockItemId: balance.stockItemId,
+            locationId: balance.locationId,
+            systemQuantity: Number(balance.quantityOnHand || 0),
+            countedQuantity: Number(balance.quantityOnHand || 0),
+            varianceQuantity: 0,
+            notes: null,
+          })),
+        },
+      },
+      include: {
+        location: true,
+        lines: {
+          include: {
+            stockItem: true,
+            location: true,
+          },
+        },
+      },
+    });
+  }
+
+  async approveStockCount(id: string, body: any) {
+    const approvedBy = clean(body.approvedBy) || 'Asset Manager';
+
+    const session = await this.db().stockCountSession.findUnique({
+      where: { id },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Stock count session not found.');
+    }
+
+    return this.db().stockCountSession.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedBy,
+        approvedAt: new Date(),
+      },
+      include: {
+        location: true,
+        lines: {
+          include: {
+            stockItem: true,
+            location: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getScaffoldDeployments() {
+    return this.db().scaffoldDeployment.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        scaffoldComponent: {
+          include: {
+            stockItem: true,
+            qrTags: true,
+          },
+        },
+        stockItem: true,
+        location: true,
+      },
+    });
+  }
+
+  async createScaffoldDeployment(body: any) {
+    const scaffoldComponentId = clean(body.scaffoldComponentId);
+    const stockItemId = clean(body.stockItemId);
+    const locationId = clean(body.locationId);
+    const deployedTo = clean(body.deployedTo);
+    const deployedBy = clean(body.deployedBy) || 'Asset Manager';
+    const projectCode = clean(body.projectCode);
+    const notes = clean(body.notes);
+
+    if (!scaffoldComponentId && !stockItemId) {
+      throw new BadRequestException('Scaffold component or stock item is required.');
+    }
+
+    if (!deployedTo) {
+      throw new BadRequestException('Deployment site / area is required.');
+    }
+
+    const deploymentNo = `DEP-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    return this.db().scaffoldDeployment.create({
+      data: {
+        deploymentNo,
+        scaffoldComponentId: scaffoldComponentId || null,
+        stockItemId: stockItemId || null,
+        locationId: locationId || null,
+        deployedTo,
+        deployedBy,
+        deployedAt: new Date(),
+        projectCode: projectCode || null,
+        status: 'ACTIVE',
+        notes: notes || null,
+      },
+      include: {
+        scaffoldComponent: {
+          include: {
+            stockItem: true,
+            qrTags: true,
+          },
+        },
+        stockItem: true,
+        location: true,
+      },
+    });
+  }
+
+  async closeScaffoldDeployment(id: string, body: any) {
+    const closedBy = clean(body.closedBy) || 'Asset Manager';
+
+    const deployment = await this.db().scaffoldDeployment.findUnique({
+      where: { id },
+    });
+
+    if (!deployment) {
+      throw new NotFoundException('Scaffold deployment not found.');
+    }
+
+    return this.db().scaffoldDeployment.update({
+      where: { id },
+      data: {
+        status: 'CLOSED',
+        closedBy,
+        closedAt: new Date(),
+      },
+      include: {
+        scaffoldComponent: {
+          include: {
+            stockItem: true,
+            qrTags: true,
+          },
+        },
+        stockItem: true,
+        location: true,
+      },
+    });
+  }
 
   async getMovements() {
     const movements = await this.db().stockMovement.findMany({
@@ -1836,6 +2029,95 @@ export class AssetsService {
         'Approved import posted into stock items, balances, movements, QR tags and scaffold records.',
       batch: updatedBatch,
     };
+  }
+
+  async getCustodyAssignments() {
+    return (this.db() as any).assetCustodyAssignment.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        stockItem: true,
+        location: true,
+        qrTag: true,
+        scaffoldComponent: true,
+      },
+    });
+  }
+
+  async createCustodyAssignment(body: any) {
+    const stockItemId = clean(body.stockItemId);
+    const locationId = clean(body.locationId);
+    const qrTagId = clean(body.qrTagId);
+    const scaffoldComponentId = clean(body.scaffoldComponentId);
+
+    const assignedTo = clean(body.assignedTo);
+    const assignedBy = clean(body.assignedBy) || clean(body.createdBy) || 'Asset Manager';
+    const department = clean(body.department) || 'Operations';
+    const site = clean(body.site) || 'Kitwe Main Distribution Centre';
+    const branch = clean(body.branch);
+    const projectCode = clean(body.projectCode);
+    const notes = clean(body.notes);
+
+    if (!stockItemId) {
+      throw new BadRequestException('Stock item is required.');
+    }
+
+    if (!assignedTo) {
+      throw new BadRequestException('Assigned to is required.');
+    }
+
+    const assignmentNo = `CUS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    return (this.db() as any).assetCustodyAssignment.create({
+      data: {
+        assignmentNo,
+        stockItemId,
+        locationId: locationId || null,
+        qrTagId: qrTagId || null,
+        scaffoldComponentId: scaffoldComponentId || null,
+        assignedTo,
+        assignedBy,
+        assignedAt: new Date(),
+        department,
+        site,
+        branch: branch || null,
+        projectCode: projectCode || null,
+        status: 'ACTIVE',
+        notes: notes || null,
+      },
+      include: {
+        stockItem: true,
+        location: true,
+        qrTag: true,
+        scaffoldComponent: true,
+      },
+    });
+  }
+
+  async returnCustodyAssignment(id: string, body: any) {
+    const returnedBy = clean(body.returnedBy) || clean(body.closedBy) || 'Asset Manager';
+
+    const assignment = await (this.db() as any).assetCustodyAssignment.findUnique({
+      where: { id },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Custody assignment not found.');
+    }
+
+    return (this.db() as any).assetCustodyAssignment.update({
+      where: { id },
+      data: {
+        status: 'RETURNED',
+        returnedBy,
+        returnedAt: new Date(),
+      },
+      include: {
+        stockItem: true,
+        location: true,
+        qrTag: true,
+        scaffoldComponent: true,
+      },
+    });
   }
 
   async seedDemoAssetData() {
