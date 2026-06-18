@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { 
+  FinanceEvidenceStatus,
+  FinanceExpenseStatus,
+  Prisma,
+  StockMovementStatus,
+  StockMovementType, } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAssetImportPreviewDto,
@@ -193,8 +198,27 @@ export class AssetsService {
     return `AST-${year}-${String(count + 1).padStart(5, '0')}`;
   }
 
+  private stockMovementInclude() {
+    return {
+      fromLocation: true,
+      toLocation: true,
+      lines: {
+        include: {
+          stockItem: true,
+          qrTag: true,
+          ledgerEntries: true,
+        },
+      },
+      ledgerEntries: true,
+      financeExpense: true,
+      procurementRequest: true,
+      workshopJob: true,
+      workshopPartsIssued: true,
+    };
+  }
+
   async getDashboard() {
-    const [assets, stockItems, locations, movements, assetQrTags, scaffolds, balances] =
+    const [assets, stockItems, locations, movements, qrTags, scaffolds, balances] =
       await Promise.all([
         this.db().hubAsset.findMany(),
         this.db().stockItem.findMany(),
@@ -212,7 +236,7 @@ export class AssetsService {
             },
           },
         }),
-        this.db().assetQrTag.findMany(),
+        this.db().qrTag.findMany(),
         this.db().scaffoldComponent.findMany(),
         this.db().stockBalance.findMany({
           include: {
@@ -245,7 +269,7 @@ export class AssetsService {
         locations: locations.length,
         movements: movements.length,
         pendingMovements: movements.filter((movement: any) => movement.status !== 'POSTED').length,
-        qrTags: assetQrTags.length,
+        qrTags: qrTags.length,
         scaffoldComponents: scaffolds.length,
         availableScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'AVAILABLE').length,
         issuedScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'ISSUED').length,
@@ -405,28 +429,6 @@ export class AssetsService {
     });
   }
 
-  private async getOrCreateBalance(stockItemId: string, locationId: string) {
-    const existing = await this.db().stockBalance.findFirst({
-      where: {
-        stockItemId,
-        locationId,
-      },
-    });
-
-    if (existing) return existing;
-
-    return this.db().stockBalance.create({
-      data: {
-        stockItemId,
-        locationId,
-        quantityOnHand: this.decimal(0),
-        quantityIssued: this.decimal(0),
-        quantityDamaged: this.decimal(0),
-        quantityLost: this.decimal(0),
-      },
-    });
-  }
-
   async getMovements() {
     return this.db().stockMovement.findMany({
       orderBy: [
@@ -434,24 +436,7 @@ export class AssetsService {
           createdAt: 'desc',
         },
       ],
-      include: {
-        fromLocation: true,
-        toLocation: true,
-        lines: {
-          include: {
-            stockItem: true,
-            qrTag: true,
-            ledgerEntries: true,
-          },
-        },
-        ledgerEntries: true,
-
-        // These are the actual relations currently available in your Prisma schema.
-        financeExpense: true,
-        procurementRequest: true,
-        workshopJob: true,
-        workshopPartsIssued: true,
-      },
+      include: this.stockMovementInclude(),
     });
   }
 
@@ -464,7 +449,7 @@ export class AssetsService {
               stockItemId: body.stockItemId,
               quantity: body.quantity || 1,
               unitCost: body.unitCost || body.standardCost || 0,
-              assetQrTagId: body.assetQrTagId || null,
+              qrTagId: body.qrTagId || null,
               notes: body.notes || null,
             },
           ]
@@ -500,7 +485,7 @@ export class AssetsService {
               quantity,
               unitCost,
               totalCost: quantity.mul(unitCost),
-              assetQrTagId: line.assetQrTagId || null,
+              qrTagId: line.qrTagId || line.assetQrTagId || null,
               notes: line.notes || null,
             };
           }),
@@ -512,7 +497,7 @@ export class AssetsService {
         lines: {
           include: {
             stockItem: true,
-            qrTags: true,
+            qrTag: true,
           },
         },
       },
@@ -531,20 +516,11 @@ export class AssetsService {
     return this.db().stockMovement.update({
       where: { id },
       data: {
-        status: 'APPROVED',
+        status: StockMovementStatus.APPROVED,
         approvedBy: body.approvedBy || body.approver || 'Asset Manager',
         approvedAt: new Date(),
       },
-      include: {
-        fromLocation: true,
-        toLocation: true,
-        lines: {
-          include: {
-            stockItem: true,
-            qrTags: true,
-          },
-        },
-      },
+      include: this.stockMovementInclude(),
     });
   }
 
@@ -738,13 +714,270 @@ export class AssetsService {
     return null;
   }
 
-  async postMovement(id: string, body: any) {
-    const movement = await this.db().stockMovement.findUnique({
-      where: { id },
+  private asDecimal(value: unknown) {
+    return new Prisma.Decimal(Number(value || 0));
+  }
+
+  private asNumber(value: unknown) {
+    const parsed = Number(value || 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private async nextAssetFinanceExpenseNo(tx: any) {
+    const count = await tx.financeExpense.count();
+    return `AST-EXP-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+  }
+
+  private movementCreatesFinanceExpense(movementType: StockMovementType | string) {
+    const financeMovementTypes: string[] = [
+      StockMovementType.ISSUE,
+      StockMovementType.DAMAGE,
+      StockMovementType.LOSS,
+      StockMovementType.WRITE_OFF,
+      StockMovementType.WORKSHOP_ISSUE,
+      StockMovementType.SCAFFOLD_ISSUE,
+    ];
+
+    return financeMovementTypes.includes(String(movementType));
+  }
+
+  private movementNeedsFromLocation(movementType: StockMovementType | string) {
+    const fromLocationTypes: string[] = [
+      StockMovementType.ISSUE,
+      StockMovementType.TRANSFER,
+      StockMovementType.DAMAGE,
+      StockMovementType.LOSS,
+      StockMovementType.WRITE_OFF,
+      StockMovementType.WORKSHOP_ISSUE,
+      StockMovementType.SCAFFOLD_ISSUE,
+    ];
+
+    return fromLocationTypes.includes(String(movementType));
+  }
+
+  private movementNeedsToLocation(movementType: StockMovementType | string) {
+    const toLocationTypes: string[] = [
+      StockMovementType.RECEIPT,
+      StockMovementType.RETURN,
+      StockMovementType.TRANSFER,
+      StockMovementType.ADJUSTMENT,
+      StockMovementType.SCAFFOLD_RETURN,
+    ];
+
+    return toLocationTypes.includes(String(movementType));
+  }
+
+
+  private async getOrCreateBalance(
+    txOrStockItemId: any,
+    stockItemIdOrLocationId: string,
+    maybeLocationId?: string,
+  ) {
+    const tx = maybeLocationId ? txOrStockItemId : this.db();
+    const stockItemId = maybeLocationId ? stockItemIdOrLocationId : txOrStockItemId;
+    const locationId = maybeLocationId ? maybeLocationId : stockItemIdOrLocationId;
+
+    if (!stockItemId) {
+      throw new BadRequestException('Stock item is required before updating stock balance.');
+    }
+
+    if (!locationId) {
+      throw new BadRequestException('Location is required before updating stock balance.');
+    }
+
+    return tx.stockBalance.upsert({
+      where: {
+        stockItemId_locationId: {
+          stockItemId,
+          locationId,
+        },
+      },
+      create: {
+        stockItemId,
+        locationId,
+        quantityOnHand: new Prisma.Decimal(0),
+        quantityIssued: new Prisma.Decimal(0),
+        quantityDamaged: new Prisma.Decimal(0),
+        quantityLost: new Prisma.Decimal(0),
+      },
+      update: {},
+    });
+  }
+
+  private async updateBalanceForLedger(args: {
+    tx: any;
+    stockItemId: string;
+    locationId: string;
+    movementType: StockMovementType | string;
+    direction: 'IN' | 'OUT';
+    quantity: Prisma.Decimal;
+  }) {
+    const { tx, stockItemId, locationId, movementType, direction, quantity } = args;
+
+    await this.getOrCreateBalance(tx, stockItemId, locationId);
+
+    if (direction === 'IN') {
+      return tx.stockBalance.update({
+        where: {
+          stockItemId_locationId: {
+            stockItemId,
+            locationId,
+          },
+        },
+        data: {
+          quantityOnHand: {
+            increment: quantity,
+          },
+        },
+      });
+    }
+
+    if (
+      movementType === StockMovementType.DAMAGE ||
+      movementType === StockMovementType.WRITE_OFF
+    ) {
+      return tx.stockBalance.update({
+        where: {
+          stockItemId_locationId: {
+            stockItemId,
+            locationId,
+          },
+        },
+        data: {
+          quantityOnHand: {
+            decrement: quantity,
+          },
+          quantityDamaged: {
+            increment: quantity,
+          },
+        },
+      });
+    }
+
+    if (movementType === StockMovementType.LOSS) {
+      return tx.stockBalance.update({
+        where: {
+          stockItemId_locationId: {
+            stockItemId,
+            locationId,
+          },
+        },
+        data: {
+          quantityOnHand: {
+            decrement: quantity,
+          },
+          quantityLost: {
+            increment: quantity,
+          },
+        },
+      });
+    }
+
+    return tx.stockBalance.update({
+      where: {
+        stockItemId_locationId: {
+          stockItemId,
+          locationId,
+        },
+      },
+      data: {
+        quantityOnHand: {
+          decrement: quantity,
+        },
+        quantityIssued: {
+          increment: quantity,
+        },
+      },
+    });
+  }
+
+  private async createFinanceExpenseForMovement(args: {
+    tx: any;
+    movement: any;
+    totalValue: Prisma.Decimal;
+    postedBy: string;
+  }) {
+    const { tx, movement, totalValue, postedBy } = args;
+
+    if (!this.movementCreatesFinanceExpense(movement.movementType)) {
+      return null;
+    }
+
+    if (totalValue.lte(0)) {
+      return null;
+    }
+
+    if (movement.financeExpenseId) {
+      return tx.financeExpense.findUnique({
+        where: {
+          id: movement.financeExpenseId,
+        },
+      });
+    }
+
+    const expense = await tx.financeExpense.create({
+      data: {
+        expenseNo: await this.nextAssetFinanceExpenseNo(tx),
+        category: 'ASSET_STOCK_MOVEMENT',
+        description: `${movement.movementType} - ${movement.movementNo}`,
+        amount: totalValue,
+        department: movement.department || 'Operations',
+        site: movement.site || null,
+        payee: movement.requestedBy || 'Internal stock movement',
+        requestedBy: movement.requestedBy || postedBy,
+        requestedByEmail: movement.requestedByEmail || null,
+        status: FinanceExpenseStatus.APPROVED,
+        evidenceStatus: FinanceEvidenceStatus.REQUIRED,
+        financeComment:
+          'Auto-created from an approved and posted Asset Management stock movement.',
+        payload: {
+          source: 'ASSET_MANAGEMENT',
+          sourceEntityType: 'StockMovement',
+          sourceEntityId: movement.id,
+          movementNo: movement.movementNo,
+          movementType: movement.movementType,
+          referenceType: movement.referenceType,
+          referenceId: movement.referenceId,
+          referenceNo: movement.referenceNo,
+          reason: movement.reason,
+        },
+      },
+    });
+
+    await tx.stockMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        financeExpenseId: expense.id,
+      },
+    });
+
+    return expense;
+  }
+
+    async postMovement(id: string, body: any) {
+    const postedBy = body?.postedBy || body?.approvedBy || 'Asset Manager';
+    const now = new Date();
+    const tx = this.db();
+
+    const movement = await tx.stockMovement.findUnique({
+      where: {
+        id,
+      },
       include: {
         fromLocation: true,
         toLocation: true,
-        lines: true,
+        financeExpense: true,
+        procurementRequest: true,
+        workshopJob: true,
+        ledgerEntries: true,
+        lines: {
+          include: {
+            stockItem: true,
+            qrTag: true,
+          },
+        },
       },
     });
 
@@ -752,50 +985,235 @@ export class AssetsService {
       throw new NotFoundException('Stock movement not found.');
     }
 
-    if (movement.status === 'POSTED') {
-      return movement;
-    }
-
-    if (!['APPROVED', 'SUBMITTED'].includes(movement.status)) {
-      throw new BadRequestException('Only submitted or approved stock movements can be posted.');
-    }
-
-    for (const line of movement.lines || []) {
-      await this.updateBalanceForPostedLine(movement, line);
-    }
-
-    const postedMovement = await this.db().stockMovement.update({
-      where: { id },
-      data: {
-        status: 'POSTED',
-        approvedBy: movement.approvedBy || body.approvedBy || body.postedBy || 'Asset Manager',
-        approvedAt: movement.approvedAt || new Date(),
-        postedBy: body.postedBy || body.approvedBy || 'Asset Manager',
-        postedAt: new Date(),
-      },
-      include: {
-        fromLocation: true,
-        toLocation: true,
-        lines: {
-          include: {
-            stockItem: true,
-            qrTags: true,
-          },
+    if (movement.status === StockMovementStatus.POSTED) {
+      return tx.stockMovement.findUnique({
+        where: {
+          id,
         },
+        include: this.stockMovementInclude(),
+      });
+    }
+
+    if (movement.status !== StockMovementStatus.APPROVED) {
+      throw new BadRequestException(
+        'Only approved stock movements can be posted.',
+      );
+    }
+
+    if (!movement.lines || movement.lines.length === 0) {
+      throw new BadRequestException('Stock movement has no line items to post.');
+    }
+
+    if (this.movementNeedsFromLocation(movement.movementType) && !movement.fromLocationId) {
+      throw new BadRequestException('From Location is required for this movement type.');
+    }
+
+    if (this.movementNeedsToLocation(movement.movementType) && !movement.toLocationId) {
+      throw new BadRequestException('To Location is required for this movement type.');
+    }
+
+    const existingLedgerCount = await tx.stockLedger.count({
+      where: {
+        movementId: movement.id,
       },
     });
 
-    for (const line of postedMovement.lines || []) {
-      await this.createLedgerEntry(postedMovement, line);
+    if (existingLedgerCount > 0) {
+      throw new BadRequestException(
+        'This movement already has stock ledger entries. Posting has been stopped to avoid duplicate stock impact.',
+      );
     }
 
-    await this.createFinancePostingForMovement(postedMovement);
+    let totalFinanceValue = new Prisma.Decimal(0);
 
-    return postedMovement;
+    for (const line of movement.lines) {
+      const quantity = this.asDecimal(line.quantity);
+
+      if (quantity.lte(0)) {
+        throw new BadRequestException('Movement line quantity must be greater than zero.');
+      }
+
+      const unitCost = this.asDecimal(line.unitCost || line.stockItem?.standardCost || 0);
+      const lineTotal = this.asDecimal(line.totalCost || unitCost.mul(quantity));
+      totalFinanceValue = totalFinanceValue.add(lineTotal);
+
+      if (movement.movementType === StockMovementType.TRANSFER) {
+        const fromBalance = await this.updateBalanceForLedger({
+          tx,
+          stockItemId: line.stockItemId,
+          locationId: movement.fromLocationId,
+          movementType: movement.movementType,
+          direction: 'OUT',
+          quantity,
+        });
+
+        await tx.stockLedger.create({
+          data: {
+            stockItemId: line.stockItemId,
+            locationId: movement.fromLocationId,
+            movementId: movement.id,
+            movementLineId: line.id,
+            transactionType: 'TRANSFER_OUT',
+            quantityIn: new Prisma.Decimal(0),
+            quantityOut: quantity,
+            balanceAfter: fromBalance.quantityOnHand,
+            unitCost,
+            totalCost: lineTotal,
+            referenceType: movement.referenceType || 'STOCK_MOVEMENT',
+            referenceId: movement.referenceId || movement.id,
+            referenceNo: movement.referenceNo || movement.movementNo,
+            department: movement.department || null,
+            site: movement.site || null,
+            branch: movement.branch || null,
+            projectCode: movement.projectCode || null,
+            notes: movement.reason || null,
+            createdBy: postedBy,
+          },
+        });
+
+        const toBalance = await this.updateBalanceForLedger({
+          tx,
+          stockItemId: line.stockItemId,
+          locationId: movement.toLocationId,
+          movementType: movement.movementType,
+          direction: 'IN',
+          quantity,
+        });
+
+        await tx.stockLedger.create({
+          data: {
+            stockItemId: line.stockItemId,
+            locationId: movement.toLocationId,
+            movementId: movement.id,
+            movementLineId: line.id,
+            transactionType: 'TRANSFER_IN',
+            quantityIn: quantity,
+            quantityOut: new Prisma.Decimal(0),
+            balanceAfter: toBalance.quantityOnHand,
+            unitCost,
+            totalCost: lineTotal,
+            referenceType: movement.referenceType || 'STOCK_MOVEMENT',
+            referenceId: movement.referenceId || movement.id,
+            referenceNo: movement.referenceNo || movement.movementNo,
+            department: movement.department || null,
+            site: movement.site || null,
+            branch: movement.branch || null,
+            projectCode: movement.projectCode || null,
+            notes: movement.reason || null,
+            createdBy: postedBy,
+          },
+        });
+
+        continue;
+      }
+
+      const direction =
+        movement.movementType === StockMovementType.RECEIPT ||
+        movement.movementType === StockMovementType.RETURN ||
+        movement.movementType === StockMovementType.ADJUSTMENT ||
+        movement.movementType === StockMovementType.SCAFFOLD_RETURN
+          ? 'IN'
+          : 'OUT';
+
+      const locationId =
+        direction === 'IN' ? movement.toLocationId : movement.fromLocationId;
+
+      if (!locationId) {
+        throw new BadRequestException('Movement location could not be resolved.');
+      }
+
+      const updatedBalance = await this.updateBalanceForLedger({
+        tx,
+        stockItemId: line.stockItemId,
+        locationId,
+        movementType: movement.movementType,
+        direction,
+        quantity,
+      });
+
+      await tx.stockLedger.create({
+        data: {
+          stockItemId: line.stockItemId,
+          locationId,
+          movementId: movement.id,
+          movementLineId: line.id,
+          transactionType: String(movement.movementType),
+          quantityIn: direction === 'IN' ? quantity : new Prisma.Decimal(0),
+          quantityOut: direction === 'OUT' ? quantity : new Prisma.Decimal(0),
+          balanceAfter: updatedBalance.quantityOnHand,
+          unitCost,
+          totalCost: lineTotal,
+          referenceType: movement.referenceType || 'STOCK_MOVEMENT',
+          referenceId: movement.referenceId || movement.id,
+          referenceNo: movement.referenceNo || movement.movementNo,
+          department: movement.department || null,
+          site: movement.site || null,
+          branch: movement.branch || null,
+          projectCode: movement.projectCode || null,
+          notes: movement.reason || null,
+          createdBy: postedBy,
+        },
+      });
+
+      if (line.qrTagId) {
+        const qrStatus =
+          movement.movementType === StockMovementType.RECEIPT ||
+          movement.movementType === StockMovementType.RETURN ||
+          movement.movementType === StockMovementType.SCAFFOLD_RETURN
+            ? 'AVAILABLE'
+            : movement.movementType === StockMovementType.DAMAGE
+              ? 'DAMAGED'
+              : movement.movementType === StockMovementType.LOSS
+                ? 'LOST'
+                : 'ISSUED';
+
+        await tx.qrTag.update({
+          where: {
+            id: line.qrTagId,
+          },
+          data: {
+            status: qrStatus,
+            assignedLocationId: direction === 'IN' ? movement.toLocationId : movement.fromLocationId,
+            lastScannedAt: now,
+            lastScannedBy: postedBy,
+            lastScanSite: movement.site || null,
+          },
+        });
+      }
+    }
+
+    const financeExpense = await this.createFinanceExpenseForMovement({
+      tx,
+      movement,
+      totalValue: totalFinanceValue,
+      postedBy,
+    });
+
+    const postedMovement = await tx.stockMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        status: StockMovementStatus.POSTED,
+        postedBy,
+        postedAt: now,
+        financeExpenseId: financeExpense?.id || movement.financeExpenseId || null,
+      },
+      include: this.stockMovementInclude(),
+    });
+
+    return {
+      message:
+        financeExpense && totalFinanceValue.gt(0)
+          ? 'Stock movement posted, ledger updated, and finance expense created.'
+          : 'Stock movement posted and ledger updated.',
+      movement: postedMovement,
+      financeExpense,
+    };
   }
 
   async getQrTags() {
-    return this.db().assetQrTag.findMany({
+    return this.db().qrTag.findMany({
       orderBy: [{ createdAt: 'desc' }],
       include: {
         stockItem: true,
@@ -813,7 +1231,7 @@ export class AssetsService {
       throw new BadRequestException('Tag code is required.');
     }
 
-    const existing = await this.db().assetQrTag.findUnique({
+    const existing = await this.db().qrTag.findUnique({
       where: { tagCode },
     });
 
@@ -821,7 +1239,7 @@ export class AssetsService {
       return existing;
     }
 
-    return this.db().assetQrTag.create({
+    return this.db().qrTag.create({
       data: {
         tagCode,
         qrPayload: body.qrPayload || tagCode,
@@ -838,7 +1256,7 @@ export class AssetsService {
   async scanQrTag(tagCode: string, body: any) {
     const code = clean(tagCode).toUpperCase();
 
-    const tag = await this.db().assetQrTag.findFirst({
+    const tag = await this.db().qrTag.findFirst({
       where: {
         OR: [
           { tagCode: code },
@@ -852,7 +1270,7 @@ export class AssetsService {
       throw new NotFoundException(`QR/RFID/barcode tag ${code} was not found.`);
     }
 
-    return this.db().assetQrTag.update({
+    return this.db().qrTag.update({
       where: { id: tag.id },
       data: {
         lastScannedAt: new Date(),
@@ -997,7 +1415,7 @@ export class AssetsService {
               minimumLevel: this.decimal(getValue(row, ['minimumLevel', 'minimum']), 0),
               reorderLevel: this.decimal(getValue(row, ['reorderLevel', 'reorder']), 0),
               standardCost: this.decimal(getValue(row, ['standardCost', 'cost']), 0),
-              assetQrTagCode: getValue(row, ['assetQrTagCode', 'tagCode', 'qrCode']) || null,
+              qrTagCode: getValue(row, ['qrTagCode', 'tagCode', 'qrCode']) || null,
               scaffoldComponentNo: getValue(row, ['scaffoldComponentNo', 'componentNo']) || null,
               componentType: getValue(row, ['componentType']) || null,
               conditionStatus: statusText(getValue(row, ['conditionStatus', 'condition'])),
@@ -1082,7 +1500,7 @@ export class AssetsService {
         reorderLevel: line.reorderLevel,
         standardCost: line.standardCost,
         isSerialized: Boolean(line.scaffoldComponentNo),
-        isQrTracked: Boolean(line.assetQrTagCode || line.scaffoldComponentNo),
+        isQrTracked: Boolean(line.qrTagCode || line.scaffoldComponentNo),
         isRfidTracked: false,
         allowExistingCode: true,
         allowUpdateIfCodeExists: true,
@@ -1120,10 +1538,10 @@ export class AssetsService {
         }
       }
 
-      if (line.assetQrTagCode) {
+      if (line.qrTagCode) {
         await this.createQrTag({
-          tagCode: line.assetQrTagCode,
-          qrPayload: line.assetQrTagCode,
+          tagCode: line.qrTagCode,
+          qrPayload: line.qrTagCode,
           stockItemId: stockItem.id,
           assignedLocationId: location.id,
           status: 'AVAILABLE',
