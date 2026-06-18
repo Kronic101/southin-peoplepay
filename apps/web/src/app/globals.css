@@ -1569,3 +1569,309 @@ pre {
     break-inside: avoid;
   }
 }
+
+.receipt-card {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+}
+
+.receipt-meta {
+  display: grid;
+  gap: 6px;
+  text-align: right;
+}
+
+.receipt-meta strong {
+  font-size: 18px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.detail-grid > div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.detail-grid strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.signature-grid span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 36px;
+}
+
+.signature-grid div div {
+  border-bottom: 1px solid #0f172a;
+  height: 1px;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  .sidebar,
+  .app-sidebar,
+  .no-print,
+  .dev-role-switcher {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-main,
+  .finance-page,
+  .print-page {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    background: #ffffff !important;
+  }
+
+  .finance-card,
+  .receipt-card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .table-wrap {
+    overflow: visible !important;
+  }
+
+  table {
+    width: 100% !important;
+  }
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.orange-button.compact,
+.btn-secondary.compact {
+  min-height: 32px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.receipt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+}
+
+.receipt-meta {
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.receipt-meta span {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.receipt-meta strong {
+  font-size: 18px;
+  color: var(--ink);
+}
+
+.soft-card {
+  box-shadow: none;
+  background: #fbfdff;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.detail-grid > div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.detail-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.signature-grid > div {
+  min-height: 88px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.signature-grid span {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.signature-grid div div {
+  height: 1px;
+  background: #111827;
+  margin-top: 32px;
+}
+
+.btn-secondary.compact,
+.badge.compact {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.badge.danger,
+.status-pill.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  .no-print,
+  .sidebar,
+  .app-sidebar,
+  .dev-role-switcher {
+    display: none !important;
+  }
+
+  .app-main,
+  .app-content,
+  .page-stack,
+  .print-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .card,
+  .receipt-card,
+  .soft-card {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    break-inside: avoid;
+  }
+
+  .table-wrap {
+    overflow: visible !important;
+  }
+
+  table {
+    font-size: 10px;
+  }
+
+  .signature-grid {
+    break-inside: avoid;
+  }
+}
+
+.page-hero.with-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.page-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.page-hero-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.page-hero.with-metrics .metric-grid {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .page-hero-top {
+    flex-direction: column;
+  }
+
+  .page-hero-actions {
+    width: 100%;
+  }
+}

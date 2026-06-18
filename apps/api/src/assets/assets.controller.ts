@@ -40,9 +40,19 @@ export class AssetsController {
     return this.assetsService.getBalances();
   }
 
+  @Get('ledger')
+  getStockLedger() {
+    return this.assetsService.getStockLedger();
+  }
+
   @Get('movements')
   getMovements() {
     return this.assetsService.getMovements();
+  }
+
+  @Get('movements/:id')
+  getMovement(@Param('id') id: string) {
+    return this.assetsService.getMovement(id);
   }
 
   @Post('movements')

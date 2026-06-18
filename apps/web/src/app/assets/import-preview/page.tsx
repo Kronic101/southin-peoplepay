@@ -163,9 +163,7 @@ export default function AssetImportPreviewPage() {
     setError('');
     setMessage('');
 
-    const result = await postAssetImportBatch(batch.id, {
-      postedBy: createdBy || 'Asset Manager',
-    });
+    const result = await postAssetImportBatch(batch.id, createdBy || 'Asset Manager');
 
     if (!result.ok) {
       setError(result.error || 'Unable to post import batch.');

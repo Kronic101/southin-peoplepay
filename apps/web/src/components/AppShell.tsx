@@ -317,6 +317,11 @@ const navSections: NavSection[] = [
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
       },
       {
+        label: 'Stock Ledger',
+        href: '/assets/ledger',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
+      },
+      {
         label: 'Scaffolds',
         href: '/assets/scaffolds',
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],

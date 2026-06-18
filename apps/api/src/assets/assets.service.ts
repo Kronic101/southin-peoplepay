@@ -217,6 +217,47 @@ export class AssetsService {
     };
   }
 
+    private decorateMovement(movement: any) {
+    if (!movement) {
+      return movement;
+    }
+
+    const lineLedgerCount =
+      movement.lines?.reduce(
+        (total: number, line: any) => total + (line.ledgerEntries?.length || 0),
+        0,
+      ) || 0;
+
+    const headerLedgerCount = movement.ledgerEntries?.length || 0;
+    const ledgerEntryCount = headerLedgerCount + lineLedgerCount;
+
+    const ledgerStatus =
+      movement.status === StockMovementStatus.POSTED
+        ? ledgerEntryCount > 0
+          ? 'POSTED'
+          : 'MISSING'
+        : 'PENDING';
+
+    const financeRequired = this.movementCreatesFinanceExpense(movement.movementType);
+
+    const financeStatus = !financeRequired
+      ? 'NOT_REQUIRED'
+      : movement.financeExpense
+        ? 'LINKED'
+        : movement.status === StockMovementStatus.POSTED
+          ? 'PENDING'
+          : 'PENDING_APPROVAL';
+
+    return {
+      ...movement,
+      ledgerStatus,
+      financeStatus,
+      financeExpenseNo: movement.financeExpense?.expenseNo || null,
+      financeExpenseId: movement.financeExpense?.id || movement.financeExpenseId || null,
+      ledgerEntryCount,
+    };
+  }
+
   async getDashboard() {
     const [assets, stockItems, locations, movements, qrTags, scaffolds, balances] =
       await Promise.all([
@@ -429,15 +470,76 @@ export class AssetsService {
     });
   }
 
-  async getMovements() {
-    return this.db().stockMovement.findMany({
-      orderBy: [
-        {
-          createdAt: 'desc',
+    async getStockLedger() {
+      const db = this.db();
+
+      if (!db.stockLedger?.findMany) {
+        return [];
+      }
+
+      return db.stockLedger.findMany({
+        orderBy: [
+          {
+            createdAt: 'desc',
+          },
+        ],
+        include: {
+          stockItem: true,
+          location: true,
+          movement: true,
+          movementLine: {
+            include: {
+              qrTag: true,
+            },
+          },
         },
-      ],
-      include: this.stockMovementInclude(),
+      });
+    }
+
+  async getMovements() {
+    const movements = await this.db().stockMovement.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        fromLocation: true,
+        toLocation: true,
+        financeExpense: true,
+        lines: {
+          include: {
+            stockItem: true,
+            qrTag: true,
+            ledgerEntries: true,
+          },
+        },
+        ledgerEntries: true,
+      },
     });
+
+    return movements.map((movement: any) => this.mapMovementControlStatus(movement));
+  }
+
+  async getMovement(id: string) {
+    const movement = await this.db().stockMovement.findUnique({
+      where: { id },
+      include: {
+        fromLocation: true,
+        toLocation: true,
+        financeExpense: true,
+        lines: {
+          include: {
+            stockItem: true,
+            qrTag: true,
+            ledgerEntries: true,
+          },
+        },
+        ledgerEntries: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Stock movement not found.');
+    }
+
+    return this.mapMovementControlStatus(movement);
   }
 
   async createMovement(body: any) {
@@ -513,7 +615,7 @@ export class AssetsService {
       throw new NotFoundException('Stock movement not found.');
     }
 
-    return this.db().stockMovement.update({
+    const updatedMovement = await this.db().stockMovement.update({
       where: { id },
       data: {
         status: StockMovementStatus.APPROVED,
@@ -522,6 +624,8 @@ export class AssetsService {
       },
       include: this.stockMovementInclude(),
     });
+
+    return this.decorateMovement(updatedMovement);
   }
 
   private isOutboundMovement(type: string) {
@@ -535,6 +639,17 @@ export class AssetsService {
   private isTransferMovement(type: string) {
     return type === 'TRANSFER';
   }
+
+  private isFinancePostingRequired(movementType: string) {
+  return [
+    'ISSUE',
+    'DAMAGE',
+    'LOSS',
+    'WRITE_OFF',
+    'WORKSHOP_ISSUE',
+    'SCAFFOLD_ISSUE',
+  ].includes(String(movementType || '').toUpperCase());
+}
 
   private async updateBalanceForPostedLine(movement: any, line: any) {
     const movementType = clean(movement.movementType).toUpperCase();
@@ -767,6 +882,104 @@ export class AssetsService {
     return toLocationTypes.includes(String(movementType));
   }
 
+    private movementInclude() {
+    return {
+      fromLocation: true,
+      toLocation: true,
+      financeExpense: true,
+      ledgerEntries: true,
+      lines: {
+        include: {
+          stockItem: true,
+          qrTag: true,
+          ledgerEntries: true,
+        },
+      },
+    };
+  }
+
+  private mapMovementStatus(movement: any) {
+    const lineLedgerCount =
+      movement.lines?.reduce(
+        (total: number, line: any) => total + (line.ledgerEntries?.length || 0),
+        0,
+      ) || 0;
+
+    const headerLedgerCount = movement.ledgerEntries?.length || 0;
+    const ledgerCount = headerLedgerCount + lineLedgerCount;
+
+    const ledgerStatus =
+      movement.status === 'POSTED'
+        ? ledgerCount > 0
+          ? 'POSTED'
+          : 'MISSING'
+        : 'PENDING';
+
+    const financeRequired = this.shouldCreateFinanceExpense(movement.movementType);
+
+    const financeStatus = !financeRequired
+      ? 'NOT_REQUIRED'
+      : movement.financeExpense
+        ? 'LINKED'
+        : movement.status === 'POSTED'
+          ? 'PENDING'
+          : 'PENDING_APPROVAL';
+
+    return {
+      ...movement,
+      ledgerStatus,
+      financeStatus,
+      financeExpenseNo: movement.financeExpense?.expenseNo || null,
+      financeExpenseId: movement.financeExpense?.id || movement.financeExpenseId || null,
+      ledgerEntryCount: ledgerCount,
+    };
+  }
+
+  private mapMovementControlStatus(movement: any) {
+    const lineLedgerEntries = (movement.lines || []).flatMap((line: any) => line.ledgerEntries || []);
+    const headerLedgerEntries = movement.ledgerEntries || [];
+    const ledgerCount = headerLedgerEntries.length + lineLedgerEntries.length;
+
+    const isPosted = movement.status === 'POSTED';
+    const financeRequired = isPosted && this.isFinancePostingRequired(movement.movementType);
+
+    const financeExpense = movement.financeExpense || null;
+
+    return {
+      ...movement,
+
+      ledgerStatus: !isPosted
+        ? 'NOT_POSTED'
+        : ledgerCount > 0
+          ? 'POSTED'
+          : 'MISSING_LEDGER',
+
+      ledgerEntryCount: ledgerCount,
+
+      financeRequired,
+
+      financeStatus: !isPosted
+        ? 'NOT_POSTED'
+        : !financeRequired
+          ? 'NOT_REQUIRED'
+          : financeExpense
+            ? 'LINKED'
+            : 'PENDING',
+
+      financeExpenseNo: financeExpense?.expenseNo || null,
+      financeExpenseId: movement.financeExpenseId || financeExpense?.id || null,
+    };
+  }
+
+  private shouldCreateFinanceExpense(movementType: string) {
+    return [
+      'ISSUE',
+      'WORKSHOP_ISSUE',
+      'DAMAGE',
+      'LOSS',
+      'WRITE_OFF',
+    ].includes(String(movementType || '').toUpperCase());
+  }
 
   private async getOrCreateBalance(
     txOrStockItemId: any,
@@ -956,7 +1169,7 @@ export class AssetsService {
     return expense;
   }
 
-    async postMovement(id: string, body: any) {
+  async postMovement(id: string, body: any) {
     const postedBy = body?.postedBy || body?.approvedBy || 'Asset Manager';
     const now = new Date();
     const tx = this.db();
@@ -986,12 +1199,14 @@ export class AssetsService {
     }
 
     if (movement.status === StockMovementStatus.POSTED) {
-      return tx.stockMovement.findUnique({
+      const postedMovement = await tx.stockMovement.findUnique({
         where: {
           id,
         },
         include: this.stockMovementInclude(),
       });
+
+      return this.decorateMovement(postedMovement);
     }
 
     if (movement.status !== StockMovementStatus.APPROVED) {
@@ -1207,8 +1422,15 @@ export class AssetsService {
         financeExpense && totalFinanceValue.gt(0)
           ? 'Stock movement posted, ledger updated, and finance expense created.'
           : 'Stock movement posted and ledger updated.',
-      movement: postedMovement,
+      movement: this.decorateMovement(postedMovement),
       financeExpense,
+    };
+
+    const updatedMovement = await this.getMovement(id);
+
+    return {
+      message: 'Stock movement posted and ledger updated.',
+      movement: updatedMovement,
     };
   }
 

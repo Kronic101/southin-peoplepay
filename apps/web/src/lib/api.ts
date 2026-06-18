@@ -1691,6 +1691,18 @@ export type StockMovementRecord = {
   site?: string | null;
   projectCode?: string | null;
   reason?: string | null;
+  ledgerStatus?: string | null;
+  financeStatus?: string | null;
+  financeExpenseNo?: string | null;
+  financeExpenseId?: string | null;
+  ledgerEntryCount?: number;
+  financeExpense?: {
+    id: string;
+    expenseNo?: string | null;
+    amount?: string | number | null;
+    status?: string | null;
+    evidenceStatus?: string | null;
+  } | null;
   submittedAt?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -1709,6 +1721,14 @@ export type StockMovementRecord = {
     notes?: string | null;
     stockItem?: StockItemRecord;
     qrTag?: AssetQrTagRecord | null;
+    ledgerEntries?: Array<{
+      id: string;
+      transactionType?: string | null;
+      quantityIn?: string | number | null;
+      quantityOut?: string | number | null;
+      balanceAfter?: string | number | null;
+      totalCost?: string | number | null;
+    }>;
   }>;
 };
 
@@ -1788,6 +1808,14 @@ export async function getAssetBalances(): Promise<StockBalanceRecord[]> {
 
 export async function getAssetMovements(): Promise<StockMovementRecord[]> {
   return apiGet<StockMovementRecord[]>('/assets/movements', 'Failed to load stock movements', true);
+}
+
+export async function getAssetMovement(id: string): Promise<StockMovementRecord> {
+  return apiGet<StockMovementRecord>(
+    `/assets/movements/${id}`,
+    'Failed to load stock movement',
+    true,
+  );
 }
 
 export async function createAssetMovement(payload: {
