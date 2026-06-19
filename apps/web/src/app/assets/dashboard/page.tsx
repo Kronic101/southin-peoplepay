@@ -14,11 +14,17 @@ type AssetDashboardResponse = {
     locations?: number;
     movements?: number;
     pendingMovements?: number;
+    postedMovements?: number;
     qrTags?: number;
     scaffoldComponents?: number;
     availableScaffolds?: number;
     issuedScaffolds?: number;
     damagedScaffolds?: number;
+    ledgerEntries?: number;
+    financeLinkedMovements?: number;
+    activeCustody?: number;
+    activeDeployments?: number;
+    openStockCounts?: number;
   };
   lowStock?: Array<{
     itemCode?: string;
@@ -112,6 +118,12 @@ export default function AssetDashboardPage() {
       availableScaffolds: asNumber(data?.summary?.availableScaffolds),
       issuedScaffolds: asNumber(data?.summary?.issuedScaffolds),
       damagedScaffolds: asNumber(data?.summary?.damagedScaffolds),
+      postedMovements: asNumber(data?.summary?.postedMovements),
+      ledgerEntries: asNumber(data?.summary?.ledgerEntries),
+      financeLinkedMovements: asNumber(data?.summary?.financeLinkedMovements),
+      activeCustody: asNumber(data?.summary?.activeCustody),
+      activeDeployments: asNumber(data?.summary?.activeDeployments),
+      openStockCounts: asNumber(data?.summary?.openStockCounts),
     };
   }, [data]);
 
@@ -182,6 +194,35 @@ export default function AssetDashboardPage() {
             <div className="finance-summary-card">
               <span>Damaged Scaffolds</span>
               <strong>{summary.damagedScaffolds}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Posted Movements</span>
+              <strong>{summary.postedMovements}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Ledger Entries</span>
+              <strong>{summary.ledgerEntries}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Finance Linked</span>
+              <strong>{summary.financeLinkedMovements}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Active Custody</span>
+              <strong>{summary.activeCustody}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Active Deployments</span>
+              <strong>{summary.activeDeployments}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Open Stock Counts</span>
+              <strong>{summary.openStockCounts}</strong>
             </div>
           </div>
         </div>

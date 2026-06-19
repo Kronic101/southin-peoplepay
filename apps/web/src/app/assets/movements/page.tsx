@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
+import { exportToCsv } from '@/lib/csv-export';
 import {
   approveAssetMovement,
   createAssetMovement,
@@ -89,6 +90,29 @@ function getMovementValue(movement: StockMovementRecord) {
 
 function normalisePostResult(result: any): StockMovementRecord {
   return result?.movement || result;
+}
+
+function handleExportCsv() {
+  const rows = movement.map((movement: any) => ({
+    movementNo: movement.movementNo || '',
+    type: movement.movementType || '',
+    status: movement.status || '',
+    ledgerStatus: movement.ledgerStatus || '',
+    financeStatus: movement.financeStatus || '',
+    financeExpenseNo: movement.financeExpenseNo || '',
+    fromLocation: movement.fromLocation?.locationCode || '',
+    toLocation: movement.toLocation?.locationCode || '',
+    requestedBy: movement.requestedBy || '',
+    department: movement.department || '',
+    site: movement.site || '',
+    projectCode: movement.projectCode || '',
+    reason: movement.reason || '',
+    approvedBy: movement.approvedBy || '',
+    postedBy: movement.postedBy || '',
+    postedAt: movement.postedAt || '',
+  }));
+
+  exportToCsv('southin-stock-movements.csv', rows);
 }
 
 export default function AssetMovementsPage() {
@@ -470,14 +494,18 @@ export default function AssetMovementsPage() {
             </label>
           </div>
 
-          <div className="action-row">
+          <div className="form-actions span-2">
             <button
-              className="orange-button"
+              className="btn"
               type="button"
-              onClick={handleCreateMovement}
               disabled={saving}
+              onClick={handleCreateMovement}
             >
-              {saving ? 'Saving...' : 'Create Movement Request'}
+              {saving ? 'Creating...' : 'Create Movement Request'}
+            </button>
+
+            <button className="btn-secondary" type="button" onClick={handleExportLedger}>
+              Export CSV
             </button>
           </div>
         </div>

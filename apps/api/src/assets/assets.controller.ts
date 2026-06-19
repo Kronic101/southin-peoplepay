@@ -154,4 +154,18 @@ export class AssetsController {
   seedDemoAssetData() {
     return this.assetsService.seedDemoAssetData();
   }
+
+  @Patch('stock-counts/:id/lines/:lineId')
+  updateStockCountLine(
+    @Param('id') id: string,
+    @Param('lineId') lineId: string,
+    @Body() body: any,
+  ) {
+    return this.assetsService.updateStockCountLine(id, lineId, body);
+  }
+
+  @Patch('stock-counts/:id/post-adjustment')
+  postStockCountAdjustment(@Param('id') id: string, @Body() body: any) {
+    return this.assetsService.postStockCountAdjustment(id, body);
+  }
 }

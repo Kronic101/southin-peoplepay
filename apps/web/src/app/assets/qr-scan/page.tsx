@@ -75,21 +75,19 @@ export default function AssetQrScanPage() {
   }, []);
 
   async function loadTags() {
-    setLoading(true);
-    setError('');
-    setMessage('');
+  setLoading(true);
+  setError('');
 
-    const result = await getAssetQrTags();
-
-    if (!result.ok) {
-      setError(result.error || 'Unable to load QR/RFID tag register.');
-      setLoading(false);
-      return;
-    }
-
-    setTags(result.data || []);
+  try {
+    const data = await getAssetQrTags();
+    setTags(Array.isArray(data) ? data : []);
+  } catch (err: any) {
+    setTags([]);
+    setError(err?.message || 'Unable to load QR/RFID tag register.');
+  } finally {
     setLoading(false);
   }
+}
 
   async function handleScan(nextCode?: string) {
     const cleanCode = String(nextCode || tagCode || '').trim();
@@ -103,16 +101,17 @@ export default function AssetQrScanPage() {
     setError('');
     setMessage('');
 
-    const result = await scanAssetQrTag(cleanCode, {
-      scannedBy: scannedBy || 'Asset Manager',
-      site: site || 'Unknown site',
-      scanType,
-    } as any);
+    try {
+      const updatedTag = await scanAssetQrTag(tagCode, {
+        scannedBy,
+        site,
+        scanType,
+      });
 
-    if (!result.ok) {
-      setError(result.error || `Tag ${cleanCode} could not be scanned.`);
-      setLoading(false);
-      return;
+      setMessage(`QR/RFID tag ${updatedTag?.tagCode || tagCode} scanned successfully.`);
+      await loadTags();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to scan QR/RFID tag.');
     }
 
     setMessage(`${scanType} tag ${cleanCode} scanned successfully.`);
@@ -370,7 +369,7 @@ export default function AssetQrScanPage() {
                       <td>{tag.tagCode}</td>
                       <td>{tag.qrPayload || tag.barcodeValue || '-'}</td>
                       <td>{tag.stockItem?.itemName || '-'}</td>
-                      <td>{tag.assignedLocation?.locationName || '-'}</td>
+                      <td>{tag.location?.locationName || '-'}</td>
                       <td>
                         <span className="status-pill">{tag.status || '-'}</span>
                       </td>

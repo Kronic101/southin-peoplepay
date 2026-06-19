@@ -1779,8 +1779,12 @@ export async function getAssetDashboard(): Promise<AssetDashboardResponse> {
   );
 }
 
-export async function getAssetStockItems(): Promise<StockItemRecord[]> {
-  return apiGet<StockItemRecord[]>('/assets/stock-items', 'Failed to load stock items', true);
+export async function getAssetStockItems() {
+  return apiGet<any[]>(
+    '/assets/stock-items',
+    'Failed to load asset stock items',
+    true,
+  );
 }
 
 export async function createAssetStockItem(payload: {
@@ -1798,16 +1802,24 @@ export async function createAssetStockItem(payload: {
   return apiPost<StockItemRecord>('/assets/stock-items', payload, 'Failed to create stock item', true);
 }
 
-export async function getAssetLocations(): Promise<StockLocationRecord[]> {
-  return apiGet<StockLocationRecord[]>('/assets/locations', 'Failed to load asset locations', true);
+export async function getAssetLocations() {
+  return apiGet<any[]>(
+    '/assets/locations',
+    'Failed to load asset locations',
+    true,
+  );
 }
 
 export async function getAssetBalances(): Promise<StockBalanceRecord[]> {
   return apiGet<StockBalanceRecord[]>('/assets/balances', 'Failed to load stock balances', true);
 }
 
-export async function getAssetMovements(): Promise<StockMovementRecord[]> {
-  return apiGet<StockMovementRecord[]>('/assets/movements', 'Failed to load stock movements', true);
+export async function getAssetMovements() {
+  return apiGet<any[]>(
+    '/assets/movements',
+    'Failed to load asset movements',
+    true,
+  );
 }
 
 export async function getAssetMovement(id: string): Promise<StockMovementRecord> {
@@ -1862,8 +1874,12 @@ export async function postAssetMovement(id: string, postedBy = 'Asset Manager') 
   );
 }
 
-export async function getAssetQrTags(): Promise<AssetQrTagRecord[]> {
-  return apiGet<AssetQrTagRecord[]>('/assets/qr-tags', 'Failed to load QR tags', true);
+export async function getAssetQrTags() {
+  return apiGet<any[]>(
+    '/assets/qr-tags',
+    'Failed to load QR/RFID tags',
+    true,
+  );
 }
 
 export async function scanAssetQrTag(tagCode: string, payload: { scannedBy?: string; site?: string }) {
@@ -1877,4 +1893,90 @@ export async function scanAssetQrTag(tagCode: string, payload: { scannedBy?: str
 
 export async function getScaffoldComponents(): Promise<ScaffoldComponentRecord[]> {
   return apiGet<ScaffoldComponentRecord[]>('/assets/scaffolds', 'Failed to load scaffolds', true);
+}
+
+export async function getAssetStockCounts() {
+  return apiGet<any[]>(
+    '/assets/stock-counts',
+    'Failed to load stock count sessions',
+    true,
+  );
+}
+
+export async function createAssetStockCount(payload: any) {
+  return apiPost<any>(
+    '/assets/stock-counts',
+    payload,
+    'Failed to create stock count session',
+    true,
+  );
+}
+
+export async function approveAssetStockCount(id: string, payload: any) {
+  return apiPatch<any>(
+    `/assets/stock-counts/${id}/approve`,
+    payload,
+    'Failed to approve stock count session',
+    true,
+  );
+}
+
+export async function getAssetLedger() {
+  return apiGet<any[]>(
+    '/assets/ledger',
+    'Failed to load stock ledger',
+    true,
+  );
+}
+
+export async function getAssetScaffoldDeployments() {
+  return apiGet<any[]>(
+    '/assets/deployments',
+    'Failed to load scaffold deployments',
+    true,
+  );
+}
+
+export async function createAssetScaffoldDeployment(payload: any) {
+  return apiPost<any>(
+    '/assets/deployments',
+    payload,
+    'Failed to create scaffold deployment',
+    true,
+  );
+}
+
+export async function closeAssetScaffoldDeployment(id: string, payload: any) {
+  return apiPatch<any>(
+    `/assets/deployments/${id}/close`,
+    payload,
+    'Failed to close scaffold deployment',
+    true,
+  );
+}
+
+export async function getAssetCustodyAssignments() {
+  return apiGet<any[]>(
+    '/assets/custody',
+    'Failed to load custody assignments',
+    true,
+  );
+}
+
+export async function createAssetCustodyAssignment(payload: any) {
+  return apiPost<any>(
+    '/assets/custody',
+    payload,
+    'Failed to create custody assignment',
+    true,
+  );
+}
+
+export async function returnAssetCustodyAssignment(id: string, payload: any) {
+  return apiPatch<any>(
+    `/assets/custody/${id}/return`,
+    payload,
+    'Failed to return custody assignment',
+    true,
+  );
 }

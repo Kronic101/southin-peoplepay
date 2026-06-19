@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
+import { exportToCsv } from '@/lib/csv-export';
 import { useEffect, useMemo, useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
@@ -143,6 +144,28 @@ function getFinanceLinked(row: LedgerEntry) {
   return Boolean(row.financeExpenseId || row.financeExpense?.id || row.movement?.financeExpenseId);
 }
 
+function handleExportLedger() {
+  const rows = entries.map((entry: any) => ({
+    date: entry.createdAt || '',
+    movementNo: entry.movement?.movementNo || entry.referenceNo || '',
+    transactionType: entry.transactionType || '',
+    itemCode: entry.stockItem?.itemCode || '',
+    itemName: entry.stockItem?.itemName || '',
+    location: entry.location?.locationCode || '',
+    quantityIn: entry.quantityIn || 0,
+    quantityOut: entry.quantityOut || 0,
+    balanceAfter: entry.balanceAfter || 0,
+    unitCost: entry.unitCost || 0,
+    totalCost: entry.totalCost || 0,
+    financeExpenseId: entry.financeExpenseId || '',
+    referenceType: entry.referenceType || '',
+    referenceNo: entry.referenceNo || '',
+    createdBy: entry.createdBy || '',
+  }));
+
+  exportToCsv('southin-stock-ledger.csv', rows);
+}
+
 export default function AssetLedgerPage() {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -219,6 +242,10 @@ export default function AssetLedgerPage() {
 
           <button className="btn-secondary" type="button" onClick={loadLedger} disabled={loading}>
             {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+
+          <button className="btn-secondary" type="button" onClick={handleExportLedger}>
+            Export CSV
           </button>
         </div>
 

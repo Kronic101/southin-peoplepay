@@ -33,7 +33,7 @@ export default function ScaffoldComponentsPage() {
     <AppShell>
       <section className="page-stack finance-live-page">
         <div className="finance-live-card">
-          <div className="finance-live-header">
+          <div className="finance-card finance-hero-card">
             <div>
               <p className="eyebrow">Asset Management</p>
               <h1>Scaffold Component Register</h1>

@@ -97,6 +97,34 @@ function controlStatusClass(isLow: boolean) {
   return isLow ? 'status-pill warning' : 'status-pill success';
 }
 
+function handleExportCsv() {
+  const rows = items.map((item: any) => {
+    const itemBalances = balances.filter((balance: any) => balance.stockItemId === item.id);
+    const totalOnHand = itemBalances.reduce(
+      (sum: number, balance: any) => sum + Number(balance.quantityOnHand || 0),
+      0,
+    );
+
+    return {
+      itemCode: item.itemCode || '',
+      itemName: item.itemName || '',
+      itemType: item.itemType || '',
+      category: item.category || '',
+      unitOfMeasure: item.unitOfMeasure || '',
+      minimumLevel: item.minimumLevel || 0,
+      reorderLevel: item.reorderLevel || 0,
+      standardCost: item.standardCost || 0,
+      totalOnHand,
+      isSerialized: item.isSerialized ? 'Yes' : 'No',
+      isQrTracked: item.isQrTracked ? 'Yes' : 'No',
+      isRfidTracked: item.isRfidTracked ? 'Yes' : 'No',
+      isActive: item.isActive ? 'Yes' : 'No',
+    };
+  });
+
+  exportToCsv('southin-stores-stock.csv', rows);
+}
+
 export default function AssetStockPage() {
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<StockItem[]>([]);
@@ -128,23 +156,21 @@ export default function AssetStockPage() {
     setLoading(true);
     setError('');
 
-    const [stockResult, balanceResult] = await Promise.all([getStockItems(), getStockBalances()]);
+    try {
+      const [stockResult, balanceResult] = await Promise.all([
+        getStockItems(),
+        getStockBalances(),
+      ]);
 
-    if (!stockResult.ok) {
-      setError(stockResult.error || 'Unable to load stock items.');
+      setItems(Array.isArray(stockResult) ? stockResult : []);
+      setBalances(Array.isArray(balanceResult) ? balanceResult : []);
+    } catch (err: any) {
+      setItems([]);
+      setBalances([]);
+      setError(err?.message || 'Unable to load stock data.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!balanceResult.ok) {
-      setError(balanceResult.error || 'Unable to load stock balances.');
-      setLoading(false);
-      return;
-    }
-
-    setItems(stockResult.data || []);
-    setBalances(balanceResult.data || []);
-    setLoading(false);
   }
 
   async function previewNextCode() {

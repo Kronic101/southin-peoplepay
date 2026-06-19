@@ -139,6 +139,20 @@ export class AssetsService {
     return toDecimal(value, fallback);
   }
 
+  private qrTagDb(tx?: any) {
+  const db = tx || this.db();
+
+  if (db.assetQrTag) {
+    return db.assetQrTag;
+  }
+
+  if (db.assetQrTag) {
+    return db.assetQrTag;
+  }
+
+  throw new BadRequestException('QR/RFID tag model is not available in Prisma client.');
+}
+
   private async nextStockCode(body: any) {
     if (body?.itemCode && body?.codeMode !== 'AUTO') {
       return clean(body.itemCode).toUpperCase();
@@ -259,33 +273,83 @@ export class AssetsService {
   }
 
   async getDashboard() {
-    const [assets, stockItems, locations, movements, qrTags, scaffolds, balances] =
-      await Promise.all([
-        this.db().hubAsset.findMany(),
-        this.db().stockItem.findMany(),
-        this.db().stockLocation.findMany(),
-        this.db().stockMovement.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          include: {
-            fromLocation: true,
-            toLocation: true,
-            lines: {
-              include: {
-                stockItem: true,
+    const db = this.db();
+
+    const [
+      assets,
+      stockItems,
+      locations,
+      movements,
+      qrTags,
+      scaffolds,
+      balances,
+      ledgerEntries,
+      custodyAssignments,
+      deployments,
+      stockCounts,
+    ] = await Promise.all([
+      db.hubAsset?.findMany ? db.hubAsset.findMany() : Promise.resolve([]),
+      db.stockItem?.findMany ? db.stockItem.findMany() : Promise.resolve([]),
+      db.stockLocation?.findMany ? db.stockLocation.findMany() : Promise.resolve([]),
+
+      db.stockMovement?.findMany
+        ? db.stockMovement.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            include: {
+              fromLocation: true,
+              toLocation: true,
+              financeExpense: true,
+              ledgerEntries: true,
+              lines: {
+                include: {
+                  stockItem: true,
+                  qrTag: true,
+                  ledgerEntries: true,
+                },
               },
             },
-          },
-        }),
-        this.db().qrTag.findMany(),
-        this.db().scaffoldComponent.findMany(),
-        this.db().stockBalance.findMany({
-          include: {
-            stockItem: true,
-            location: true,
-          },
-        }),
-      ]);
+          })
+        : Promise.resolve([]),
+
+      db.assetQrTag?.findMany
+        ? db.assetQrTag.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            include: {
+              stockItem: true,
+              asset: true,
+              scaffoldComponent: true,
+              assignedLocation: true,
+            },
+          })
+        : Promise.resolve([]),
+
+      db.scaffoldComponent?.findMany ? db.scaffoldComponent.findMany() : Promise.resolve([]),
+
+      db.stockBalance?.findMany
+        ? db.stockBalance.findMany({
+            include: {
+              stockItem: true,
+              location: true,
+            },
+          })
+        : Promise.resolve([]),
+
+      db.stockLedger?.findMany ? db.stockLedger.findMany() : Promise.resolve([]),
+
+      db.assetCustodyAssignment?.findMany
+        ? db.assetCustodyAssignment.findMany()
+        : Promise.resolve([]),
+
+      db.scaffoldDeployment?.findMany
+        ? db.scaffoldDeployment.findMany()
+        : Promise.resolve([]),
+
+      db.stockCountSession?.findMany
+        ? db.stockCountSession.findMany()
+        : Promise.resolve([]),
+    ]);
 
     const lowStock = balances
       .filter((balance: any) => {
@@ -300,24 +364,48 @@ export class AssetsService {
         locationName: balance.location?.locationName,
         quantityOnHand: Number(balance.quantityOnHand || 0),
         minimumLevel: Number(balance.stockItem?.minimumLevel || 0),
+        reorderLevel: Number(balance.stockItem?.reorderLevel || 0),
       }));
+
+    const postedMovements = movements.filter((movement: any) => movement.status === 'POSTED');
 
     return {
       summary: {
         assets: assets.length,
         activeAssets: assets.filter((asset: any) => asset.status === 'ACTIVE').length,
+
         stockItems: stockItems.length,
         locations: locations.length,
+
         movements: movements.length,
         pendingMovements: movements.filter((movement: any) => movement.status !== 'POSTED').length,
+        postedMovements: postedMovements.length,
+
         qrTags: qrTags.length,
+        assetQrTags: qrTags.length,
+
         scaffoldComponents: scaffolds.length,
         availableScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'AVAILABLE').length,
         issuedScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'ISSUED').length,
         damagedScaffolds: scaffolds.filter((item: any) => item.conditionStatus === 'DAMAGED').length,
+
+        ledgerEntries: ledgerEntries.length,
+        financeLinkedMovements: movements.filter((movement: any) => movement.financeExpenseId || movement.financeExpense).length,
+
+        activeCustody: custodyAssignments.filter((item: any) => item.status === 'ACTIVE').length,
+        activeDeployments: deployments.filter((item: any) => item.status === 'ACTIVE').length,
+        openStockCounts: stockCounts.filter((item: any) => item.status === 'DRAFT' || item.status === 'OPEN').length,
       },
+
       lowStock,
-      recentMovements: movements,
+
+      recentMovements: movements.map((movement: any) =>
+        typeof this.mapMovementControlStatus === 'function'
+          ? this.mapMovementControlStatus(movement)
+          : movement,
+      ),
+
+      recentQrScans: qrTags,
     };
   }
 
@@ -608,7 +696,9 @@ export class AssetsService {
           },
         },
         stockItem: true,
-        location: true,
+        qrTag: true,
+        issuedToLocation: true,
+        financeExpense: true,
       },
     });
   }
@@ -616,14 +706,15 @@ export class AssetsService {
   async createScaffoldDeployment(body: any) {
     const scaffoldComponentId = clean(body.scaffoldComponentId);
     const stockItemId = clean(body.stockItemId);
-    const locationId = clean(body.locationId);
-    const deployedTo = clean(body.deployedTo);
+    const qrTagId = clean(body.qrTagId);
+    const issuedToLocationId = clean(body.issuedToLocationId || body.locationId);
+    const deployedTo = clean(body.deployedTo || body.site || body.locationName);
     const deployedBy = clean(body.deployedBy) || 'Asset Manager';
     const projectCode = clean(body.projectCode);
     const notes = clean(body.notes);
 
-    if (!scaffoldComponentId && !stockItemId) {
-      throw new BadRequestException('Scaffold component or stock item is required.');
+    if (!scaffoldComponentId && !stockItemId && !qrTagId) {
+      throw new BadRequestException('Scaffold component, stock item, or QR/RFID tag is required.');
     }
 
     if (!deployedTo) {
@@ -637,7 +728,8 @@ export class AssetsService {
         deploymentNo,
         scaffoldComponentId: scaffoldComponentId || null,
         stockItemId: stockItemId || null,
-        locationId: locationId || null,
+        qrTagId: qrTagId || null,
+        issuedToLocationId: issuedToLocationId || null,
         deployedTo,
         deployedBy,
         deployedAt: new Date(),
@@ -653,7 +745,9 @@ export class AssetsService {
           },
         },
         stockItem: true,
-        location: true,
+        qrTag: true,
+        issuedToLocation: true,
+        financeExpense: true,
       },
     });
   }
@@ -684,7 +778,9 @@ export class AssetsService {
           },
         },
         stockItem: true,
-        location: true,
+        qrTag: true,
+        issuedToLocation: true,
+        financeExpense: true,
       },
     });
   }
@@ -1575,7 +1671,7 @@ export class AssetsService {
                 ? 'LOST'
                 : 'ISSUED';
 
-        await tx.qrTag.update({
+        await this.qrTagDb(tx).update({
           where: {
             id: line.qrTagId,
           },
@@ -1628,7 +1724,13 @@ export class AssetsService {
   }
 
   async getQrTags() {
-    return this.db().qrTag.findMany({
+    const db = this.db();
+
+    if (!db.assetQrTag?.findMany) {
+      return [];
+    }
+
+    return db.assetQrTag.findMany({
       orderBy: [{ createdAt: 'desc' }],
       include: {
         stockItem: true,
@@ -1640,13 +1742,19 @@ export class AssetsService {
   }
 
   async createQrTag(body: any) {
+    const db = this.db();
+
+    if (!db.assetQrTag?.create) {
+      throw new BadRequestException('QR/RFID tag model is not available in Prisma client.');
+    }
+
     const tagCode = clean(body.tagCode || body.qrPayload).toUpperCase();
 
     if (!tagCode) {
       throw new BadRequestException('Tag code is required.');
     }
 
-    const existing = await this.db().qrTag.findUnique({
+    const existing = await db.assetQrTag.findUnique({
       where: { tagCode },
     });
 
@@ -1654,7 +1762,7 @@ export class AssetsService {
       return existing;
     }
 
-    return this.db().qrTag.create({
+    return db.assetQrTag.create({
       data: {
         tagCode,
         qrPayload: body.qrPayload || tagCode,
@@ -1665,13 +1773,25 @@ export class AssetsService {
         assignedLocationId: body.assignedLocationId || null,
         status: body.status || 'AVAILABLE',
       },
+      include: {
+        stockItem: true,
+        asset: true,
+        scaffoldComponent: true,
+        assignedLocation: true,
+      },
     });
   }
 
   async scanQrTag(tagCode: string, body: any) {
+    const db = this.db();
+
+    if (!db.assetQrTag?.findFirst) {
+      throw new BadRequestException('QR/RFID tag model is not available in Prisma client.');
+    }
+
     const code = clean(tagCode).toUpperCase();
 
-    const tag = await this.db().qrTag.findFirst({
+    const tag = await db.assetQrTag.findFirst({
       where: {
         OR: [
           { tagCode: code },
@@ -1685,7 +1805,7 @@ export class AssetsService {
       throw new NotFoundException(`QR/RFID/barcode tag ${code} was not found.`);
     }
 
-    return this.db().qrTag.update({
+    return db.assetQrTag.update({
       where: { id: tag.id },
       data: {
         lastScannedAt: new Date(),
@@ -2032,13 +2152,14 @@ export class AssetsService {
   }
 
   async getCustodyAssignments() {
-    return (this.db() as any).assetCustodyAssignment.findMany({
+    return this.db().assetCustodyAssignment.findMany({
       orderBy: [{ createdAt: 'desc' }],
       include: {
         stockItem: true,
         location: true,
         qrTag: true,
-        scaffoldComponent: true,
+        asset: true,
+        financeExpense: true,
       },
     });
   }
@@ -2047,7 +2168,7 @@ export class AssetsService {
     const stockItemId = clean(body.stockItemId);
     const locationId = clean(body.locationId);
     const qrTagId = clean(body.qrTagId);
-    const scaffoldComponentId = clean(body.scaffoldComponentId);
+    const assetId = clean(body.assetId);
 
     const assignedTo = clean(body.assignedTo);
     const assignedBy = clean(body.assignedBy) || clean(body.createdBy) || 'Asset Manager';
@@ -2057,8 +2178,8 @@ export class AssetsService {
     const projectCode = clean(body.projectCode);
     const notes = clean(body.notes);
 
-    if (!stockItemId) {
-      throw new BadRequestException('Stock item is required.');
+    if (!stockItemId && !assetId && !qrTagId) {
+      throw new BadRequestException('Stock item, asset, or QR/RFID tag is required.');
     }
 
     if (!assignedTo) {
@@ -2067,13 +2188,13 @@ export class AssetsService {
 
     const assignmentNo = `CUS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    return (this.db() as any).assetCustodyAssignment.create({
+    return this.db().assetCustodyAssignment.create({
       data: {
         assignmentNo,
-        stockItemId,
+        stockItemId: stockItemId || null,
         locationId: locationId || null,
         qrTagId: qrTagId || null,
-        scaffoldComponentId: scaffoldComponentId || null,
+        assetId: assetId || null,
         assignedTo,
         assignedBy,
         assignedAt: new Date(),
@@ -2088,7 +2209,8 @@ export class AssetsService {
         stockItem: true,
         location: true,
         qrTag: true,
-        scaffoldComponent: true,
+        asset: true,
+        financeExpense: true,
       },
     });
   }
@@ -2096,7 +2218,7 @@ export class AssetsService {
   async returnCustodyAssignment(id: string, body: any) {
     const returnedBy = clean(body.returnedBy) || clean(body.closedBy) || 'Asset Manager';
 
-    const assignment = await (this.db() as any).assetCustodyAssignment.findUnique({
+    const assignment = await this.db().assetCustodyAssignment.findUnique({
       where: { id },
     });
 
@@ -2104,7 +2226,7 @@ export class AssetsService {
       throw new NotFoundException('Custody assignment not found.');
     }
 
-    return (this.db() as any).assetCustodyAssignment.update({
+    return this.db().assetCustodyAssignment.update({
       where: { id },
       data: {
         status: 'RETURNED',
@@ -2115,10 +2237,203 @@ export class AssetsService {
         stockItem: true,
         location: true,
         qrTag: true,
-        scaffoldComponent: true,
+        asset: true,
+        financeExpense: true,
       },
     });
   }
+
+  async updateStockCountLine(sessionId: string, lineId: string, body: any) {
+  const db = this.db();
+
+  const line = await db.stockCountLine.findUnique({
+    where: { id: lineId },
+    include: {
+      session: true,
+      stockItem: true,
+      location: true,
+    },
+  });
+
+  if (!line || line.sessionId !== sessionId) {
+    throw new NotFoundException('Stock count line not found.');
+  }
+
+  if (!['DRAFT', 'OPEN'].includes(String(line.session.status || '').toUpperCase())) {
+    throw new BadRequestException('Only draft/open stock counts can be updated.');
+  }
+
+  const countedQuantity = new Prisma.Decimal(toNumber(body.countedQuantity, 0));
+  const systemQuantity = new Prisma.Decimal(line.systemQuantity || 0);
+  const varianceQuantity = countedQuantity.minus(systemQuantity);
+
+  return db.stockCountLine.update({
+    where: { id: lineId },
+    data: {
+      countedQuantity,
+      varianceQuantity,
+      notes: body.notes || line.notes || null,
+    },
+    include: {
+      stockItem: true,
+      location: true,
+    },
+  });
+}
+
+async postStockCountAdjustment(id: string, body: any) {
+  const db = this.db();
+  const postedBy = clean(body.postedBy) || clean(body.approvedBy) || 'Asset Manager';
+
+  const session = await db.stockCountSession.findUnique({
+    where: { id },
+    include: {
+      location: true,
+      lines: {
+        include: {
+          stockItem: true,
+          location: true,
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    throw new NotFoundException('Stock count session not found.');
+  }
+
+  if (String(session.status || '').toUpperCase() !== 'APPROVED') {
+    throw new BadRequestException('Only approved stock counts can be posted as adjustments.');
+  }
+
+  const varianceLines = (session.lines || []).filter((line: any) => {
+    return !new Prisma.Decimal(line.varianceQuantity || 0).equals(0);
+  });
+
+  if (varianceLines.length === 0) {
+    return db.stockCountSession.update({
+      where: { id },
+      data: {
+        status: 'POSTED',
+      },
+      include: {
+        location: true,
+        lines: {
+          include: {
+            stockItem: true,
+            location: true,
+          },
+        },
+      },
+    });
+  }
+
+  const positiveLines = varianceLines.filter((line: any) =>
+    new Prisma.Decimal(line.varianceQuantity || 0).gt(0),
+  );
+
+  const negativeLines = varianceLines.filter((line: any) =>
+    new Prisma.Decimal(line.varianceQuantity || 0).lt(0),
+  );
+
+  const createdMovements: any[] = [];
+
+  if (positiveLines.length > 0) {
+    const gainMovement = await db.stockMovement.create({
+      data: {
+        movementNo: makeMovementNo('CNT-GAIN'),
+        movementType: 'ADJUSTMENT',
+        status: StockMovementStatus.APPROVED,
+        toLocationId: session.locationId,
+        requestedBy: postedBy,
+        department: session.location?.department || 'Operations',
+        site: session.location?.site || null,
+        reason: `Positive stock count variance from ${session.sessionNo}`,
+        referenceType: 'STOCK_COUNT',
+        referenceId: session.sessionNo,
+        submittedAt: new Date(),
+        approvedBy: postedBy,
+        approvedAt: new Date(),
+        lines: {
+          create: positiveLines.map((line: any) => {
+            const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
+            const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
+
+            return {
+              stockItemId: line.stockItemId,
+              quantity,
+              unitCost,
+              totalCost: quantity.mul(unitCost),
+              notes: `Stock count gain. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
+            };
+          }),
+        },
+      },
+    });
+
+    const posted = await this.postMovement(gainMovement.id, { postedBy });
+    createdMovements.push(posted);
+  }
+
+  if (negativeLines.length > 0) {
+    const lossMovement = await db.stockMovement.create({
+      data: {
+        movementNo: makeMovementNo('CNT-LOSS'),
+        movementType: 'WRITE_OFF',
+        status: StockMovementStatus.APPROVED,
+        fromLocationId: session.locationId,
+        requestedBy: postedBy,
+        department: session.location?.department || 'Operations',
+        site: session.location?.site || null,
+        reason: `Negative stock count variance from ${session.sessionNo}`,
+        referenceType: 'STOCK_COUNT',
+        referenceId: session.sessionNo,
+        submittedAt: new Date(),
+        approvedBy: postedBy,
+        approvedAt: new Date(),
+        lines: {
+          create: negativeLines.map((line: any) => {
+            const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
+            const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
+
+            return {
+              stockItemId: line.stockItemId,
+              quantity,
+              unitCost,
+              totalCost: quantity.mul(unitCost),
+              notes: `Stock count loss/write-off. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
+            };
+          }),
+        },
+      },
+    });
+
+    const posted = await this.postMovement(lossMovement.id, { postedBy });
+    createdMovements.push(posted);
+  }
+
+  const updatedSession = await db.stockCountSession.update({
+    where: { id },
+    data: {
+      status: 'POSTED',
+    },
+    include: {
+      location: true,
+      lines: {
+        include: {
+          stockItem: true,
+          location: true,
+        },
+      },
+    },
+  });
+
+  return {
+    message: 'Stock count variance posted to stock movements and ledger.',
+    session: updatedSession,
+    movements: createdMovements,
+  };
+}
 
   async seedDemoAssetData() {
     const mainStore = await this.createLocation({
