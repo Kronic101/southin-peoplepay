@@ -1016,21 +1016,182 @@ model FleetVehicle {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  inspections     FleetInspection[]
-  defects         FleetDefect[]
-  trips           FleetTrip[]
-  fuelLogs        FleetFuelLog[]
-  workshopJobs    FleetWorkshopJob[]
+  inspections       FleetInspection[]
+  defects           FleetDefect[]
+  trips             FleetTrip[]
+  fuelLogs          FleetFuelLog[]
+  workshopJobs      FleetWorkshopJob[]
+  assignments       FleetVehicleAssignment[]
+  dueItems          FleetDueItem[]
+  documents         FleetDocument[]
+  notifications     FleetNotification[]
 
   @@index([status])
   @@index([site])
   @@map("fleet_vehicles")
 }
 
+model FleetDriverProfile {
+  id             String   @id @default(uuid())
+  employeeId     String?
+  employeeNumber String?
+  driverName     String
+  phone          String?
+  email          String?
+
+  licenceNo      String?
+  licenceClass   String?
+  licenceExpiry  DateTime?
+
+  department     String?
+  site           String?
+  branch         String?
+
+  status         String   @default("ACTIVE")
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  assignments    FleetVehicleAssignment[]
+  inspections    FleetInspection[]
+  trips          FleetTrip[]
+  fuelLogs       FleetFuelLog[]
+
+  @@index([employeeId])
+  @@index([employeeNumber])
+  @@index([status])
+  @@index([site])
+  @@map("fleet_driver_profiles")
+}
+
+model FleetVehicleAssignment {
+  id          String   @id @default(uuid())
+
+  vehicleId   String
+  vehicle     FleetVehicle @relation(fields: [vehicleId], references: [id])
+
+  driverId    String
+  driver      FleetDriverProfile @relation(fields: [driverId], references: [id])
+
+  assignedBy  String?
+  assignedAt  DateTime @default(now())
+
+  returnedBy  String?
+  returnedAt  DateTime?
+
+  status      String   @default("ACTIVE")
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([status])
+  @@map("fleet_vehicle_assignments")
+}
+
+model FleetDueItem {
+  id           String   @id @default(uuid())
+
+  vehicleId    String
+  vehicle      FleetVehicle @relation(fields: [vehicleId], references: [id])
+
+  dueType      String
+  title        String
+  description  String?
+
+  dueDate      DateTime?
+  dueOdometer  Decimal? @db.Decimal(18, 2)
+
+  status       String   @default("OPEN")
+  priority     String   @default("MEDIUM")
+
+  completedBy  String?
+  completedAt  DateTime?
+
+  notes        String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([vehicleId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("fleet_due_items")
+}
+
+model FleetDocument {
+  id              String   @id @default(uuid())
+
+  vehicleId        String?
+  vehicle          FleetVehicle? @relation(fields: [vehicleId], references: [id])
+
+  documentType     String
+  title            String
+  documentNo       String?
+
+  issueDate        DateTime?
+  expiryDate       DateTime?
+
+  status           String   @default("ACTIVE")
+
+  fileName         String?
+  storagePath      String?
+  sharePointUrl    String?
+
+  uploadedBy       String?
+  uploadedAt       DateTime @default(now())
+
+  notes            String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([vehicleId])
+  @@index([documentType])
+  @@index([expiryDate])
+  @@index([status])
+  @@map("fleet_documents")
+}
+
+model FleetNotification {
+  id              String   @id @default(uuid())
+
+  vehicleId        String?
+  vehicle          FleetVehicle? @relation(fields: [vehicleId], references: [id])
+
+  notificationType String
+  title            String
+  message          String
+
+  severity         String   @default("INFO")
+  status           String   @default("OPEN")
+
+  dueDate          DateTime?
+  sentTo           String?
+  sentAt           DateTime?
+
+  resolvedBy       String?
+  resolvedAt       DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([vehicleId])
+  @@index([notificationType])
+  @@index([status])
+  @@index([dueDate])
+  @@map("fleet_notifications")
+}
+
 model FleetInspection {
   id              String                @id @default(uuid())
   vehicleId       String
   vehicle         FleetVehicle           @relation(fields: [vehicleId], references: [id])
+
+  driverId        String?
+  driver          FleetDriverProfile? @relation(fields: [driverId], references: [id])
 
   employeeId      String?
   employeeNumber  String?
@@ -1046,6 +1207,7 @@ model FleetInspection {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
+  @@index([driverId])
   @@index([vehicleId])
   @@index([employeeId])
   @@map("fleet_inspections")
@@ -1082,8 +1244,11 @@ model FleetTrip {
   vehicleId       String
   vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
 
+  driverId         String?
+  driver           FleetDriverProfile? @relation(fields: [driverId], references: [id])
+
   driverEmployeeId String?
-  driverName      String?
+  driverName       String?
 
   tripDate        DateTime
   origin          String
@@ -1097,6 +1262,7 @@ model FleetTrip {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  @@index([driverId])
   @@index([vehicleId])
   @@index([tripDate])
   @@map("fleet_trips")
@@ -1106,6 +1272,9 @@ model FleetFuelLog {
   id              String       @id @default(uuid())
   vehicleId       String
   vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+
+  driverId        String?
+  driver          FleetDriverProfile? @relation(fields: [driverId], references: [id])
 
   fuelDate        DateTime
   stationName     String
@@ -1117,6 +1286,7 @@ model FleetFuelLog {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  @@index([driverId])
   @@index([vehicleId])
   @@map("fleet_fuel_logs")
 }
