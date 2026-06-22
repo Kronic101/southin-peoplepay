@@ -15,6 +15,7 @@ import { OrgModule } from './org/org.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { FinanceModule } from './finance/finance.module';
 import { AssetsModule } from './assets/assets.module';
+import { FleetModule } from './fleet/fleet.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AssetsModule } from './assets/assets.module';
     ApprovalsModule,
     FinanceModule,
     AssetsModule,
+    FleetModule,
   ]
 })
 export class AppModule {}
