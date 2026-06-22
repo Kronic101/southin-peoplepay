@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../../../components/AppShell';
+import { exportToCsv } from '@/lib/csv-export';
+
 import {
   getStockBalances,
   getStockItems,
@@ -97,34 +99,6 @@ function controlStatusClass(isLow: boolean) {
   return isLow ? 'status-pill warning' : 'status-pill success';
 }
 
-function handleExportCsv() {
-  const rows = items.map((item: any) => {
-    const itemBalances = balances.filter((balance: any) => balance.stockItemId === item.id);
-    const totalOnHand = itemBalances.reduce(
-      (sum: number, balance: any) => sum + Number(balance.quantityOnHand || 0),
-      0,
-    );
-
-    return {
-      itemCode: item.itemCode || '',
-      itemName: item.itemName || '',
-      itemType: item.itemType || '',
-      category: item.category || '',
-      unitOfMeasure: item.unitOfMeasure || '',
-      minimumLevel: item.minimumLevel || 0,
-      reorderLevel: item.reorderLevel || 0,
-      standardCost: item.standardCost || 0,
-      totalOnHand,
-      isSerialized: item.isSerialized ? 'Yes' : 'No',
-      isQrTracked: item.isQrTracked ? 'Yes' : 'No',
-      isRfidTracked: item.isRfidTracked ? 'Yes' : 'No',
-      isActive: item.isActive ? 'Yes' : 'No',
-    };
-  });
-
-  exportToCsv('southin-stores-stock.csv', rows);
-}
-
 export default function AssetStockPage() {
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<StockItem[]>([]);
@@ -151,6 +125,34 @@ export default function AssetStockPage() {
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, form.codeMode, form.itemCode, form.externalItemCode, form.itemType, form.category]);
+
+  function handleExportCsv() {
+    const rows = items.map((item: any) => {
+      const itemBalances = balances.filter((balance: any) => balance.stockItemId === item.id);
+      const totalOnHand = itemBalances.reduce(
+        (sum: number, balance: any) => sum + Number(balance.quantityOnHand || 0),
+        0,
+      );
+
+      return {
+        itemCode: item.itemCode || '',
+        itemName: item.itemName || '',
+        itemType: item.itemType || '',
+        category: item.category || '',
+        unitOfMeasure: item.unitOfMeasure || '',
+        minimumLevel: item.minimumLevel || 0,
+        reorderLevel: item.reorderLevel || 0,
+        standardCost: item.standardCost || 0,
+        totalOnHand,
+        isSerialized: item.isSerialized ? 'Yes' : 'No',
+        isQrTracked: item.isQrTracked ? 'Yes' : 'No',
+        isRfidTracked: item.isRfidTracked ? 'Yes' : 'No',
+        isActive: item.isActive ? 'Yes' : 'No',
+      };
+    });
+
+    exportToCsv('southin-stores-stock.csv', rows);
+  }
 
   async function loadPage() {
     setLoading(true);
@@ -284,6 +286,10 @@ export default function AssetStockPage() {
 
             <button className="btn-secondary" type="button" onClick={loadPage}>
               Refresh
+            </button>
+
+            <button className="btn-secondary" type="button" onClick={handleExportCsv}>
+              Export CSV
             </button>
           </div>
 

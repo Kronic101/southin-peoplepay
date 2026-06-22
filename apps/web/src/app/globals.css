@@ -1875,3 +1875,262 @@ pre {
     width: 100%;
   }
 }
+
+.stores-requisition-sheet {
+  background: #ffffff;
+  border: 1px solid #d6e0ec;
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  padding: 32px;
+  color: #020617;
+}
+
+.requisition-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.requisition-company {
+  margin: 0 0 8px;
+  color: #f26a21;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.requisition-top h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.requisition-number-box {
+  min-width: 260px;
+  border: 1px solid #d6e0ec;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #f8fafc;
+}
+
+.requisition-number-box div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.requisition-number-box div:last-child {
+  border-bottom: 0;
+}
+
+.requisition-number-box span {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.requisition-number-box strong {
+  color: #020617;
+  font-weight: 900;
+}
+
+.requisition-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid #d6e0ec;
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+.requisition-table th {
+  background: #eef4fa;
+  color: #020617;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid #d6e0ec;
+}
+
+.requisition-table td {
+  padding: 14px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+
+.requisition-table td small {
+  display: block;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.requisition-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.blank-row td {
+  height: 34px;
+}
+
+.requisition-total-row td {
+  background: #f8fafc;
+  font-weight: 900;
+}
+
+.requisition-total-row td:last-child {
+  color: #f26a21;
+}
+
+.requisition-section-title {
+  background: #020617;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 24px 0 14px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.requisition-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.requisition-info-line,
+.signature-cell {
+  min-height: 74px;
+  border: 1px solid #d6e0ec;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.requisition-info-line span,
+.signature-cell span,
+.requisition-footer span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.requisition-info-line strong,
+.signature-cell strong {
+  display: block;
+  min-height: 22px;
+  color: #020617;
+}
+
+.signature-cell em {
+  display: block;
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 1px solid #94a3b8;
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.pickup-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1.5fr 1fr;
+  gap: 14px;
+}
+
+.requisition-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #d6e0ec;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+}
+
+.requisition-footer strong {
+  display: block;
+  color: #020617;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  .no-print,
+  aside,
+  nav,
+  .app-sidebar,
+  .sidebar,
+  .dev-role-switcher {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .page-stack {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .stores-requisition-sheet {
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  .requisition-top h1 {
+    font-size: 28px;
+  }
+
+  .signature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pickup-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .requisition-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.soft-card {
+  background: #f8fafc;
+  border: 1px solid #d6e0ec;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}

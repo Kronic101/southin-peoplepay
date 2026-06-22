@@ -1,6 +1,8 @@
 'use client';
 
 import { AppShell } from '@/components/AppShell';
+import { exportToCsv } from '@/lib/csv-export';
+
 import {
   createAssetCustodyAssignment,
   getAssetCustodyAssignments,
@@ -38,27 +40,7 @@ function statusClass(value: string) {
   return 'badge warning';
 }
 
-function handleExportCsv() {
-  const rows = assignments.map((assignment: any) => ({
-    assignmentNo: assignment.assignmentNo || '',
-    status: assignment.status || '',
-    assignedTo: assignment.assignedTo || '',
-    stockItemCode: assignment.stockItem?.itemCode || '',
-    stockItemName: assignment.stockItem?.itemName || '',
-    qrOrRfid: assignment.qrTag?.tagCode || '',
-    locationCode: assignment.location?.locationCode || '',
-    department: assignment.department || '',
-    site: assignment.site || '',
-    projectCode: assignment.projectCode || '',
-    assignedBy: assignment.assignedBy || '',
-    assignedAt: assignment.assignedAt || '',
-    returnedBy: assignment.returnedBy || '',
-    returnedAt: assignment.returnedAt || '',
-    notes: assignment.notes || '',
-  }));
 
-  exportToCsv('southin-custody-assignments.csv', rows);
-}
 
 export default function AssetCustodyPage() {
   const [assignments, setAssignments] = useState<CustodyAssignment[]>([]);
@@ -79,6 +61,28 @@ export default function AssetCustodyPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  function handleExportCsv() {
+    const rows = assignments.map((assignment: any) => ({
+      assignmentNo: assignment.assignmentNo || '',
+      status: assignment.status || '',
+      assignedTo: assignment.assignedTo || '',
+      stockItemCode: assignment.stockItem?.itemCode || '',
+      stockItemName: assignment.stockItem?.itemName || '',
+      qrOrRfid: assignment.qrTag?.tagCode || '',
+      locationCode: assignment.location?.locationCode || '',
+      department: assignment.department || '',
+      site: assignment.site || '',
+      projectCode: assignment.projectCode || '',
+      assignedBy: assignment.assignedBy || '',
+      assignedAt: assignment.assignedAt || '',
+      returnedBy: assignment.returnedBy || '',
+      returnedAt: assignment.returnedAt || '',
+      notes: assignment.notes || '',
+    }));
+
+    exportToCsv('southin-custody-assignments.csv', rows);
+  }
 
   async function loadPage() {
     setLoading(true);
@@ -183,6 +187,10 @@ export default function AssetCustodyPage() {
 
           <button className="btn-secondary" type="button" onClick={loadPage}>
             Refresh
+          </button>
+
+          <button className="btn-secondary" type="button" onClick={handleExportCsv}>
+            Export CSV
           </button>
         </div>
 

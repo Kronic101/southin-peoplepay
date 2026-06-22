@@ -1351,6 +1351,23 @@ model AssetDepreciationHistory {
   @@map("asset_depreciation_history")
 }
 
+model AssetApprovalHistory {
+  id            String   @id @default(uuid())
+
+  entityType    String
+  entityId      String
+
+  workflowName  String   @default("ASSET_MOVEMENT")
+  approvalLevel String
+  decision      String
+
+  approverName  String
+  approverRole  String?
+  comments      String?
+
+  createdAt     DateTime @default(now())
+}
+
 model StockMovement {
   id                String              @id @default(uuid())
   movementNo        String              @unique

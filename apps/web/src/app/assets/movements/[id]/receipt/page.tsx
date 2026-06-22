@@ -1,96 +1,14 @@
+'use client';
+
 import Link from 'next/link';
-import { AppShell } from '@/components/AppShell';
+import { useParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
-
-type PageProps = {
-  params: Promise<{ id: string }>;
-};
-
-type MovementLine = {
-  id: string;
-  quantity?: string | number | null;
-  unitCost?: string | number | null;
-  totalCost?: string | number | null;
-  notes?: string | null;
-  stockItem?: {
-    itemCode?: string | null;
-    itemName?: string | null;
-    itemType?: string | null;
-    category?: string | null;
-    unitOfMeasure?: string | null;
-  } | null;
-  qrTag?: {
-    tagCode?: string | null;
-    qrPayload?: string | null;
-    barcodeValue?: string | null;
-    status?: string | null;
-  } | null;
-  ledgerEntries?: Array<{
-    id: string;
-    transactionType?: string | null;
-    quantityIn?: string | number | null;
-    quantityOut?: string | number | null;
-    balanceAfter?: string | number | null;
-    totalCost?: string | number | null;
-  }>;
-};
-
-type Movement = {
-  id: string;
-  movementNo?: string | null;
-  movementType?: string | null;
-  status?: string | null;
-  fromLocationId?: string | null;
-  toLocationId?: string | null;
-  requestedBy?: string | null;
-  requestedByEmail?: string | null;
-  department?: string | null;
-  site?: string | null;
-  branch?: string | null;
-  projectCode?: string | null;
-  reason?: string | null;
-  referenceType?: string | null;
-  referenceId?: string | null;
-  referenceNo?: string | null;
-  financeExpenseId?: string | null;
-  financeExpenseNo?: string | null;
-  financeStatus?: string | null;
-  ledgerStatus?: string | null;
-  ledgerEntryCount?: number | null;
-  submittedAt?: string | null;
-  approvedBy?: string | null;
-  approvedAt?: string | null;
-  postedBy?: string | null;
-  postedAt?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-  fromLocation?: {
-    locationCode?: string | null;
-    locationName?: string | null;
-    site?: string | null;
-    branch?: string | null;
-    department?: string | null;
-  } | null;
-  toLocation?: {
-    locationCode?: string | null;
-    locationName?: string | null;
-    site?: string | null;
-    branch?: string | null;
-    department?: string | null;
-  } | null;
-  financeExpense?: {
-    id?: string | null;
-    expenseNo?: string | null;
-    amount?: string | number | null;
-    status?: string | null;
-    evidenceStatus?: string | null;
-  } | null;
-  lines?: MovementLine[];
-};
+import AppShell from '@/components/AppShell';
+import {
+  getAssetMovement,
+  getAssetMovementApprovalHistory,
+} from '@/lib/assets-api';
 
 function asNumber(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -104,7 +22,7 @@ function money(value: unknown) {
   })}`;
 }
 
-function formatDate(value?: string | null) {
+function formatDateTime(value?: string | null) {
   if (!value) return '-';
 
   const date = new Date(value);
@@ -117,6 +35,10 @@ function formatDate(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function cleanStatus(value?: string | null) {
+  return String(value || '-').replaceAll('_', ' ');
 }
 
 function statusClass(value?: string | null) {
@@ -139,43 +61,55 @@ function statusClass(value?: string | null) {
   return 'badge warning';
 }
 
-function cleanStatus(value?: string | null) {
-  return String(value || '-').replaceAll('_', ' ');
-}
-
-function getLineTotal(line: MovementLine) {
+function getLineTotal(line: any) {
   const providedTotal = asNumber(line.totalCost);
   if (providedTotal > 0) return providedTotal;
 
   return asNumber(line.quantity) * asNumber(line.unitCost);
 }
 
-function getMovementTotal(movement: Movement) {
-  return (movement.lines || []).reduce((sum, line) => sum + getLineTotal(line), 0);
-}
+export default function StockMovementReceiptPage() {
+  const params = useParams<{ id: string }>();
+  const movementId = params?.id;
 
-async function getMovement(id: string): Promise<Movement | null> {
-  try {
-    const response = await fetch(`${API_URL}/assets/movements/${id}`, {
-      cache: 'no-store',
-    });
+  const [movement, setMovement] = useState<any>(null);
+  const [approvalHistory, setApprovalHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    if (!response.ok) {
-      return null;
+  async function loadReceipt() {
+    if (!movementId) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const [movementData, historyData] = await Promise.all([
+        getAssetMovement(movementId),
+        getAssetMovementApprovalHistory(movementId),
+      ]);
+
+      setMovement(movementData);
+      setApprovalHistory(Array.isArray(historyData) ? historyData : []);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load movement receipt.');
+      setMovement(null);
+      setApprovalHistory([]);
+    } finally {
+      setLoading(false);
     }
-
-    const data = await response.json();
-    return data || null;
-  } catch {
-    return null;
   }
-}
 
-export default async function StockMovementReceiptPage({ params }: PageProps) {
-  const { id } = await params;
-  const movement = await getMovement(id);
+  useEffect(() => {
+    loadReceipt();
+  }, [movementId]);
 
-  const movementTotal = movement ? getMovementTotal(movement) : 0;
+  const lines = movement?.lines || [];
+
+  const movementTotal = useMemo(() => {
+    return lines.reduce((sum: number, line: any) => sum + getLineTotal(line), 0);
+  }, [lines]);
+
   const financeRef =
     movement?.financeExpenseNo ||
     movement?.financeExpense?.expenseNo ||
@@ -185,30 +119,34 @@ export default async function StockMovementReceiptPage({ params }: PageProps) {
   return (
     <AppShell>
       <section className="page-stack print-page">
-        <div className="finance-live-card">
-          <div className="finance-live-header">
-            <div>
+        <div className="finance-card finance-hero-card no-print">
+          <div>
             <p className="eyebrow">Asset Management</p>
             <h1>Stock Movement Receipt</h1>
             <p className="muted">
               Printable movement voucher for stores, custody, audit, finance and filing.
             </p>
           </div>
-        </div>
+
           <div className="action-row">
             <Link className="btn-secondary" href="/assets/movements">
               Back to Movements
             </Link>
 
-            <button className="btn" type="button" onClick={undefined as any}>
-              Use Ctrl + P to Print
+            <button className="btn" type="button" onClick={() => window.print()}>
+              Print Receipt
             </button>
           </div>
         </div>
 
-        {!movement ? (
+        {error ? <div className="alert error no-print">{error}</div> : null}
+        {loading ? <div className="card no-print">Loading receipt...</div> : null}
+
+        {!loading && !movement ? (
           <div className="alert error">Movement receipt could not be loaded.</div>
-        ) : (
+        ) : null}
+
+        {!loading && movement ? (
           <div className="card receipt-card">
             <div className="receipt-header">
               <div>
@@ -221,7 +159,9 @@ export default async function StockMovementReceiptPage({ params }: PageProps) {
                 <span>Movement No.</span>
                 <strong>{movement.movementNo || '-'}</strong>
                 <span>{cleanStatus(movement.movementType)}</span>
-                <span className={statusClass(movement.status)}>{cleanStatus(movement.status)}</span>
+                <span className={statusClass(movement.status)}>
+                  {cleanStatus(movement.status)}
+                </span>
               </div>
             </div>
 
@@ -233,7 +173,7 @@ export default async function StockMovementReceiptPage({ params }: PageProps) {
 
               <div className="metric-card">
                 <span>Finance Status</span>
-                <strong>{cleanStatus(movement.financeStatus)}</strong>
+                <strong>{cleanStatus(movement.financeStatus || 'NOT_REQUIRED')}</strong>
               </div>
 
               <div className="metric-card">
@@ -248,101 +188,79 @@ export default async function StockMovementReceiptPage({ params }: PageProps) {
 
               <div className="metric-card">
                 <span>Ledger Entries</span>
-                <strong>{movement.ledgerEntryCount ?? 0}</strong>
+                <strong>{movement.ledgerEntryCount || 0}</strong>
               </div>
             </div>
 
             <div className="card soft-card">
               <h2>Movement Control Details</h2>
 
-              <div className="detail-grid">
-                <div>
-                  <span className="summary-label">Requested By</span>
+              <div className="metric-grid">
+                <div className="metric-card">
+                  <span>Requested By</span>
                   <strong>{movement.requestedBy || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Requester Email</span>
+                <div className="metric-card">
+                  <span>Requester Email</span>
                   <strong>{movement.requestedByEmail || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Approved By</span>
+                <div className="metric-card">
+                  <span>Approved By</span>
                   <strong>{movement.approvedBy || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Posted By</span>
+                <div className="metric-card">
+                  <span>Posted By</span>
                   <strong>{movement.postedBy || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Department</span>
+                <div className="metric-card">
+                  <span>Department</span>
                   <strong>{movement.department || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Site</span>
+                <div className="metric-card">
+                  <span>Site</span>
                   <strong>{movement.site || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Branch</span>
+                <div className="metric-card">
+                  <span>Branch</span>
                   <strong>{movement.branch || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Project Code</span>
+                <div className="metric-card">
+                  <span>Project Code</span>
                   <strong>{movement.projectCode || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Reference Type</span>
+                <div className="metric-card">
+                  <span>Reference Type</span>
                   <strong>{movement.referenceType || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Reference No.</span>
+                <div className="metric-card">
+                  <span>Reference No.</span>
                   <strong>{movement.referenceNo || movement.referenceId || '-'}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Submitted</span>
-                  <strong>{formatDate(movement.submittedAt)}</strong>
+                <div className="metric-card">
+                  <span>Submitted</span>
+                  <strong>{formatDateTime(movement.submittedAt || movement.createdAt)}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Approved</span>
-                  <strong>{formatDate(movement.approvedAt)}</strong>
+                <div className="metric-card">
+                  <span>Approved</span>
+                  <strong>{formatDateTime(movement.approvedAt)}</strong>
                 </div>
 
-                <div>
-                  <span className="summary-label">Posted</span>
-                  <strong>{formatDate(movement.postedAt)}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="card soft-card">
-              <h2>Location Details</h2>
-
-              <div className="detail-grid">
-                <div>
-                  <span className="summary-label">From Location</span>
-                  <strong>{movement.fromLocation?.locationName || '-'}</strong>
-                  <p className="muted">{movement.fromLocation?.locationCode || ''}</p>
-                </div>
-
-                <div>
-                  <span className="summary-label">To Location</span>
-                  <strong>{movement.toLocation?.locationName || '-'}</strong>
-                  <p className="muted">{movement.toLocation?.locationCode || ''}</p>
+                <div className="metric-card">
+                  <span>Posted</span>
+                  <strong>{formatDateTime(movement.postedAt)}</strong>
                 </div>
               </div>
-            </div>
-
-            <div className="notice">
-              <strong>Reason:</strong> {movement.reason || '-'}
             </div>
 
             <div className="card soft-card">
@@ -354,72 +272,94 @@ export default async function StockMovementReceiptPage({ params }: PageProps) {
                     <tr>
                       <th>Item Code</th>
                       <th>Item Name</th>
-                      <th>Category</th>
-                      <th>UOM</th>
-                      <th>QR / RFID</th>
-                      <th>Quantity</th>
+                      <th>Qty</th>
                       <th>Unit Cost</th>
-                      <th>Total Cost</th>
-                      <th>Ledger Entries</th>
+                      <th>Total</th>
+                      <th>QR/RFID</th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {(movement.lines || []).length === 0 ? (
+                    {lines.length === 0 ? (
                       <tr>
-                        <td colSpan={9}>No movement lines found.</td>
+                        <td colSpan={6}>No movement line items found.</td>
                       </tr>
                     ) : (
-                      movement.lines?.map((line) => {
-                        const qrValue =
-                          line.qrTag?.tagCode ||
-                          line.qrTag?.qrPayload ||
-                          line.qrTag?.barcodeValue ||
-                          '-';
-
-                        return (
-                          <tr key={line.id}>
-                            <td>{line.stockItem?.itemCode || '-'}</td>
-                            <td>{line.stockItem?.itemName || '-'}</td>
-                            <td>{line.stockItem?.category || '-'}</td>
-                            <td>{line.stockItem?.unitOfMeasure || '-'}</td>
-                            <td>{qrValue}</td>
-                            <td>{asNumber(line.quantity)}</td>
-                            <td>{money(line.unitCost)}</td>
-                            <td>{money(getLineTotal(line))}</td>
-                            <td>{line.ledgerEntries?.length || 0}</td>
-                          </tr>
-                        );
-                      })
+                      lines.map((line: any, index: number) => (
+                        <tr key={line.id || index}>
+                          <td>{line.stockItem?.itemCode || '-'}</td>
+                          <td>{line.stockItem?.itemName || '-'}</td>
+                          <td>{asNumber(line.quantity)}</td>
+                          <td>{money(line.unitCost)}</td>
+                          <td>{money(getLineTotal(line))}</td>
+                          <td>{line.qrTag?.tagCode || '-'}</td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            <div className="signature-grid">
+            <div className="card soft-card">
+              <h2>Approval History</h2>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Level</th>
+                      <th>Decision</th>
+                      <th>Approver</th>
+                      <th>Role</th>
+                      <th>Comments</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {approvalHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={6}>No approval history found.</td>
+                      </tr>
+                    ) : (
+                      approvalHistory.map((entry) => (
+                        <tr key={entry.id}>
+                          <td>
+                            <span className="badge">{entry.approvalLevel || '-'}</span>
+                          </td>
+                          <td>
+                            <span className={statusClass(entry.decision)}>
+                              {entry.decision || '-'}
+                            </span>
+                          </td>
+                          <td>{entry.approverName || '-'}</td>
+                          <td>{entry.approverRole || '-'}</td>
+                          <td>{entry.comments || '-'}</td>
+                          <td>{formatDateTime(entry.createdAt)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="requisition-footer">
               <div>
-                <span>Requested By</span>
-                <div />
+                <span>Reason:</span>
+                <strong>{movement.reason || '-'}</strong>
               </div>
 
               <div>
-                <span>Approved By</span>
-                <div />
-              </div>
-
-              <div>
-                <span>Issued / Received By</span>
-                <div />
-              </div>
-
-              <div>
-                <span>Stores / Asset Officer</span>
-                <div />
+                <span>From:</span>
+                <strong>{movement.fromLocation?.locationCode || '-'}</strong>
+                <span>To:</span>
+                <strong>{movement.toLocation?.locationCode || '-'}</strong>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
     </AppShell>
   );

@@ -168,4 +168,14 @@ export class AssetsController {
   postStockCountAdjustment(@Param('id') id: string, @Body() body: any) {
     return this.assetsService.postStockCountAdjustment(id, body);
   }
+
+  @Get('movements/:id/approval-history')
+  getMovementApprovalHistory(@Param('id') id: string) {
+    return this.assetsService.getMovementApprovalHistory(id);
+  }
+
+  @Patch('movements/:id/reject')
+  rejectMovement(@Param('id') id: string, @Body() body: any) {
+    return this.assetsService.rejectMovement(id, body);
+  }
 }

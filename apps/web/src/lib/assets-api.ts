@@ -433,10 +433,10 @@ export async function createAssetMovement(payload: {
   );
 }
 
-export async function approveAssetMovement(id: string, approvedBy = 'Asset Manager') {
-  return apiPatch<StockMovementRecord>(
+export async function approveAssetMovement(id: string, payload: any) {
+  return apiPatch<any>(
     `/assets/movements/${id}/approve`,
-    { approvedBy },
+    payload,
     'Failed to approve stock movement',
     true,
   );
@@ -731,6 +731,23 @@ export async function postAssetStockCountAdjustment(id: string, payload: any) {
     `/assets/stock-counts/${id}/post-adjustment`,
     payload,
     'Failed to post stock count adjustment',
+    true,
+  );
+}
+
+export async function getAssetMovementApprovalHistory(id: string) {
+  return apiGet<any[]>(
+    `/assets/movements/${id}/approval-history`,
+    'Failed to load movement approval history',
+    true,
+  );
+}
+
+export async function rejectAssetMovement(id: string, payload: any) {
+  return apiPatch<any>(
+    `/assets/movements/${id}/reject`,
+    payload,
+    'Failed to reject stock movement',
     true,
   );
 }

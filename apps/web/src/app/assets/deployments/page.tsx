@@ -1,6 +1,7 @@
 'use client';
 
 import { AppShell } from '@/components/AppShell';
+import { exportToCsv } from '@/lib/csv-export';
 import {
   closeAssetScaffoldDeployment,
   createAssetScaffoldDeployment,
@@ -38,27 +39,7 @@ function statusClass(value: string) {
   return 'badge warning';
 }
 
-function handleExportCsv() {
-  const rows = deployments.map((deployment: any) => ({
-    deploymentNo: deployment.deploymentNo || '',
-    status: deployment.status || '',
-    stockItemCode:
-      deployment.stockItem?.itemCode || deployment.scaffoldComponent?.stockItem?.itemCode || '',
-    stockItemName:
-      deployment.stockItem?.itemName || deployment.scaffoldComponent?.stockItem?.itemName || '',
-    qrOrRfid: deployment.qrTag?.tagCode || '',
-    issuedToLocation: deployment.issuedToLocation?.locationCode || '',
-    deployedTo: deployment.deployedTo || '',
-    projectCode: deployment.projectCode || '',
-    deployedBy: deployment.deployedBy || '',
-    deployedAt: deployment.deployedAt || '',
-    closedBy: deployment.closedBy || '',
-    closedAt: deployment.closedAt || '',
-    notes: deployment.notes || '',
-  }));
 
-  exportToCsv('southin-asset-deployments.csv', rows);
-}
 
 export default function AssetDeploymentsPage() {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
@@ -77,6 +58,28 @@ export default function AssetDeploymentsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  function handleExportCsv() {
+    const rows = deployments.map((deployment: any) => ({
+      deploymentNo: deployment.deploymentNo || '',
+      status: deployment.status || '',
+      stockItemCode:
+        deployment.stockItem?.itemCode || deployment.scaffoldComponent?.stockItem?.itemCode || '',
+      stockItemName:
+        deployment.stockItem?.itemName || deployment.scaffoldComponent?.stockItem?.itemName || '',
+      qrOrRfid: deployment.qrTag?.tagCode || '',
+      issuedToLocation: deployment.issuedToLocation?.locationCode || '',
+      deployedTo: deployment.deployedTo || '',
+      projectCode: deployment.projectCode || '',
+      deployedBy: deployment.deployedBy || '',
+      deployedAt: deployment.deployedAt || '',
+      closedBy: deployment.closedBy || '',
+      closedAt: deployment.closedAt || '',
+      notes: deployment.notes || '',
+    }));
+
+    exportToCsv('southin-asset-deployments.csv', rows);
+  }
 
   async function loadPage() {
     setLoading(true);
@@ -184,6 +187,10 @@ export default function AssetDeploymentsPage() {
 
           <button className="btn-secondary" type="button" onClick={loadPage}>
             Refresh
+          </button>
+
+          <button className="btn-secondary" type="button" onClick={handleExportCsv}>
+            Export CSV
           </button>
         </div>
 

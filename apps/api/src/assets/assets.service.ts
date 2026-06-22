@@ -623,23 +623,30 @@ export class AssetsService {
       },
     });
 
-    const sessionNo = `CNT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const countNo = `CNT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    return this.db().stockCountSession.create({
+    const title =
+      clean(body.title) ||
+      `Physical stock count - ${location.locationCode || 'Location'} - ${countNo}`;
+
+    const created = await this.db().stockCountSession.create({
       data: {
-        sessionNo,
+        countNo,
+        title,
         status: 'DRAFT',
         locationId,
-        countedBy,
-        notes: notes || null,
+        locationName: location.locationName || location.locationCode || null,
+        department: location.department || null,
+        site: location.site || null,
+        branch: location.branch || null,
+        startedBy: countedBy,
+        startedAt: new Date(),
         lines: {
           create: balances.map((balance: any) => ({
             stockItemId: balance.stockItemId,
             locationId: balance.locationId,
             systemQuantity: Number(balance.quantityOnHand || 0),
             countedQuantity: Number(balance.quantityOnHand || 0),
-            varianceQuantity: 0,
-            notes: null,
           })),
         },
       },
@@ -653,37 +660,49 @@ export class AssetsService {
         },
       },
     });
+    return {
+      ...created,
+      sessionNo: created.countNo,
+      countedBy: created.startedBy,
+      notes,
+    };
   }
 
-  async approveStockCount(id: string, body: any) {
-    const approvedBy = clean(body.approvedBy) || 'Asset Manager';
+    async approveStockCount(id: string, body: any) {
+      const approvedBy = clean(body.approvedBy) || 'Asset Manager';
 
-    const session = await this.db().stockCountSession.findUnique({
-      where: { id },
-    });
+      const session = await this.db().stockCountSession.findUnique({
+        where: { id },
+      });
 
-    if (!session) {
-      throw new NotFoundException('Stock count session not found.');
-    }
+      if (!session) {
+        throw new NotFoundException('Stock count session not found.');
+      }
 
-    return this.db().stockCountSession.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        approvedBy,
-        approvedAt: new Date(),
-      },
-      include: {
-        location: true,
-        lines: {
-          include: {
-            stockItem: true,
-            location: true,
+      if (!['DRAFT', 'OPEN'].includes(String(session.status || '').toUpperCase())) {
+        throw new BadRequestException('Only draft/open stock counts can be approved.');
+      }
+
+      return this.db().stockCountSession.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          submittedBy: approvedBy,
+          submittedAt: new Date(),
+          approvedBy,
+          approvedAt: new Date(),
+        },
+        include: {
+          location: true,
+          lines: {
+            include: {
+              stockItem: true,
+              location: true,
+            },
           },
         },
-      },
-    });
-  }
+      });
+    }
 
   async getScaffoldDeployments() {
     return this.db().scaffoldDeployment.findMany({
@@ -896,25 +915,110 @@ export class AssetsService {
   }
 
   async approveMovement(id: string, body: any) {
+    const approverName =
+      clean(body.approvedBy) ||
+      clean(body.approver) ||
+      clean(body.approverName) ||
+      'Asset Manager';
+
+    const approverRole =
+      clean(body.approverRole) ||
+      clean(body.role) ||
+      'Finance Manager';
+
+    const comments = clean(body.comments);
+
+    const approvalLevel =
+      clean(body.approvalLevel).toUpperCase() ||
+      'FINAL_APPROVAL';
+
     const movement = await this.db().stockMovement.findUnique({
       where: { id },
+      include: this.stockMovementInclude(),
     });
 
     if (!movement) {
       throw new NotFoundException('Stock movement not found.');
     }
 
+    if (movement.status === StockMovementStatus.POSTED) {
+      throw new BadRequestException('Posted stock movements cannot be approved again.');
+    }
+
+    if (movement.status === StockMovementStatus.REJECTED) {
+      throw new BadRequestException('Rejected stock movements cannot be approved.');
+    }
+
+    const highValueMovement = new Prisma.Decimal(
+      (movement.lines || []).reduce((sum: number, line: any) => {
+        return sum + Number(line.totalCost || 0);
+      }, 0),
+    ).gte(50000);
+
+    const movementType = String(movement.movementType || '').toUpperCase();
+
+    const directorRequired =
+      highValueMovement ||
+      ['LOSS', 'DAMAGE', 'WRITE_OFF'].includes(movementType);
+
+    await this.recordApprovalHistory({
+      entityType: 'STOCK_MOVEMENT',
+      entityId: movement.id,
+      approvalLevel,
+      decision: 'APPROVED',
+      approverName,
+      approverRole,
+      comments,
+    });
+
+    const history = await this.getMovementApprovalHistory(id);
+
+    const hasLineManagerApproval = history.some(
+      (entry: any) => entry.approvalLevel === 'LINE_MANAGER' && entry.decision === 'APPROVED',
+    );
+
+    const hasHodApproval = history.some(
+      (entry: any) => entry.approvalLevel === 'HOD' && entry.decision === 'APPROVED',
+    );
+
+    const hasDirectorApproval = history.some(
+      (entry: any) => entry.approvalLevel === 'DIRECTOR' && entry.decision === 'APPROVED',
+    );
+
+    const finalApprovalReached =
+      approvalLevel === 'FINAL_APPROVAL' ||
+      approvalLevel === 'FINAL' ||
+      (!directorRequired && hasLineManagerApproval && hasHodApproval) ||
+      (directorRequired && hasLineManagerApproval && hasHodApproval && hasDirectorApproval);
+
     const updatedMovement = await this.db().stockMovement.update({
       where: { id },
       data: {
-        status: StockMovementStatus.APPROVED,
-        approvedBy: body.approvedBy || body.approver || 'Asset Manager',
-        approvedAt: new Date(),
+        status: finalApprovalReached ? StockMovementStatus.APPROVED : StockMovementStatus.SUBMITTED,
+        approvedBy: finalApprovalReached ? approverName : movement.approvedBy,
+        approvedAt: finalApprovalReached ? new Date() : movement.approvedAt,
       },
       include: this.stockMovementInclude(),
     });
 
-    return this.decorateMovement(updatedMovement);
+    if (finalApprovalReached) {
+      await this.recordApprovalHistory({
+        entityType: 'STOCK_MOVEMENT',
+        entityId: movement.id,
+        approvalLevel: 'FINAL_APPROVAL',
+        decision: 'APPROVED',
+        approverName,
+        approverRole,
+        comments: comments || 'Movement reached final approval and is ready for posting.',
+      });
+    }
+
+    return {
+      movement: this.decorateMovement(updatedMovement),
+      approvalHistory: await this.getMovementApprovalHistory(id),
+      directorRequired,
+      finalApprovalReached,
+    };
   }
 
   private isOutboundMovement(type: string) {
@@ -1303,6 +1407,35 @@ export class AssetsService {
         quantityLost: new Prisma.Decimal(0),
       },
       update: {},
+    });
+  }
+
+  private async recordApprovalHistory(args: {
+    entityType: string;
+    entityId: string;
+    approvalLevel: string;
+    decision: string;
+    approverName: string;
+    approverRole?: string;
+    comments?: string;
+  }) {
+    const db = this.db();
+
+    if (!db.assetApprovalHistory?.create) {
+      return null;
+    }
+
+    return db.assetApprovalHistory.create({
+      data: {
+        entityType: args.entityType,
+        entityId: args.entityId,
+        workflowName: 'ASSET_MOVEMENT',
+        approvalLevel: args.approvalLevel,
+        decision: args.decision,
+        approverName: args.approverName,
+        approverRole: args.approverRole || null,
+        comments: args.comments || null,
+      },
     });
   }
 
@@ -2244,77 +2377,183 @@ export class AssetsService {
   }
 
   async updateStockCountLine(sessionId: string, lineId: string, body: any) {
-  const db = this.db();
+    const db = this.db();
 
-  const line = await db.stockCountLine.findUnique({
-    where: { id: lineId },
-    include: {
-      session: true,
-      stockItem: true,
-      location: true,
-    },
-  });
-
-  if (!line || line.sessionId !== sessionId) {
-    throw new NotFoundException('Stock count line not found.');
-  }
-
-  if (!['DRAFT', 'OPEN'].includes(String(line.session.status || '').toUpperCase())) {
-    throw new BadRequestException('Only draft/open stock counts can be updated.');
-  }
-
-  const countedQuantity = new Prisma.Decimal(toNumber(body.countedQuantity, 0));
-  const systemQuantity = new Prisma.Decimal(line.systemQuantity || 0);
-  const varianceQuantity = countedQuantity.minus(systemQuantity);
-
-  return db.stockCountLine.update({
-    where: { id: lineId },
-    data: {
-      countedQuantity,
-      varianceQuantity,
-      notes: body.notes || line.notes || null,
-    },
-    include: {
-      stockItem: true,
-      location: true,
-    },
-  });
-}
-
-async postStockCountAdjustment(id: string, body: any) {
-  const db = this.db();
-  const postedBy = clean(body.postedBy) || clean(body.approvedBy) || 'Asset Manager';
-
-  const session = await db.stockCountSession.findUnique({
-    where: { id },
-    include: {
-      location: true,
-      lines: {
-        include: {
-          stockItem: true,
-          location: true,
-        },
+    const line = await db.stockCountLine.findUnique({
+      where: { id: lineId },
+      include: {
+        session: true,
+        stockItem: true,
+        location: true,
       },
-    },
-  });
+    });
 
-  if (!session) {
-    throw new NotFoundException('Stock count session not found.');
+    if (!line || line.sessionId !== sessionId) {
+      throw new NotFoundException('Stock count line not found.');
+    }
+
+    if (!['DRAFT', 'OPEN'].includes(String(line.session.status || '').toUpperCase())) {
+      throw new BadRequestException('Only draft/open stock counts can be updated.');
+    }
+
+    const countedQuantity = new Prisma.Decimal(toNumber(body.countedQuantity, 0));
+
+    return db.stockCountLine.update({
+      where: { id: lineId },
+      data: {
+        countedQuantity,
+      },
+      include: {
+        stockItem: true,
+        location: true,
+      },
+    });
   }
 
-  if (String(session.status || '').toUpperCase() !== 'APPROVED') {
-    throw new BadRequestException('Only approved stock counts can be posted as adjustments.');
-  }
+    async postStockCountAdjustment(id: string, body: any) {
+      const db = this.db();
+      const postedBy = clean(body.postedBy) || clean(body.approvedBy) || 'Asset Manager';
 
-  const varianceLines = (session.lines || []).filter((line: any) => {
-    return !new Prisma.Decimal(line.varianceQuantity || 0).equals(0);
-  });
+      const session = await db.stockCountSession.findUnique({
+        where: { id },
+        include: {
+          location: true,
+          lines: {
+            include: {
+              stockItem: true,
+              location: true,
+            },
+          },
+        },
+      });
 
-  if (varianceLines.length === 0) {
-    return db.stockCountSession.update({
+    if (!session) {
+      throw new NotFoundException('Stock count session not found.');
+    }
+
+    if (String(session.status || '').toUpperCase() !== 'APPROVED') {
+      throw new BadRequestException('Only approved stock counts can be posted as adjustments.');
+    }
+
+    const varianceLines = (session.lines || [])
+    .map((line: any) => {
+      const systemQuantity = new Prisma.Decimal(line.systemQuantity || 0);
+      const countedQuantity = new Prisma.Decimal(line.countedQuantity || 0);
+      const varianceQuantity = countedQuantity.minus(systemQuantity);
+
+      return {
+        ...line,
+        varianceQuantity,
+      };
+    })
+    .filter((line: any) => !line.varianceQuantity.equals(0));
+
+    if (varianceLines.length === 0) {
+      return db.stockCountSession.update({
+        where: { id },
+        data: {
+          status: 'POSTED',
+          postedBy,
+          postedAt: new Date(),
+        },
+        include: {
+          location: true,
+          lines: {
+            include: {
+              stockItem: true,
+              location: true,
+            },
+          },
+        },
+      });
+    }
+
+    const positiveLines = varianceLines.filter((line: any) => line.varianceQuantity.gt(0));
+
+    const negativeLines = varianceLines.filter((line: any) => line.varianceQuantity.lt(0));
+
+    const createdMovements: any[] = [];
+
+    if (positiveLines.length > 0) {
+      const gainMovement = await db.stockMovement.create({
+        data: {
+          movementNo: makeMovementNo('CNT-GAIN'),
+          movementType: 'ADJUSTMENT',
+          status: StockMovementStatus.APPROVED,
+          toLocationId: session.locationId,
+          requestedBy: postedBy,
+          department: session.location?.department || 'Operations',
+          site: session.location?.site || null,
+          reason: `Positive stock count variance from ${session.countNo}`,
+          referenceType: 'STOCK_COUNT',
+          referenceId: session.countNo,
+          submittedAt: new Date(),
+          approvedBy: postedBy,
+          approvedAt: new Date(),
+          lines: {
+            create: positiveLines.map((line: any) => {
+              const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
+              const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
+
+              return {
+                stockItemId: line.stockItemId,
+                quantity,
+                unitCost,
+                totalCost: quantity.mul(unitCost),
+                notes: `Stock count gain. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
+              };
+            }),
+          },
+        },
+      });
+
+      const posted = await this.postMovement(gainMovement.id, { postedBy });
+      createdMovements.push(posted);
+    }
+
+    if (negativeLines.length > 0) {
+      const lossMovement = await db.stockMovement.create({
+        data: {
+          movementNo: makeMovementNo('CNT-LOSS'),
+          movementType: 'WRITE_OFF',
+          status: StockMovementStatus.APPROVED,
+          fromLocationId: session.locationId,
+          requestedBy: postedBy,
+          department: session.location?.department || 'Operations',
+          site: session.location?.site || null,
+          reason: `Negative stock count variance from ${session.countNo}`,
+          referenceType: 'STOCK_COUNT',
+          referenceId: session.countNo,
+          submittedAt: new Date(),
+          approvedBy: postedBy,
+          approvedAt: new Date(),
+          lines: {
+            create: negativeLines.map((line: any) => {
+              const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
+              const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
+
+              return {
+                stockItemId: line.stockItemId,
+                quantity,
+                unitCost,
+                totalCost: quantity.mul(unitCost),
+                notes: `Stock count loss/write-off. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
+              };
+            }),
+          },
+        },
+      });
+
+      const posted = await this.postMovement(lossMovement.id, { postedBy });
+      createdMovements.push(posted);
+    }
+
+    const updatedSession = await db.stockCountSession.update({
       where: { id },
       data: {
         status: 'POSTED',
+        postedBy,
+        postedAt: new Date(),
       },
       include: {
         location: true,
@@ -2326,114 +2565,79 @@ async postStockCountAdjustment(id: string, body: any) {
         },
       },
     });
+
+    return {
+      message: 'Stock count variance posted to stock movements and ledger.',
+      session: updatedSession,
+      movements: createdMovements,
+    };
   }
 
-  const positiveLines = varianceLines.filter((line: any) =>
-    new Prisma.Decimal(line.varianceQuantity || 0).gt(0),
-  );
+  async getMovementApprovalHistory(id: string) {
+    const db = this.db();
 
-  const negativeLines = varianceLines.filter((line: any) =>
-    new Prisma.Decimal(line.varianceQuantity || 0).lt(0),
-  );
+    if (!db.assetApprovalHistory?.findMany) {
+      return [];
+    }
 
-  const createdMovements: any[] = [];
-
-  if (positiveLines.length > 0) {
-    const gainMovement = await db.stockMovement.create({
-      data: {
-        movementNo: makeMovementNo('CNT-GAIN'),
-        movementType: 'ADJUSTMENT',
-        status: StockMovementStatus.APPROVED,
-        toLocationId: session.locationId,
-        requestedBy: postedBy,
-        department: session.location?.department || 'Operations',
-        site: session.location?.site || null,
-        reason: `Positive stock count variance from ${session.sessionNo}`,
-        referenceType: 'STOCK_COUNT',
-        referenceId: session.sessionNo,
-        submittedAt: new Date(),
-        approvedBy: postedBy,
-        approvedAt: new Date(),
-        lines: {
-          create: positiveLines.map((line: any) => {
-            const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
-            const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
-
-            return {
-              stockItemId: line.stockItemId,
-              quantity,
-              unitCost,
-              totalCost: quantity.mul(unitCost),
-              notes: `Stock count gain. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
-            };
-          }),
-        },
+    return db.assetApprovalHistory.findMany({
+      where: {
+        entityType: 'STOCK_MOVEMENT',
+        entityId: id,
+      },
+      orderBy: {
+        createdAt: 'asc',
       },
     });
-
-    const posted = await this.postMovement(gainMovement.id, { postedBy });
-    createdMovements.push(posted);
   }
 
-  if (negativeLines.length > 0) {
-    const lossMovement = await db.stockMovement.create({
-      data: {
-        movementNo: makeMovementNo('CNT-LOSS'),
-        movementType: 'WRITE_OFF',
-        status: StockMovementStatus.APPROVED,
-        fromLocationId: session.locationId,
-        requestedBy: postedBy,
-        department: session.location?.department || 'Operations',
-        site: session.location?.site || null,
-        reason: `Negative stock count variance from ${session.sessionNo}`,
-        referenceType: 'STOCK_COUNT',
-        referenceId: session.sessionNo,
-        submittedAt: new Date(),
-        approvedBy: postedBy,
-        approvedAt: new Date(),
-        lines: {
-          create: negativeLines.map((line: any) => {
-            const quantity = new Prisma.Decimal(line.varianceQuantity || 0).abs();
-            const unitCost = new Prisma.Decimal(line.stockItem?.standardCost || 0);
+  async rejectMovement(id: string, body: any) {
+    const rejectedBy =
+      clean(body.rejectedBy) ||
+      clean(body.approverName) ||
+      clean(body.approvedBy) ||
+      'Asset Manager';
 
-            return {
-              stockItemId: line.stockItemId,
-              quantity,
-              unitCost,
-              totalCost: quantity.mul(unitCost),
-              notes: `Stock count loss/write-off. System: ${line.systemQuantity}, Counted: ${line.countedQuantity}`,
-            };
-          }),
-        },
-      },
+    const approverRole = clean(body.approverRole) || clean(body.role) || 'Finance Manager';
+    const comments = clean(body.comments) || 'Movement rejected.';
+
+    const movement = await this.db().stockMovement.findUnique({
+      where: { id },
     });
 
-    const posted = await this.postMovement(lossMovement.id, { postedBy });
-    createdMovements.push(posted);
-  }
+    if (!movement) {
+      throw new NotFoundException('Stock movement not found.');
+    }
 
-  const updatedSession = await db.stockCountSession.update({
-    where: { id },
-    data: {
-      status: 'POSTED',
-    },
-    include: {
-      location: true,
-      lines: {
-        include: {
-          stockItem: true,
-          location: true,
-        },
+    if (movement.status === StockMovementStatus.POSTED) {
+      throw new BadRequestException('Posted stock movements cannot be rejected.');
+    }
+
+    await this.recordApprovalHistory({
+      entityType: 'STOCK_MOVEMENT',
+      entityId: id,
+      approvalLevel: clean(body.approvalLevel).toUpperCase() || 'REJECTION',
+      decision: 'REJECTED',
+      approverName: rejectedBy,
+      approverRole,
+      comments,
+    });
+
+    const updatedMovement = await this.db().stockMovement.update({
+      where: { id },
+      data: {
+        status: StockMovementStatus.REJECTED,
+        approvedBy: rejectedBy,
+        approvedAt: new Date(),
       },
-    },
-  });
+      include: this.stockMovementInclude(),
+    });
 
-  return {
-    message: 'Stock count variance posted to stock movements and ledger.',
-    session: updatedSession,
-    movements: createdMovements,
-  };
-}
+    return {
+      movement: this.decorateMovement(updatedMovement),
+      approvalHistory: await this.getMovementApprovalHistory(id),
+    };
+  }
 
   async seedDemoAssetData() {
     const mainStore = await this.createLocation({
