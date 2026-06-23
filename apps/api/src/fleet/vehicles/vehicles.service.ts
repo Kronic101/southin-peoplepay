@@ -22,50 +22,72 @@ export class FleetVehiclesService {
 
   async getVehicles() {
     return this.db().fleetVehicle.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: {
+        createdAt: 'desc',
+      },
       include: {
-        assignments: {
-          where: { status: 'ACTIVE' },
-          include: {
-            driver: true,
+        inspections: {
+          orderBy: {
+            createdAt: 'desc',
           },
+          take: 3,
         },
-        dueItems: {
-          where: { status: 'OPEN' },
-          orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+        defects: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 3,
+        },
+        trips: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 3,
+        },
+        fuelLogs: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 3,
+        },
+        workshopJobs: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 3,
         },
       },
     });
   }
 
-  async getVehicle(id: string) {
-    const vehicle = await this.db().fleetVehicle.findUnique({
+    async getVehicle(id: string) {
+      const vehicle = await this.db().fleetVehicle.findUnique({
       where: { id },
       include: {
-        assignments: {
-          include: {
-            driver: true,
-          },
-          orderBy: { assignedAt: 'desc' },
-        },
         inspections: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
         defects: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
         trips: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
         fuelLogs: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
-        dueItems: {
-          orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+        workshopJobs: {
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
       },
     });
@@ -156,5 +178,142 @@ export class FleetVehiclesService {
         telematicsUnitId: clean(body.telematicsUnitId) || undefined,
       }),
     });
+  }
+
+  async getVehicleAssignments(vehicleId: string) {
+  const vehicle = await this.db().fleetVehicle.findUnique({
+    where: { id: vehicleId },
+  });
+
+  if (!vehicle) {
+    throw new NotFoundException('Fleet vehicle not found.');
+  }
+
+  return this.db().fleetVehicleAssignment.findMany({
+    where: {
+      vehicleId,
+    },
+    orderBy: {
+      assignedAt: 'desc',
+    },
+    include: {
+      driver: true,
+    },
+  });
+}
+
+async assignDriverToVehicle(vehicleId: string, body: any) {
+  const driverId = clean(body.driverId);
+  const assignedBy = clean(body.assignedBy) || 'Fleet Manager';
+  const notes = clean(body.notes);
+
+  if (!driverId) {
+    throw new BadRequestException('Driver ID is required.');
+  }
+
+  const vehicle = await this.db().fleetVehicle.findUnique({
+    where: { id: vehicleId },
+  });
+
+  if (!vehicle) {
+    throw new NotFoundException('Fleet vehicle not found.');
+  }
+
+  const driver = await this.db().fleetDriverProfile.findUnique({
+    where: { id: driverId },
+  });
+
+  if (!driver) {
+    throw new NotFoundException('Fleet driver not found.');
+  }
+
+  const result = await this.db().$transaction(async (tx: any) => {
+    await tx.fleetVehicleAssignment.updateMany({
+      where: {
+        vehicleId,
+        status: 'ACTIVE',
+      },
+      data: {
+        status: 'RETURNED',
+        returnedAt: new Date(),
+        returnedBy: assignedBy,
+      },
+    });
+
+    const assignment = await tx.fleetVehicleAssignment.create({
+      data: {
+        vehicleId,
+        driverId,
+        assignedBy,
+        assignedAt: new Date(),
+        status: 'ACTIVE',
+        notes: notes || null,
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    await tx.fleetVehicle.update({
+      where: { id: vehicleId },
+      data: {
+        status: 'ACTIVE',
+      },
+    });
+
+    return assignment;
+  });
+
+  return {
+    message: `Driver ${driver.driverName} assigned to vehicle ${vehicle.registrationNo}.`,
+    assignment: result,
+  };
+}
+
+  async releaseDriverFromVehicle(vehicleId: string, body: any) {
+    const returnedBy = clean(body.returnedBy) || clean(body.releasedBy) || 'Fleet Manager';
+    const notes = clean(body.notes);
+
+    const vehicle = await this.db().fleetVehicle.findUnique({
+      where: { id: vehicleId },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException('Fleet vehicle not found.');
+    }
+
+    const activeAssignment = await this.db().fleetVehicleAssignment.findFirst({
+      where: {
+        vehicleId,
+        status: 'ACTIVE',
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    if (!activeAssignment) {
+      throw new BadRequestException('This vehicle has no active driver assignment.');
+    }
+
+    const updated = await this.db().fleetVehicleAssignment.update({
+      where: {
+        id: activeAssignment.id,
+      },
+      data: {
+        status: 'RETURNED',
+        returnedAt: new Date(),
+        returnedBy,
+        notes: notes || activeAssignment.notes || null,
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    return {
+      message: `Driver assignment released for vehicle ${vehicle.registrationNo}.`,
+      assignment: updated,
+    };
   }
 }

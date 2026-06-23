@@ -24,4 +24,19 @@ export class FleetVehiclesController {
   updateVehicle(@Param('id') id: string, @Body() body: any) {
     return this.vehiclesService.updateVehicle(id, body);
   }
+
+  @Get(':vehicleId/assignments')
+  getVehicleAssignments(@Param('vehicleId') vehicleId: string) {
+    return this.vehiclesService.getVehicleAssignments(vehicleId);
+  }
+
+  @Post(':vehicleId/assign-driver')
+  assignDriverToVehicle(@Param('vehicleId') vehicleId: string, @Body() body: any) {
+    return this.vehiclesService.assignDriverToVehicle(vehicleId, body);
+  }
+
+  @Patch(':vehicleId/release-driver')
+  releaseDriverFromVehicle(@Param('vehicleId') vehicleId: string, @Body() body: any) {
+    return this.vehiclesService.releaseDriverFromVehicle(vehicleId, body);
+  }
 }

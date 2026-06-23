@@ -14,10 +14,12 @@ type StaffRole =
   | 'LINE_MANAGER'
   | 'SUPERVISOR'
   | 'ASSET_MANAGER'
+  | 'ASSET_OFFICER'
   | 'STORES_OFFICER'
   | 'PROCUREMENT_OFFICER'
+  | 'FLEET_MANAGER'
+  | 'FLEET_DISPATCH_OFFICER'
   | '';
-
 type NavItem = {
   label: string;
   href: string;
@@ -74,6 +76,24 @@ function normaliseRole(value: unknown): StaffRole {
     return 'PROCUREMENT_OFFICER';
   }
 
+  if (
+    role === 'FLEET' ||
+    role === 'FLEET_MANAGER' ||
+    role === 'TRANSPORT_MANAGER' ||
+    role === 'VEHICLE_MANAGER'
+  ) {
+    return 'FLEET_MANAGER';
+  }
+
+  if (
+    role === 'FLEET_DISPATCH' ||
+    role === 'FLEET_DISPATCH_OFFICER' ||
+    role === 'DISPATCH_OFFICER' ||
+    role === 'TRANSPORT_OFFICER'
+  ) {
+    return 'FLEET_DISPATCH_OFFICER';
+  }
+
   return '';
 }
 
@@ -112,8 +132,11 @@ const navSections: NavSection[] = [
           'LINE_MANAGER',
           'SUPERVISOR',
           'ASSET_MANAGER',
+          'ASSET_OFFICER',
           'STORES_OFFICER',
           'PROCUREMENT_OFFICER',
+          'FLEET_MANAGER',
+          'FLEET_DISPATCH_OFFICER',
         ],
       },
       {
@@ -129,8 +152,11 @@ const navSections: NavSection[] = [
           'LINE_MANAGER',
           'SUPERVISOR',
           'ASSET_MANAGER',
+          'ASSET_OFFICER',
           'STORES_OFFICER',
           'PROCUREMENT_OFFICER',
+          'FLEET_MANAGER',
+          'FLEET_DISPATCH_OFFICER',
         ],
       },
       {
@@ -349,6 +375,46 @@ const navSections: NavSection[] = [
       { label: 'Import', 
         href: '/assets/import-preview', 
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER','ASSET_MANAGER', 'STORES_OFFICER'] 
+      },
+    ],
+  },
+  {
+    title: 'Fleet Management',
+    items: [
+      {
+        label: 'Fleet Dashboard',
+        href: '/fleet/dashboard',
+        roles: ['FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Vehicle Register',
+        href: '/fleet/vehicles',
+        roles: ['FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Fuel Logs',
+        href: '/fleet/fuel',
+        roles: ['FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Trips',
+        href: '/fleet/trips',
+        roles: ['FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Defects',
+        href: '/fleet/defects',
+        roles: ['FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Workshop',
+        href: '/fleet/workshop',
+        roles: ['FLEET_MANAGER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+      },
+      {
+        label: 'Fleet Reports',
+        href: '/fleet/reports',
+        roles: ['FLEET_MANAGER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
       },
     ],
   },
