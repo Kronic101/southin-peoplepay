@@ -23,6 +23,10 @@ type FinanceDashboardData = {
       totalValue: number;
       paidValue: number;
     };
+    fleetExpenses?: {
+      totalRecords: number;
+      totalValue: number;
+    };
     procurement?: {
       totalRecords: number;
       totalValue: number;
@@ -61,6 +65,10 @@ const emptyData: FinanceDashboardData = {
       paid: 0,
       totalValue: 0,
       paidValue: 0,
+    },
+    fleetExpenses: {
+      totalRecords: 0,
+      totalValue: 0,
     },
     procurement: {
       totalRecords: 0,
@@ -116,6 +124,7 @@ export default function FinanceDashboardPage() {
 
   const summary = data.summary || emptyData.summary!;
   const expenses = summary.expenses || emptyData.summary!.expenses!;
+  const fleetExpenses = summary.fleetExpenses || emptyData.summary!.fleetExpenses!;
   const procurement = summary.procurement || emptyData.summary!.procurement!;
   const evidence = summary.evidence || emptyData.summary!.evidence!;
   const paymentBatches = summary.paymentBatches || emptyData.summary!.paymentBatches!;
@@ -131,13 +140,13 @@ export default function FinanceDashboardPage() {
               <p className="eyebrow">Finance Workflow</p>
               <h1>Finance Dashboard</h1>
               <p className="muted">
-                Live finance dashboard pulling from expenses, procurement payments, evidence,
-                payment batches and SharePoint package preparation records.
+                Live finance dashboard pulling from expenses, fleet operating costs, procurement
+                payments, evidence, payment batches and SharePoint package preparation records.
               </p>
             </div>
 
             <button className="btn-secondary" onClick={loadDashboard} type="button">
-              Refresh
+              {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
 
@@ -149,18 +158,32 @@ export default function FinanceDashboardPage() {
               <span>Expense Records</span>
               <strong>{expenses.totalRecords}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Total Expenses</span>
               <strong>{money(expenses.totalValue)}</strong>
             </div>
+
+            <div className="finance-summary-card">
+              <span>Fleet Posted Expenses</span>
+              <strong>{money(fleetExpenses.totalValue)}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Fleet Expense Records</span>
+              <strong>{fleetExpenses.totalRecords}</strong>
+            </div>
+
             <div className="finance-summary-card">
               <span>Procurement Value</span>
               <strong>{money(procurement.totalValue)}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Payroll Payment Batches</span>
               <strong>{paymentBatches.totalRecords}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Net Pay in Batches</span>
               <strong>{money(paymentBatches.totalNetPay)}</strong>
@@ -176,38 +199,47 @@ export default function FinanceDashboardPage() {
               <span>Submitted Expenses</span>
               <strong>{expenses.submitted}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Approved Expenses</span>
               <strong>{expenses.approved}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Paid Expenses</span>
               <strong>{expenses.paid}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Evidence Required</span>
               <strong>{evidence.required}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Evidence Published</span>
               <strong>{evidence.published}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Procurement Records</span>
               <strong>{procurement.totalRecords}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Invoices Received</span>
               <strong>{procurement.invoiceReceived}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>Procurement Paid</span>
               <strong>{procurement.paid}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>SP Packages Ready</span>
               <strong>{sharePointPackages.ready}</strong>
             </div>
+
             <div className="finance-summary-card">
               <span>SP Packages Published</span>
               <strong>{sharePointPackages.published}</strong>
@@ -230,14 +262,13 @@ export default function FinanceDashboardPage() {
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Evidence</th>
-                  <th>Source</th>
                 </tr>
               </thead>
 
               <tbody>
                 {(data.recent?.expenses || []).length === 0 ? (
                   <tr>
-                    <td colSpan={9}>No recent expenses found.</td>
+                    <td colSpan={8}>No recent expenses found.</td>
                   </tr>
                 ) : (
                   (data.recent?.expenses || []).map((expense) => (
@@ -250,13 +281,6 @@ export default function FinanceDashboardPage() {
                       <td>{money(expense.amount)}</td>
                       <td>{expense.status}</td>
                       <td>{expense.evidenceStatus}</td>
-                      <td>
-                        {String(expense.category || '').startsWith('FLEET_') ? (
-                          <span className="status-pill success">Fleet</span>
-                        ) : (
-                          <span className="status-pill">Finance</span>
-                        )}
-                      </td>
                     </tr>
                   ))
                 )}

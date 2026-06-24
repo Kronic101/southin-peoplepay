@@ -61,6 +61,15 @@ export class FinanceService {
     const totalExpenses = expenses.reduce((sum, item) => sum + this.money(item.amount), 0);
     const paidExpenses = expenses.filter((item) => item.status === FinanceExpenseStatus.PAID);
 
+    const fleetExpenses = expenses.filter((item) =>
+      String(item.category || '').toUpperCase().startsWith('FLEET_'),
+    );
+
+    const fleetExpenseValue = fleetExpenses.reduce(
+      (sum, item) => sum + this.money(item.amount),
+      0,
+    );
+
     const procurementValue = procurementRequests.reduce(
       (sum, item) => sum + this.money(item.amount),
       0,
@@ -82,6 +91,12 @@ export class FinanceService {
           totalValue: totalExpenses,
           paidValue: paidExpenses.reduce((sum, item) => sum + this.money(item.amount), 0),
         },
+
+        fleetExpenses: {
+          totalRecords: fleetExpenses.length,
+          totalValue: fleetExpenseValue,
+        },
+
         procurement: {
           totalRecords: procurementRequests.length,
           totalValue: procurementValue,
@@ -96,17 +111,20 @@ export class FinanceService {
           invoiceReceived: procurementRequests.filter((item) => item.invoiceStatus === 'RECEIVED')
             .length,
         },
+
         evidence: {
           totalRecords: evidenceRecords.length,
           required: evidenceRecords.filter((item) => item.status === 'REQUIRED').length,
           approved: evidenceRecords.filter((item) => item.status === 'APPROVED').length,
           published: evidenceRecords.filter((item) => item.status === 'PUBLISHED').length,
         },
+
         paymentBatches: {
           totalRecords: paymentBatches.length,
           totalNetPay: paymentBatchValue,
           approved: paymentBatches.filter((item) => item.status === 'APPROVED').length,
         },
+
         sharePointPackages: {
           totalRecords: financeDocuments.length,
           ready: financeDocuments.filter((item) => item.status === HubDocumentStatus.APPROVED)
@@ -116,10 +134,12 @@ export class FinanceService {
           ).length,
         },
       },
+
       recent: {
         expenses: expenses
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(0, 5),
+
         procurementRequests: procurementRequests
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(0, 5),
