@@ -1025,6 +1025,7 @@ model FleetVehicle {
   dueItems          FleetDueItem[]
   documents         FleetDocument[]
   notifications     FleetNotification[]
+  costPostings      FleetCostPosting[]
 
   @@index([status])
   @@index([site])
@@ -1289,6 +1290,42 @@ model FleetFuelLog {
   @@index([driverId])
   @@index([vehicleId])
   @@map("fleet_fuel_logs")
+}
+
+model FleetCostPosting {
+  id                  String   @id @default(uuid())
+  costNo              String   @unique
+  sourceType          String
+  sourceId            String
+  vehicleId           String?
+  vehicleRegistration String?
+  category            String
+  description         String?
+  amount              Decimal  @db.Decimal(18, 2)
+  costDate            DateTime
+  month               String?
+  department          String?
+  site                String?
+  status              String   @default("PENDING_FINANCE_REVIEW")
+
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  postedBy            String?
+  postedAt            DateTime?
+  financeExpenseId    String?
+  rejectionReason     String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  vehicle             FleetVehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@unique([sourceType, sourceId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([costDate])
+  @@index([month])
+  @@map("fleet_cost_postings")
 }
 
 model SafetyIncident {

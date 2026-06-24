@@ -17,12 +17,31 @@ function removeUndefined<T extends Record<string, any>>(data: T): T {
   ) as T;
 }
 
+function enumValue(value: unknown, fallback: string) {
+  const cleaned = clean(value);
+
+  if (!cleaned) {
+    return fallback;
+  }
+
+  return cleaned.toUpperCase().replace(/[\s-]+/g, '_');
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
 @Injectable()
 export class FleetWorkshopService {
   constructor(private readonly prisma: PrismaService) {}
 
   private db() {
     return this.prisma as any;
+  }
+
+  // Controller compatibility method
+  async getJobs() {
+    return this.getWorkshopJobs();
   }
 
   async getWorkshopJobs() {
@@ -37,6 +56,11 @@ export class FleetWorkshopService {
         labourLines: true,
       },
     });
+  }
+
+  // Controller compatibility method
+  async createJob(body: any) {
+    return this.createWorkshopJob(body);
   }
 
   async createWorkshopJob(body: any) {
@@ -59,21 +83,23 @@ export class FleetWorkshopService {
       clean(body.jobNo) ||
       `JOB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    const estimatedCost = asNumber(body.estimatedCost);
     const labourCost = asNumber(body.labourCost);
     const partsCost = asNumber(body.partsCost);
-    const totalCost = asNumber(body.totalCost) || estimatedCost || labourCost + partsCost;
+    const totalCost =
+      asNumber(body.totalCost) ||
+      asNumber(body.actualCost) ||
+      asNumber(body.estimatedCost) ||
+      labourCost + partsCost;
 
-    return this.db().fleetWorkshopJob.create({
+    const job = await this.db().fleetWorkshopJob.create({
       data: removeUndefined({
         jobCardNo,
-
         vehicleId,
         defectId: clean(body.defectId) || undefined,
 
-        jobType: clean(body.jobType) || 'REPAIR',
-        priority: clean(body.priority) || 'MEDIUM',
-        status: clean(body.status) || 'OPEN',
+        jobType: enumValue(body.jobType, 'REPAIR'),
+        priority: enumValue(body.priority, 'MEDIUM'),
+        status: enumValue(body.status, 'OPEN'),
 
         title: clean(body.title) || 'Workshop job',
         description: clean(body.description) || null,
@@ -117,9 +143,20 @@ export class FleetWorkshopService {
         labourLines: true,
       },
     });
+
+    if (job.defectId) {
+      await this.db().fleetDefect.update({
+        where: { id: job.defectId },
+        data: {
+          status: 'IN_PROGRESS',
+        },
+      });
+    }
+
+    return job;
   }
 
-  async closeWorkshopJob(id: string, body: any) {
+  async updateJobStatus(id: string, body: any) {
     const job = await this.db().fleetWorkshopJob.findUnique({
       where: { id },
     });
@@ -128,19 +165,120 @@ export class FleetWorkshopService {
       throw new NotFoundException('Workshop job not found.');
     }
 
-    const labourCost = asNumber(body.labourCost);
-    const partsCost = asNumber(body.partsCost);
-    const totalCost = asNumber(body.totalCost) || labourCost + partsCost;
+    const status = enumValue(body.status, 'IN_PROGRESS');
 
-    return this.db().fleetWorkshopJob.update({
+    if (status === 'CLOSED') {
+      return this.closeWorkshopJob(id, body);
+    }
+
+    const updated = await this.db().fleetWorkshopJob.update({
       where: { id },
       data: removeUndefined({
-        status: clean(body.status) || 'CLOSED',
+        status,
+
+        diagnosis: clean(body.diagnosis) || undefined,
         workDone: clean(body.workDone) || undefined,
-        completedAt: body.completedAt ? new Date(body.completedAt) : new Date(),
+        assignedTo: clean(body.assignedTo) || undefined,
+
+        startedAt:
+          status === 'IN_PROGRESS' || status === 'DIAGNOSIS'
+            ? body.startedAt
+              ? new Date(body.startedAt)
+              : job.startedAt || new Date()
+            : undefined,
+
+        completedAt:
+          status === 'COMPLETED' || status === 'QUALITY_CHECK'
+            ? body.completedAt
+              ? new Date(body.completedAt)
+              : job.completedAt || new Date()
+            : undefined,
+
+        approvedBy:
+          status === 'RELEASED' || status === 'CLOSED'
+            ? clean(body.approvedBy) || job.approvedBy || 'Fleet Manager'
+            : clean(body.approvedBy) || undefined,
+
+        approvedAt:
+          status === 'RELEASED'
+            ? body.approvedAt
+              ? new Date(body.approvedAt)
+              : job.approvedAt || new Date()
+            : undefined,
+
+        releasedBy:
+          status === 'RELEASED'
+            ? clean(body.releasedBy) || 'Fleet Manager'
+            : undefined,
+
+        releasedAt:
+          status === 'RELEASED'
+            ? body.releasedAt
+              ? new Date(body.releasedAt)
+              : new Date()
+            : undefined,
+      }),
+      include: {
+        vehicle: true,
+        defect: true,
+        parts: true,
+        labourLines: true,
+      },
+    });
+
+    return updated;
+  }
+
+  // Controller compatibility method
+  async closeJob(id: string, body: any) {
+    return this.closeWorkshopJob(id, body);
+  }
+
+  async closeWorkshopJob(id: string, body: any) {
+    const job = await this.db().fleetWorkshopJob.findUnique({
+      where: { id },
+      include: {
+        vehicle: true,
+        defect: true,
+        parts: true,
+        labourLines: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Workshop job not found.');
+    }
+
+    const labourCost =
+      body.labourCost !== undefined && body.labourCost !== null && body.labourCost !== ''
+        ? asNumber(body.labourCost)
+        : asNumber(job.labourCost);
+
+    const partsCost =
+      body.partsCost !== undefined && body.partsCost !== null && body.partsCost !== ''
+        ? asNumber(body.partsCost)
+        : asNumber(job.partsCost);
+
+    const totalCost =
+      asNumber(body.totalCost) ||
+      asNumber(body.actualCost) ||
+      asNumber(job.totalCost) ||
+      labourCost + partsCost;
+
+    const updated = await this.db().fleetWorkshopJob.update({
+      where: { id },
+      data: removeUndefined({
+        status: enumValue(body.status, 'CLOSED'),
+
+        workDone: clean(body.workDone) || job.workDone || 'Workshop job completed.',
+        completedAt: body.completedAt ? new Date(body.completedAt) : job.completedAt || new Date(),
         closedAt: body.closedAt ? new Date(body.closedAt) : new Date(),
-        releasedBy: clean(body.releasedBy) || undefined,
-        releasedAt: body.releasedAt ? new Date(body.releasedAt) : undefined,
+
+        approvedBy: clean(body.approvedBy) || job.approvedBy || 'Fleet Manager',
+        approvedAt: body.approvedAt ? new Date(body.approvedAt) : job.approvedAt || new Date(),
+
+        releasedBy: clean(body.releasedBy) || job.releasedBy || 'Fleet Manager',
+        releasedAt: body.releasedAt ? new Date(body.releasedAt) : job.releasedAt || new Date(),
 
         odometerOut:
           body.odometerOut !== undefined && body.odometerOut !== null && body.odometerOut !== ''
@@ -157,6 +295,79 @@ export class FleetWorkshopService {
         parts: true,
         labourLines: true,
       },
+    });
+
+    if (updated.defectId) {
+      await this.db().fleetDefect.update({
+        where: { id: updated.defectId },
+        data: {
+          status: 'CLOSED',
+          closedAt: new Date(),
+          resolvedAt: new Date(),
+        },
+      });
+    }
+
+    const costPosting =
+      totalCost > 0 ? await this.createOrUpdateWorkshopCostPosting(updated, totalCost) : null;
+
+    return {
+      ...updated,
+      costPosting,
+    };
+  }
+
+  private async createOrUpdateWorkshopCostPosting(job: any, amount: number) {
+    const existing = await this.db().fleetCostPosting.findFirst({
+      where: {
+        sourceType: 'WORKSHOP_JOB',
+        sourceId: job.id,
+      },
+    });
+
+    const costDate = job.closedAt || job.completedAt || new Date();
+    const costNo =
+      existing?.costNo ||
+      `FLT-COST-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    const payload = {
+      costNo,
+      sourceType: 'WORKSHOP_JOB',
+      sourceId: job.id,
+      vehicleId: job.vehicleId,
+      vehicleRegistration: job.vehicle?.registrationNo || null,
+      category: job.jobType || 'REPAIR',
+      description: `Workshop job ${job.jobCardNo} - ${job.title}`,
+      amount: String(amount),
+      costDate,
+      month: monthKey(costDate),
+      department: job.vehicle?.department || null,
+      site: job.vehicle?.site || null,
+      status: 'PENDING_FINANCE_REVIEW',
+    };
+
+    if (existing) {
+      if (existing.status === 'POSTED_TO_FINANCE') {
+        return existing;
+      }
+
+      return this.db().fleetCostPosting.update({
+        where: { id: existing.id },
+        data: {
+          category: payload.category,
+          description: payload.description,
+          amount: payload.amount,
+          costDate: payload.costDate,
+          month: payload.month,
+          department: payload.department,
+          site: payload.site,
+          status: payload.status,
+        },
+      });
+    }
+
+    return this.db().fleetCostPosting.create({
+      data: payload,
     });
   }
 }

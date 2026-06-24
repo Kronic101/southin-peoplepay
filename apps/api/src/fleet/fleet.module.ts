@@ -24,6 +24,9 @@ import { FleetWorkshopService } from './workshop/workshop.service';
 import { FleetReportsController } from './reports/reports.controller';
 import { FleetReportsService } from './reports/reports.service';
 
+import { FleetCostsController } from './costs/costs.controller';
+import { FleetCostsService } from './costs/costs.service';
+
 @Module({
   controllers: [
     FleetController,
@@ -34,6 +37,7 @@ import { FleetReportsService } from './reports/reports.service';
     FleetFuelController,
     FleetWorkshopController,
     FleetReportsController,
+    FleetCostsController,
   ],
   providers: [
     FleetService,
@@ -44,6 +48,7 @@ import { FleetReportsService } from './reports/reports.service';
     FleetFuelService,
     FleetWorkshopService,
     FleetReportsService,
+    FleetCostsService,
   ],
 })
 export class FleetModule {}

@@ -68,11 +68,11 @@ export class FleetReportsService {
       .catch(() => []);
 
     const totalFuelCost = fuel.reduce((sum: number, row: any) => {
-      return sum + asNumber(row.totalCost);
+      return sum + asNumber(row.amount);
     }, 0);
 
     const totalWorkshopCost = workshop.reduce((sum: number, row: any) => {
-      return sum + asNumber(row.actualCost || row.estimatedCost);
+      return sum + asNumber(row.totalCost || row.labourCost || 0) + asNumber(row.partsCost || 0);
     }, 0);
 
     return {

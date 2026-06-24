@@ -164,7 +164,7 @@ export default function FleetWorkshopPage() {
     <AppShell>
       <section className="finance-page">
         <div className="finance-card finance-hero-card">
-          <div>
+          <div> 
             <p className="eyebrow">Fleet Management</p>
             <h1>Workshop Jobs</h1>
             <p className="muted">Fleet workshop control for repairs, service jobs, approvals, cost estimates and close-out.</p>
@@ -180,11 +180,11 @@ export default function FleetWorkshopPage() {
         {message ? <div className="alert success">{message}</div> : null}
         {error ? <div className="alert error">{error}</div> : null}
 
-        <div className="summary-grid">
-          <div className="leave-summary-card"><span>Total Jobs</span><strong>{summary.total}</strong></div>
-          <div className="leave-summary-card"><span>Open Jobs</span><strong>{summary.open}</strong></div>
-          <div className="leave-summary-card"><span>Closed Jobs</span><strong>{summary.closed}</strong></div>
-          <div className="leave-summary-card"><span>Estimated Cost</span><strong>{formatMoney(summary.estimatedCost)}</strong></div>
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Total Jobs</span><strong>{summary.total}</strong></div>
+          <div className="finance-summary-card"><span>Open Jobs</span><strong>{summary.open}</strong></div>
+          <div className="finance-summary-card"><span>Closed Jobs</span><strong>{summary.closed}</strong></div>
+          <div className="finance-summary-card"><span>Estimated Cost</span><strong>{formatMoney(summary.estimatedCost)}</strong></div>
         </div>
 
         <div className="finance-card">

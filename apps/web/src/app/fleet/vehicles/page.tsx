@@ -140,11 +140,11 @@ export default function FleetVehiclesPage() {
         {message ? <div className="alert success">{message}</div> : null}
         {error ? <div className="alert error">{error}</div> : null}
 
-        <div className="summary-grid">
-          <div className="leave-summary-card"><span>Total Vehicles</span><strong>{summary.total}</strong></div>
-          <div className="leave-summary-card"><span>Active</span><strong>{summary.active}</strong></div>
-          <div className="leave-summary-card"><span>Maintenance</span><strong>{summary.maintenance}</strong></div>
-          <div className="leave-summary-card"><span>Telematics Ready</span><strong>{summary.telematics}</strong></div>
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Total Vehicles</span><strong>{summary.total}</strong></div>
+          <div className="finance-summary-card"><span>Active</span><strong>{summary.active}</strong></div>
+          <div className="finance-summary-card"><span>Maintenance</span><strong>{summary.maintenance}</strong></div>
+          <div className="finance-summary-card"><span>Telematics Ready</span><strong>{summary.telematics}</strong></div>
         </div>
 
         <div className="finance-card">

@@ -24,4 +24,9 @@ export class FleetDefectsController {
   closeDefect(@Param('id') id: string, @Body() body: any) {
     return this.service.closeDefect(id, body);
   }
+
+  @Patch(':id/create-workshop-job')
+  createWorkshopJobFromDefect(@Param('id') id: string, @Body() body: any) {
+    return this.service.createWorkshopJobFromDefect(id, body);
+  }
 }

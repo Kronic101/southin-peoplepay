@@ -92,19 +92,19 @@ export default function FleetDashboardPage() {
 
         {error ? <div className="alert error">{error}</div> : null}
 
-        <div className="summary-grid">
-          <div className="leave-summary-card"><span>Vehicles</span><strong>{summary.vehicles}</strong></div>
-          <div className="leave-summary-card"><span>Active Vehicles</span><strong>{summary.activeVehicles}</strong></div>
-          <div className="leave-summary-card"><span>Drivers</span><strong>{summary.drivers}</strong></div>
-          <div className="leave-summary-card"><span>Active Assignments</span><strong>{summary.activeAssignments}</strong></div>
-          <div className="leave-summary-card"><span>Open Due Items</span><strong>{summary.openDueItems}</strong></div>
-          <div className="leave-summary-card"><span>Overdue Items</span><strong>{summary.overdueDueItems}</strong></div>
-          <div className="leave-summary-card"><span>Inspections</span><strong>{summary.inspections}</strong></div>
-          <div className="leave-summary-card"><span>Open Defects</span><strong>{summary.openDefects}</strong></div>
-          <div className="leave-summary-card"><span>Trips</span><strong>{summary.trips}</strong></div>
-          <div className="leave-summary-card"><span>Fuel Logs</span><strong>{summary.fuelLogs}</strong></div>
-          <div className="leave-summary-card"><span>Workshop Jobs</span><strong>{summary.workshopJobs}</strong></div>
-          <div className="leave-summary-card"><span>Open Workshop</span><strong>{summary.openWorkshopJobs}</strong></div>
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Vehicles</span><strong>{summary.vehicles}</strong></div>
+          <div className="finance-summary-card"><span>Active Vehicles</span><strong>{summary.activeVehicles}</strong></div>
+          <div className="finance-summary-card"><span>Drivers</span><strong>{summary.drivers}</strong></div>
+          <div className="finance-summary-card"><span>Active Assignments</span><strong>{summary.activeAssignments}</strong></div>
+          <div className="finance-summary-card"><span>Open Due Items</span><strong>{summary.openDueItems}</strong></div>
+          <div className="finance-summary-card"><span>Overdue Items</span><strong>{summary.overdueDueItems}</strong></div>
+          <div className="finance-summary-card"><span>Inspections</span><strong>{summary.inspections}</strong></div>
+          <div className="finance-summary-card"><span>Open Defects</span><strong>{summary.openDefects}</strong></div>
+          <div className="finance-summary-card"><span>Trips</span><strong>{summary.trips}</strong></div>
+          <div className="finance-summary-card"><span>Fuel Logs</span><strong>{summary.fuelLogs}</strong></div>
+          <div className="finance-summary-card"><span>Workshop Jobs</span><strong>{summary.workshopJobs}</strong></div>
+          <div className="finance-summary-card"><span>Open Workshop</span><strong>{summary.openWorkshopJobs}</strong></div>
         </div>
 
         <section className="finance-dashboard-grid">

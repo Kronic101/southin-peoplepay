@@ -69,22 +69,19 @@ export class FleetFuelService {
       throw new BadRequestException('Odometer is required.');
     }
 
-    return this.db().fleetFuelLog.create({
+    const fuelLog = await this.db().fleetFuelLog.create({
       data: removeUndefined({
         vehicleId,
         driverId: clean(body.driverId) || undefined,
-
         fuelDate: body.fuelDate ? new Date(body.fuelDate) : new Date(),
         stationName:
           clean(body.stationName) ||
           clean(body.station) ||
           clean(body.fuelStation) ||
           'Unknown Fuel Station',
-
         litres: String(litres),
         amount: String(amount),
         odometer: String(odometer),
-
         receiptDocumentId:
           clean(body.receiptDocumentId) ||
           clean(body.documentId) ||
@@ -96,5 +93,38 @@ export class FleetFuelService {
         driver: true,
       },
     });
+
+    const existingCost = await this.db().fleetCostPosting.findFirst({
+      where: {
+        sourceType: 'FUEL_LOG',
+        sourceId: fuelLog.id,
+      },
+    });
+
+    if (!existingCost) {
+      const costNo = `FLT-COST-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      const costDate = fuelLog.fuelDate || new Date();
+      const month = `${costDate.getFullYear()}-${String(costDate.getMonth() + 1).padStart(2, '0')}`;
+
+      await this.db().fleetCostPosting.create({
+        data: {
+          costNo,
+          sourceType: 'FUEL_LOG',
+          sourceId: fuelLog.id,
+          vehicleId: fuelLog.vehicleId,
+          vehicleRegistration: vehicle.registrationNo,
+          category: 'FUEL',
+          description: `Fuel log for ${vehicle.registrationNo} at ${fuelLog.stationName}`,
+          amount: String(amount),
+          costDate,
+          month,
+          department: vehicle.department || null,
+          site: vehicle.site || null,
+          status: 'PENDING_FINANCE_REVIEW',
+        },
+      });
+    }
+
+    return fuelLog;
   }
 }

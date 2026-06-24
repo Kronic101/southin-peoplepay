@@ -106,4 +106,52 @@ export class FleetDefectsService {
       },
     });
   }
+
+  async createWorkshopJobFromDefect(id: string, body: any) {
+    const defect = await this.db().fleetDefect.findUnique({
+      where: { id },
+      include: { vehicle: true },
+    });
+
+    if (!defect) {
+      throw new NotFoundException('Defect not found.');
+    }
+
+    const jobCardNo = `JOB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    const job = await this.db().fleetWorkshopJob.create({
+      data: {
+        jobCardNo,
+        vehicleId: defect.vehicleId,
+        defectId: defect.id,
+        jobType: 'DEFECT_REPAIR',
+        priority:
+          defect.severity === 'CRITICAL'
+            ? 'CRITICAL'
+            : defect.severity === 'HIGH'
+              ? 'HIGH'
+              : 'MEDIUM',
+        status: 'OPEN',
+        title: defect.title,
+        description: defect.description,
+        openedBy: clean(body.openedBy) || 'Fleet Manager',
+        odometerIn: body.odometer ? String(body.odometer) : undefined,
+      },
+      include: {
+        vehicle: true,
+        defect: true,
+        parts: true,
+        labourLines: true,
+      },
+    });
+
+    await this.db().fleetDefect.update({
+      where: { id },
+      data: {
+        status: 'ESCALATED',
+      },
+    });
+
+    return job;
+  }
 }

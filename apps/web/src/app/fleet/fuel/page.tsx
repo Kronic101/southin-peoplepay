@@ -148,11 +148,11 @@ export default function FleetFuelPage() {
         {message ? <div className="alert success">{message}</div> : null}
         {error ? <div className="alert error">{error}</div> : null}
 
-        <div className="summary-grid">
-          <div className="leave-summary-card"><span>Fuel Logs</span><strong>{summary.total}</strong></div>
-          <div className="leave-summary-card"><span>Total Litres</span><strong>{summary.litres.toFixed(2)}</strong></div>
-          <div className="leave-summary-card"><span>Total Fuel Cost</span><strong>{formatMoney(summary.totalCost)}</strong></div>
-          <div className="leave-summary-card"><span>Vehicles Fuelled</span><strong>{summary.vehicleCount}</strong></div>
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Fuel Logs</span><strong>{summary.total}</strong></div>
+          <div className="finance-summary-card"><span>Total Litres</span><strong>{summary.litres.toFixed(2)}</strong></div>
+          <div className="finance-summary-card"><span>Total Fuel Cost</span><strong>{formatMoney(summary.totalCost)}</strong></div>
+          <div className="finance-summary-card"><span>Vehicles Fuelled</span><strong>{summary.vehicleCount}</strong></div>
         </div>
 
         <div className="finance-card">

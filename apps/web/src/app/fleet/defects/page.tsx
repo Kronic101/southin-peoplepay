@@ -150,11 +150,11 @@ export default function FleetDefectsPage() {
         {message ? <div className="alert success">{message}</div> : null}
         {error ? <div className="alert error">{error}</div> : null}
 
-        <div className="summary-grid">
-          <div className="leave-summary-card"><span>Total Defects</span><strong>{summary.total}</strong></div>
-          <div className="leave-summary-card"><span>Open</span><strong>{summary.open}</strong></div>
-          <div className="leave-summary-card"><span>High / Critical</span><strong>{summary.high}</strong></div>
-          <div className="leave-summary-card"><span>Closed</span><strong>{summary.closed}</strong></div>
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Total Defects</span><strong>{summary.total}</strong></div>
+          <div className="finance-summary-card"><span>Open</span><strong>{summary.open}</strong></div>
+          <div className="finance-summary-card"><span>High / Critical</span><strong>{summary.high}</strong></div>
+          <div className="finance-summary-card"><span>Closed</span><strong>{summary.closed}</strong></div>
         </div>
 
         <div className="finance-card">

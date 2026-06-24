@@ -187,6 +187,32 @@ export type FleetCostByVehicleRecord = {
   totalCost?: string | number;
 };
 
+export type FleetCostPostingRecord = {
+  id: string;
+  costNo?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  vehicleId?: string | null;
+  vehicleRegistration?: string | null;
+  category?: string | null;
+  description?: string | null;
+  amount?: string | number | null;
+  costDate?: string | null;
+  month?: string | null;
+  department?: string | null;
+  site?: string | null;
+  status?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  financeExpenseId?: string | null;
+  rejectionReason?: string | null;
+  vehicle?: FleetVehicleRecord;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     cache: 'no-store',
@@ -278,3 +304,15 @@ export const closeFleetWorkshopJob = (id: string, payload: any) => apiPatch<Flee
 
 export const getFleetReportSummary = () => apiGet<{ summary: FleetReportSummary }>('/fleet/reports/summary');
 export const getFleetCostsByVehicle = () => apiGet<FleetCostByVehicleRecord[]>('/fleet/reports/costs-by-vehicle');
+
+
+
+export const getFleetCosts = () => apiGet<FleetCostPostingRecord[]>('/fleet/costs');
+export const reviewFleetCost = (id: string, payload: any) => apiPatch<FleetCostPostingRecord>(`/fleet/costs/${id}/finance-review`, payload);
+export const getPendingFleetCosts = () => apiGet<FleetCostPostingRecord[]>('/fleet/costs/pending');
+
+export const getPostedFleetCosts = () => apiGet<FleetCostPostingRecord[]>('/fleet/costs/posted');
+
+export const financeReviewFleetCost = (id: string, payload: any) => apiPatch<FleetCostPostingRecord>(`/fleet/costs/${id}/finance-review`, payload);
+
+export const postFleetCostToFinance = (id: string, payload: any) => apiPatch<FleetCostPostingRecord>(`/fleet/costs/${id}/post-to-finance`, payload);
