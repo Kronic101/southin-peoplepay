@@ -230,13 +230,14 @@ export default function FinanceDashboardPage() {
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Evidence</th>
+                  <th>Source</th>
                 </tr>
               </thead>
 
               <tbody>
                 {(data.recent?.expenses || []).length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No recent expenses found.</td>
+                    <td colSpan={9}>No recent expenses found.</td>
                   </tr>
                 ) : (
                   (data.recent?.expenses || []).map((expense) => (
@@ -249,6 +250,13 @@ export default function FinanceDashboardPage() {
                       <td>{money(expense.amount)}</td>
                       <td>{expense.status}</td>
                       <td>{expense.evidenceStatus}</td>
+                      <td>
+                        {String(expense.category || '').startsWith('FLEET_') ? (
+                          <span className="status-pill success">Fleet</span>
+                        ) : (
+                          <span className="status-pill">Finance</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
