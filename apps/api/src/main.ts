@@ -16,13 +16,15 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-    origin: parseOrigins(process.env.CORS_ORIGIN || process.env.APP_URL),
+    origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   const port = Number(process.env.PORT || 4000);
 
-  await app.listen(port, '0.0.0.0');
+  await app.listen(4000, '0.0.0.0');
 
   console.log(`Southin PeoplePay API running on port ${port}`);
 }

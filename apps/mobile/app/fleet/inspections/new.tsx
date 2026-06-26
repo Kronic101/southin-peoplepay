@@ -1,5 +1,6 @@
 'use client';
 
+import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,12 +12,9 @@ import {
   View,
 } from 'react-native';
 
-import {
-  getFleetVehicles,
-  submitFleetInspection,
-} from '../../../src/api/fleet';
-
-import { addOfflineQueueItem } from '../../../src/storage/offlineQueue';
+import { getFleetVehicles, submitFleetInspection } from '../../../src/api/fleet';
+import { enqueueFleetInspection } from '../../../src/storage/offlineQueue';
+import type { FleetInspectionPayload } from '../../../src/types/fleet';
 
 type VehicleRecord = {
   id: string;
@@ -30,7 +28,9 @@ type VehicleRecord = {
   department?: string | null;
 };
 
-type CheckStatus = 'OKAY' | 'NOT_OK';
+type CheckStatus = 'OKAY' | 'NOT_OKAY';
+
+type BusinessInspectionStatus = 'PASSED' | 'PASSED_WITH_DEFECTS' | 'FAILED';
 
 type ChecklistItem = {
   no: number;
@@ -40,6 +40,32 @@ type ChecklistItem = {
   requiresCommentOnFail: boolean;
   status: CheckStatus;
   comments: string;
+};
+
+type ApiChecklistItem = {
+  itemNo: number;
+  item: string;
+  no: number;
+  label: string;
+  status: CheckStatus;
+  comments: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  blocksUse: boolean;
+};
+
+type InspectionSubmitPayload = FleetInspectionPayload & {
+  vehicleNo?: string;
+  drivingPermitNo?: string | null;
+  checklistPhase?: string;
+  inspectionType?: string;
+  inspectionDate?: string;
+  odometerStart?: string | null;
+  odometerEnd?: string | null;
+  isSafeForUse?: boolean;
+  overallStatus?: BusinessInspectionStatus;
+  checklist?: ApiChecklistItem[];
+  failedItems?: ApiChecklistItem[];
+  notes?: string | null;
 };
 
 const baseChecklist: ChecklistItem[] = [
@@ -315,8 +341,7 @@ export default function NewFleetInspectionPage() {
     } catch (err: any) {
       setSubmitStatus('ERROR');
       setMessage(
-        err?.message ||
-          'Unable to load vehicle list. Confirm API is reachable from the phone.',
+        err?.message || 'Unable to load vehicle list. Confirm API is reachable from the phone.',
       );
     } finally {
       setLoadingVehicles(false);
@@ -350,7 +375,7 @@ export default function NewFleetInspectionPage() {
   }, [vehicleSearch, vehicles]);
 
   const failedItems = useMemo(() => {
-    return checklist.filter((item) => item.status === 'NOT_OK');
+    return checklist.filter((item) => item.status === 'NOT_OKAY');
   }, [checklist]);
 
   const blockingFailedItems = useMemo(() => {
@@ -363,7 +388,7 @@ export default function NewFleetInspectionPage() {
 
   const safeForUse = blockingFailedItems.length === 0;
 
-  const overallStatus =
+  const overallStatus: BusinessInspectionStatus =
     blockingFailedItems.length > 0
       ? 'FAILED'
       : failedItems.length > 0
@@ -377,6 +402,8 @@ export default function NewFleetInspectionPage() {
     setVehicleId(vehicle.id);
     setVehicleSearch(vehicle.registrationNo || '');
     setShowVehicleList(false);
+    setMessage('');
+    setSubmitStatus('IDLE');
 
     if (odometer) {
       setOdometerStart(odometer);
@@ -420,7 +447,7 @@ export default function NewFleetInspectionPage() {
     }
   }
 
-  function buildPayload() {
+  function buildPayload(): InspectionSubmitPayload {
     if (!selectedVehicle || !vehicleId) {
       throw new Error('Please select a vehicle from the vehicle list.');
     }
@@ -437,7 +464,7 @@ export default function NewFleetInspectionPage() {
 
     const failedWithoutComments = checklist.filter(
       (item) =>
-        item.status === 'NOT_OK' &&
+        item.status === 'NOT_OKAY' &&
         item.requiresCommentOnFail &&
         !item.comments.trim(),
     );
@@ -449,6 +476,31 @@ export default function NewFleetInspectionPage() {
           .join(', ')}`,
       );
     }
+
+    const apiSafeForUse: 'YES' | 'NO' = safeForUse ? 'YES' : 'NO';
+    const apiOverallStatus: BusinessInspectionStatus = overallStatus;
+
+    const checklistPayload: ApiChecklistItem[] = checklist.map((item) => ({
+      itemNo: item.no,
+      item: item.label,
+      no: item.no,
+      label: item.label,
+      status: item.status,
+      comments: item.comments,
+      severity: item.severity,
+      blocksUse: item.blocksUse,
+    }));
+
+    const failedItemsPayload: ApiChecklistItem[] = failedItems.map((item) => ({
+      itemNo: item.no,
+      item: item.label,
+      no: item.no,
+      label: item.label,
+      status: item.status,
+      comments: item.comments,
+      severity: item.severity,
+      blocksUse: item.blocksUse,
+    }));
 
     return {
       vehicleId,
@@ -464,40 +516,15 @@ export default function NewFleetInspectionPage() {
       odometerStart: odometerStart || null,
       odometerEnd: odometerEnd || null,
 
-      safeForUse,
-      overallStatus,
+      safeForUse: apiSafeForUse,
+      isSafeForUse: safeForUse,
+      overallStatus: apiOverallStatus,
 
       notes: comments.trim() || null,
 
-      checklist: checklist.map((item) => ({
-        no: item.no,
-        label: item.label,
-        status: item.status,
-        comments: item.comments,
-        severity: item.severity,
-        blocksUse: item.blocksUse,
-      })),
-
-      failedItems: failedItems.map((item) => ({
-        no: item.no,
-        label: item.label,
-        status: item.status,
-        comments: item.comments,
-        severity: item.severity,
-        blocksUse: item.blocksUse,
-      })),
+      checklist: checklistPayload,
+      failedItems: failedItemsPayload,
     };
-  }
-
-  async function saveOffline(payload: any) {
-    await (addOfflineQueueItem as any)({
-      id: `offline-inspection-${Date.now()}`,
-      type: 'FLEET_INSPECTION',
-      method: 'POST',
-      path: '/fleet/inspections',
-      payload,
-      createdAt: new Date().toISOString(),
-    });
   }
 
   async function handleSubmit() {
@@ -505,17 +532,14 @@ export default function NewFleetInspectionPage() {
     setSubmitStatus('IDLE');
     setMessage('');
 
-    let payload: any = null;
-
     try {
-      payload = buildPayload();
-
+      const payload = buildPayload();
       const result: any = await submitFleetInspection(payload);
 
       const resultStatus =
+        result?.overallStatus ||
+        result?.inspection?.payload?.businessStatus ||
         result?.inspection?.overallStatus ||
-        result?.inspection?.resultStatus ||
-        result?.inspection?.status ||
         overallStatus;
 
       setSubmitStatus('SUCCESS');
@@ -524,26 +548,26 @@ export default function NewFleetInspectionPage() {
       resetChecklistOnly();
       await loadVehicles();
     } catch (err: any) {
-      if (payload && isNetworkError(err)) {
-        try {
-          await saveOffline(payload);
+      try {
+        if (isNetworkError(err)) {
+          const payload = buildPayload();
+
+          await enqueueFleetInspection(payload);
 
           setSubmitStatus('OFFLINE');
           setMessage(
-            'Signal dropped. Inspection saved offline and will be submitted when connection is restored.',
+            'Inspection saved offline. It will sync automatically when network is available.',
           );
 
           resetChecklistOnly();
-        } catch (queueErr: any) {
-          setSubmitStatus('ERROR');
-          setMessage(
-            queueErr?.message ||
-              'Submit failed and offline save also failed. Please try again.',
-          );
+          return;
         }
-      } else {
+
         setSubmitStatus('ERROR');
         setMessage(err?.message || 'Unable to submit inspection.');
+      } catch (offlineErr: any) {
+        setSubmitStatus('ERROR');
+        setMessage(offlineErr?.message || err?.message || 'Unable to submit inspection.');
       }
     } finally {
       setSubmitting(false);
@@ -560,9 +584,16 @@ export default function NewFleetInspectionPage() {
         <Text style={styles.eyebrow}>Fleet Management</Text>
         <Text style={styles.heroTitle}>Vehicle Pre-Start Inspection</Text>
         <Text style={styles.heroText}>
-          Driver checklist before driving. Critical failures block vehicle use.
-          Non-critical failures create defects but may still allow operation.
+          Driver checklist before driving. Critical failures block vehicle use. Non-critical
+          failures create defects but may still allow operation.
         </Text>
+
+        <Pressable
+          style={styles.heroSecondaryButton}
+          onPress={() => router.push('/fleet/inspections')}
+        >
+          <Text style={styles.heroSecondaryButtonText}>Inspection History</Text>
+        </Pressable>
       </View>
 
       {message ? (
@@ -647,8 +678,7 @@ export default function NewFleetInspectionPage() {
                     {vehicle.registrationNo || 'Unknown Registration'}
                   </Text>
                   <Text style={styles.vehicleOptionMeta}>
-                    {[vehicle.make, vehicle.model].filter(Boolean).join(' ') ||
-                      'Vehicle'}
+                    {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
                     {' • '}
                     {vehicle.site || 'No site recorded'}
                   </Text>
@@ -761,15 +791,15 @@ export default function NewFleetInspectionPage() {
               <Pressable
                 style={[
                   styles.choiceButton,
-                  item.status === 'NOT_OK' ? styles.notOkayButtonActive : null,
+                  item.status === 'NOT_OKAY' ? styles.notOkayButtonActive : null,
                 ]}
-                onPress={() => updateItemStatus(item.no, 'NOT_OK')}
+                onPress={() => updateItemStatus(item.no, 'NOT_OKAY')}
               >
                 <Text style={styles.choiceText}>Not Okay</Text>
               </Pressable>
             </View>
 
-            {item.status === 'NOT_OK' ? (
+            {item.status === 'NOT_OKAY' ? (
               <TextInput
                 style={styles.input}
                 value={item.comments}
@@ -849,6 +879,17 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#ccd8e5',
+  },
+  heroSecondaryButton: {
+    backgroundColor: '#06152b',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  heroSecondaryButtonText: {
+    color: '#ffffff',
+    fontWeight: '900',
   },
   eyebrow: {
     color: '#f26a21',
