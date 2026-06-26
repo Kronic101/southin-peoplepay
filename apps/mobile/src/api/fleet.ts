@@ -8,6 +8,12 @@ import {
   FleetWorkshopJob,
 } from '../types/fleet';
 
+
+/**
+ * Fleet dashboard
+ */
+export const getFleetDashboard = () => apiGet<any>('/fleet/dashboard');
+
 /**
  * Fleet vehicles
  */

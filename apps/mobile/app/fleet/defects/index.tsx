@@ -91,7 +91,7 @@ export default function FleetDefectsPage() {
   const [error, setError] = useState('');
 
   const { stats, lastSyncMessage, lastSyncError, refreshQueue } = useOfflineQueue({
-    autoSync: true,
+    autoSync: false,
     intervalMs: 30000,
   });
 
