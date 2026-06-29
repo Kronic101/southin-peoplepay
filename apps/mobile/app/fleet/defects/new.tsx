@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -303,7 +303,7 @@ export default function NewFleetDefectPage() {
                   </Text>
                   <Text style={styles.vehicleOptionMeta}>
                     {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                    {' • '}
+                    {' â€¢ '}
                     {vehicle.site || 'No site recorded'}
                   </Text>
                 </Pressable>
@@ -320,7 +320,7 @@ export default function NewFleetDefectPage() {
             <Text style={styles.vehicleMatchText}>
               {[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(' ') ||
                 'Vehicle'}
-              {' • '}
+              {' â€¢ '}
               {selectedVehicle.site || 'No site recorded'}
             </Text>
           </View>

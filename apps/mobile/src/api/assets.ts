@@ -1,23 +1,116 @@
-import { apiGet, apiPatch, apiPost } from './client';
-import {
-  AssetMovementPayload,
-  AssetStockCountPayload,
-} from '../types/assets';
+import { apiGet, apiPost, apiPatch } from './client';
 
-export const getAssetStockItems = () => apiGet<any[]>('/assets/stock-items');
+export type AssetStockItemRecord = {
+  id: string;
+  itemCode?: string | null;
+  itemName?: string | null;
+  itemType?: string | null;
+  category?: string | null;
+  unitOfMeasure?: string | null;
+  status?: string | null;
+};
 
-export const getAssetMovements = () => apiGet<any[]>('/assets/movements');
+export type AssetLocationRecord = {
+  id: string;
+  locationName?: string | null;
+  site?: string | null;
+  locationType?: string | null;
+  status?: string | null;
+};
 
-export const createAssetMovement = (payload: AssetMovementPayload) =>
-  apiPost<any>('/assets/movements', payload);
+export type AssetBalanceRecord = {
+  id?: string;
+  stockItemId?: string | null;
+  locationId?: string | null;
+  quantityOnHand?: string | number | null;
+  availableQuantity?: string | number | null;
+  stockItem?: AssetStockItemRecord | null;
+  location?: AssetLocationRecord | null;
+};
+
+export type AssetMovementRecord = {
+  id: string;
+  movementNo?: string | null;
+  movementType?: string | null;
+  status?: string | null;
+  referenceNo?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  requestedBy?: string | null;
+  approvedBy?: string | null;
+  postedBy?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  fromLocation?: AssetLocationRecord | null;
+  toLocation?: AssetLocationRecord | null;
+  lines?: any[];
+};
+
+export type AssetQrTagRecord = {
+  id: string;
+  tagCode: string;
+  tagType?: string | null;
+  status?: string | null;
+  assignedToType?: string | null;
+  assignedToId?: string | null;
+  lastScannedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  stockItem?: AssetStockItemRecord | null;
+  stockItemId?: string | null;
+  location?: AssetLocationRecord | null;
+  locationId?: string | null;
+};
+
+export type AssetScanPayload = {
+  tagCode?: string;
+  scanType?: string;
+  scanSource?: string;
+  scannedBy?: string;
+  employeeNo?: string;
+  employeeNumber?: string;
+  department?: string;
+  site?: string;
+  locationName?: string;
+  notes?: string;
+  submittedFrom?: string;
+  scannedAt?: string;
+};
+
+export type AssetScanResult = {
+  message?: string;
+  tagCode?: string;
+  qrTag?: AssetQrTagRecord;
+  tag?: AssetQrTagRecord;
+  scan?: any;
+  stockItem?: any;
+  location?: any;
+  result?: any;
+};
+
+export const getAssetQrTags = () => apiGet<AssetQrTagRecord[]>('/assets/qr-tags');
+
+export const scanAssetQrTag = (tagCode: string, payload: AssetScanPayload) =>
+  apiPost<AssetScanResult>(`/assets/qr-tags/${encodeURIComponent(tagCode)}/scan`, payload);
+
+export const getAssetStockItems = () => apiGet<AssetStockItemRecord[]>('/assets/stock-items');
+
+export const getAssetLocations = () => apiGet<AssetLocationRecord[]>('/assets/locations');
+
+export const getAssetBalances = () => apiGet<AssetBalanceRecord[]>('/assets/balances');
+
+export const getAssetMovements = () => apiGet<AssetMovementRecord[]>('/assets/movements');
+
+export const createAssetMovement = (payload: any) =>
+  apiPost<AssetMovementRecord>('/assets/movements', payload);
+
+export const approveAssetMovement = (id: string, payload: any) =>
+  apiPatch<AssetMovementRecord>(`/assets/movements/${id}/approve`, payload);
+
+export const postAssetMovement = (id: string, payload: any) =>
+  apiPatch<AssetMovementRecord>(`/assets/movements/${id}/post`, payload);
 
 export const getAssetStockCounts = () => apiGet<any[]>('/assets/stock-counts');
 
-export const createAssetStockCount = (payload: AssetStockCountPayload) =>
-  apiPost<any>('/assets/stock-counts', payload);
-
-export const updateAssetStockCountLine = (
-  countId: string,
-  lineId: string,
-  payload: any,
-) => apiPatch<any>(`/assets/stock-counts/${countId}/lines/${lineId}`, payload);
+export const createAssetStockCount = (payload: any) => apiPost<any>('/assets/stock-counts', payload);

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -112,7 +112,7 @@ function vehicleLabel(inspection: InspectionRecord) {
     .filter(Boolean)
     .join(' ');
 
-  return vehicleName ? `${registrationNo} • ${vehicleName}` : registrationNo;
+  return vehicleName ? `${registrationNo} â€¢ ${vehicleName}` : registrationNo;
 }
 
 export default function FleetInspectionHistoryPage() {
@@ -323,9 +323,9 @@ export default function FleetInspectionHistoryPage() {
 
                   {failedItems.map((item: any, index: number) => (
                     <Text key={`${inspection.id}-failed-${index}`} style={styles.failedItem}>
-                      {item.no}. {item.label} • {item.severity || 'MEDIUM'}
-                      {item.blocksUse ? ' • Blocks use' : ' • Advisory'}
-                      {item.comments ? ` — ${item.comments}` : ''}
+                      {item.no}. {item.label} â€¢ {item.severity || 'MEDIUM'}
+                      {item.blocksUse ? ' â€¢ Blocks use' : ' â€¢ Advisory'}
+                      {item.comments ? ` â€” ${item.comments}` : ''}
                     </Text>
                   ))}
 

@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+﻿import { Link } from 'expo-router';
 import { SafeAreaView, ScrollView, StyleSheet, Text } from 'react-native';
 
 import AppCard from '../../../src/components/AppCard';
@@ -9,12 +9,12 @@ export default function Page() {
       <ScrollView contentContainerStyle={styles.content}>
         <AppCard>
           <Text style={styles.eyebrow}>Asset Management</Text>
-          <Text style={styles.title}>New Stock Count</Text>
-          <Text style={styles.muted}>Start a site physical count and capture counted quantities.</Text>
+          <Text style={styles.title}>Stock Counts</Text>
+          <Text style={styles.muted}>View physical stock count sessions captured by field teams.</Text>
         </AppCard>
 
-        <Link href="/assets/stock-counts" style={styles.button}>
-          Back to Stock Counts
+        <Link href="/asset/stock-counts/new" style={styles.button}>
+          Create Stock Count
         </Link>
       </ScrollView>
     </SafeAreaView>
@@ -51,3 +51,4 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 });
+

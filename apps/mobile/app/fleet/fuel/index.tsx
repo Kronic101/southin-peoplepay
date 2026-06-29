@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';

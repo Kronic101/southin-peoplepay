@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -267,7 +267,7 @@ export default function FleetDefectsPage() {
                   <Text style={styles.defectTitle}>{defect.title || 'Vehicle defect'}</Text>
                   <Text style={styles.defectMeta}>
                     {defect.vehicle?.registrationNo || 'Unknown Vehicle'}
-                    {' • '}
+                    {' â€¢ '}
                     {[defect.vehicle?.make, defect.vehicle?.model].filter(Boolean).join(' ') ||
                       'Vehicle'}
                   </Text>

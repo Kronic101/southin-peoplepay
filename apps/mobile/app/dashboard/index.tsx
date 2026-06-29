@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -254,6 +254,17 @@ export default function MobileDashboardPage() {
             <Text style={styles.actionTitle}>Fuel</Text>
             <Text style={styles.actionText}>Capture fuel entry.</Text>
           </Pressable>
+
+          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/scanner')}>
+            <Text style={styles.actionTitle}>Asset Scanner</Text>
+            <Text style={styles.actionText}>Scan stock, tools and scaffold tags.</Text>
+          </Pressable>
+
+          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/movements/new')}>
+            <Text style={styles.actionTitle}>Asset Movement</Text>
+            <Text style={styles.actionText}>Move, issue or return stock items.</Text>
+          </Pressable>
+
         </View>
       </View>
 
@@ -320,7 +331,7 @@ export default function MobileDashboardPage() {
               <Text style={styles.rowTitle}>{vehicle.registrationNo || '-'}</Text>
               <Text style={styles.rowMeta}>
                 {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                {' • '}
+                {' â€¢ '}
                 {vehicle.site || 'No site'}
               </Text>
             </View>
@@ -371,7 +382,7 @@ export default function MobileDashboardPage() {
                 {item.vehicle?.registrationNo || 'Unknown Vehicle'}
               </Text>
               <Text style={styles.rowMeta}>
-                {item.title || item.dueType || 'Fleet due item'} • {formatDate(item.dueDate)}
+                {item.title || item.dueType || 'Fleet due item'} â€¢ {formatDate(item.dueDate)}
               </Text>
             </View>
 

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -399,7 +399,7 @@ export default function FleetTripsPage() {
               </View>
 
               <Text style={styles.routeText}>
-                {trip.origin || '-'} → {trip.destination || '-'}
+                {trip.origin || '-'} â†’ {trip.destination || '-'}
               </Text>
 
               <Text style={styles.descriptionText}>{trip.purpose || 'No trip purpose recorded.'}</Text>
