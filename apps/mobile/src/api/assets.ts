@@ -12,8 +12,11 @@ export type AssetStockItemRecord = {
 
 export type AssetLocationRecord = {
   id: string;
+  locationCode?: string | null;
   locationName?: string | null;
   site?: string | null;
+  branch?: string | null;
+  department?: string | null;
   locationType?: string | null;
   status?: string | null;
 };
@@ -34,6 +37,7 @@ export type AssetMovementRecord = {
   movementType?: string | null;
   status?: string | null;
   referenceNo?: string | null;
+  referenceId?: string | null;
   reason?: string | null;
   notes?: string | null;
   createdBy?: string | null;
@@ -44,6 +48,23 @@ export type AssetMovementRecord = {
   updatedAt?: string | null;
   fromLocation?: AssetLocationRecord | null;
   toLocation?: AssetLocationRecord | null;
+  lines?: any[];
+};
+
+export type AssetStockCountRecord = {
+  id: string;
+  countNo?: string | null;
+  sessionNo?: string | null;
+  locationId?: string | null;
+  status?: string | null;
+  countedBy?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  countDate?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  notes?: string | null;
+  location?: AssetLocationRecord | null;
   lines?: any[];
 };
 
@@ -111,6 +132,10 @@ export const approveAssetMovement = (id: string, payload: any) =>
 export const postAssetMovement = (id: string, payload: any) =>
   apiPatch<AssetMovementRecord>(`/assets/movements/${id}/post`, payload);
 
-export const getAssetStockCounts = () => apiGet<any[]>('/assets/stock-counts');
+export const getAssetStockCounts = () => apiGet<AssetStockCountRecord[]>('/assets/stock-counts');
 
-export const createAssetStockCount = (payload: any) => apiPost<any>('/assets/stock-counts', payload);
+export const createAssetStockCount = (payload: any) =>
+  apiPost<AssetStockCountRecord>('/assets/stock-counts', payload);
+
+export const approveAssetStockCount = (id: string, payload: any) =>
+  apiPatch<AssetStockCountRecord>(`/assets/stock-counts/${id}/approve`, payload);

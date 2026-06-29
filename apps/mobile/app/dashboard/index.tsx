@@ -265,6 +265,10 @@ export default function MobileDashboardPage() {
             <Text style={styles.actionText}>Move, issue or return stock items.</Text>
           </Pressable>
 
+          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/stock-counts/new')}>
+            <Text style={styles.actionTitle}>Stock Count</Text>
+            <Text style={styles.actionText}>Capture physical stock counts.</Text>
+          </Pressable>
         </View>
       </View>
 
