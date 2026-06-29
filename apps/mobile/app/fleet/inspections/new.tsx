@@ -15,6 +15,7 @@ import {
 import { getFleetVehicles, submitFleetInspection } from '../../../src/api/fleet';
 import { enqueueFleetInspection } from '../../../src/storage/offlineQueue';
 import type { FleetInspectionPayload } from '../../../src/types/fleet';
+import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
@@ -55,6 +56,8 @@ type ApiChecklistItem = {
 
 type InspectionSubmitPayload = FleetInspectionPayload & {
   vehicleNo?: string;
+  employeeNo?: string;
+  employeeNumber?: string;
   drivingPermitNo?: string | null;
   checklistPhase?: string;
   inspectionType?: string;
@@ -63,6 +66,9 @@ type InspectionSubmitPayload = FleetInspectionPayload & {
   odometerEnd?: string | null;
   isSafeForUse?: boolean;
   overallStatus?: BusinessInspectionStatus;
+  department?: string;
+  site?: string;
+  submittedBy?: string;
   checklist?: ApiChecklistItem[];
   failedItems?: ApiChecklistItem[];
   notes?: string | null;
@@ -325,6 +331,15 @@ export default function NewFleetInspectionPage() {
     'IDLE',
   );
 
+  const { identity } = useDriverIdentity();
+
+  useEffect(() => {
+    setDriverName((current) =>
+      current && current !== 'Fleet Driver' ? current : identity.driverName,
+    );
+    setPermitNo((current) => current || identity.drivingPermitNo);
+  }, [identity.driverName, identity.drivingPermitNo]);
+
   async function loadVehicles() {
     setLoadingVehicles(true);
     setMessage('');
@@ -505,8 +520,13 @@ export default function NewFleetInspectionPage() {
     return {
       vehicleId,
       vehicleNo: selectedVehicle.registrationNo || vehicleSearch,
-      driverName: driverName.trim(),
-      drivingPermitNo: permitNo.trim() || null,
+      driverName: driverName.trim() || identity.driverName,
+      employeeNo: identity.employeeNo || undefined,
+      employeeNumber: identity.employeeNumber || undefined,
+      drivingPermitNo: permitNo.trim() || identity.drivingPermitNo || null,
+      department: identity.department,
+      site: selectedVehicle.site || identity.site,
+      submittedBy: identity.submittedBy,
 
       checklistPhase: 'PRE_START',
       inspectionType: 'PRE_START',

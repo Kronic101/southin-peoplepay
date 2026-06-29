@@ -14,6 +14,7 @@ import {
 
 import { createFleetTrip, getFleetVehicles } from '../../../src/api/fleet';
 import { enqueueOfflineRequest } from '../../../src/storage/offlineQueue';
+import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
@@ -63,6 +64,16 @@ export default function NewFleetTripPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'SUCCESS' | 'OFFLINE' | 'ERROR'>('IDLE');
+
+  const { identity } = useDriverIdentity();
+
+  useEffect(() => {
+    setDriverName((current) =>
+      current && current !== 'Fleet Driver' ? current : identity.driverName,
+    );
+    setDrivingPermitNo((current) => current || identity.drivingPermitNo);
+    setOrigin((current) => current || identity.site);
+  }, [identity.driverName, identity.drivingPermitNo, identity.site]);
 
   async function loadVehicles() {
     setLoadingVehicles(true);
@@ -156,8 +167,13 @@ export default function NewFleetTripPage() {
     return {
       vehicleId,
       tripDate: new Date().toISOString(),
-      driverName: driverName.trim(),
-      drivingPermitNo: drivingPermitNo.trim() || undefined,
+      driverName: driverName.trim() || identity.driverName,
+      employeeNo: identity.employeeNo || undefined,
+      employeeNumber: identity.employeeNumber || undefined,
+      drivingPermitNo: drivingPermitNo.trim() || identity.drivingPermitNo || undefined,
+      department: identity.department,
+      site: selectedVehicle.site || identity.site,
+      submittedBy: identity.submittedBy,
       purpose: purpose.trim(),
       origin: origin.trim(),
       destination: destination.trim(),

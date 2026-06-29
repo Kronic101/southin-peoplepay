@@ -14,6 +14,7 @@ import {
 
 import { createFleetDefect, getFleetVehicles } from '../../../src/api/fleet';
 import { enqueueOfflineRequest } from '../../../src/storage/offlineQueue';
+import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
@@ -57,6 +58,15 @@ export default function NewFleetDefectPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'SUCCESS' | 'OFFLINE' | 'ERROR'>('IDLE');
+
+  const { identity } = useDriverIdentity();
+
+  useEffect(() => {
+    setReportedBy((current) =>
+      current && current !== 'Fleet Driver' ? current : identity.driverName,
+    );
+    setLocation((current) => current || identity.site);
+  }, [identity.driverName, identity.site]);
 
   async function loadVehicles() {
     setLoadingVehicles(true);
@@ -138,10 +148,15 @@ export default function NewFleetDefectPage() {
       description: description.trim(),
       severity,
       status: 'OPEN',
-      reportedBy: reportedBy.trim() || 'Fleet Driver',
+      reportedBy: reportedBy.trim() || identity.driverName,
+      employeeNo: identity.employeeNo || undefined,
+      employeeNumber: identity.employeeNumber || undefined,
+      department: identity.department,
+      site: selectedVehicle.site || identity.site,
       odometer: odometer.trim() || undefined,
-      location: location.trim() || selectedVehicle.site || undefined,
+      location: location.trim() || selectedVehicle.site || identity.site || undefined,
       reportedAt: new Date().toISOString(),
+      submittedBy: identity.submittedBy,
       submittedFrom: 'MOBILE',
     };
   }

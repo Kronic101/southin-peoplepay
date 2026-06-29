@@ -14,6 +14,7 @@ import {
 
 import { createFleetFuelLog, getFleetVehicles } from '../../../src/api/fleet';
 import { enqueueOfflineRequest } from '../../../src/storage/offlineQueue';
+import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
@@ -71,6 +72,14 @@ export default function NewFleetFuelPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'SUCCESS' | 'OFFLINE' | 'ERROR'>('IDLE');
+
+  const { identity } = useDriverIdentity();
+
+  useEffect(() => {
+    setDriverName((current) =>
+      current && current !== 'Fleet Driver' ? current : identity.driverName,
+    );
+  }, [identity.driverName]);
 
   async function loadVehicles() {
     setLoadingVehicles(true);
@@ -165,7 +174,12 @@ export default function NewFleetFuelPage() {
       stationName: stationName.trim(),
       receiptNo: receiptNo.trim() || undefined,
       receiptDocumentId: receiptNo.trim() || undefined,
-      driverName: driverName.trim() || 'Fleet Driver',
+      driverName: driverName.trim() || identity.driverName,
+      employeeNo: identity.employeeNo || undefined,
+      employeeNumber: identity.employeeNumber || undefined,
+      department: identity.department,
+      site: selectedVehicle.site || identity.site,
+      submittedBy: identity.submittedBy,
       fuelDate: new Date().toISOString(),
       submittedFrom: 'MOBILE',
     };
