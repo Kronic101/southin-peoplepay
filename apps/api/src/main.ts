@@ -15,11 +15,17 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:8081',
+  'https://southinweb-production.up.railway.app',
+  ];
+
   app.enableCors({
-    origin: true,
-    credentials: true,
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   });
 
   const port = Number(process.env.PORT || 4000);
