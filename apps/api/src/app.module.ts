@@ -36,7 +36,9 @@ import { HealthController } from './health.controller';
     ApprovalsModule,
     FinanceModule,
     AssetsModule,
-    FleetModule,
+    FleetModule,    
+  ],
+  controllers: [
     HealthController,
   ]
 })

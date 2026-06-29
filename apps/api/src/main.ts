@@ -2,7 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 function parseOrigins(value?: string) {
-  if (!value) return true;
+  if (!value) {
+    return [
+      'http://localhost:3000',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://localhost:19006',
+      'https://southinweb-production.up.railway.app',
+    ];
+  }
 
   return value
     .split(',')
@@ -15,11 +23,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:8081',
-  'https://southinweb-production.up.railway.app',
-  ];
+  const allowedOrigins = parseOrigins(process.env.CORS_ORIGINS);
 
   app.enableCors({
     origin: allowedOrigins,
@@ -33,6 +37,6 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   console.log(`Southin PeoplePay API running on port ${port}`);
-  }
+}
 
 bootstrap();

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import { demoEnabled } from '@/lib/demo';
+
 type StaffRole =
   | 'PAYROLL_OFFICER'
   | 'HR_MANAGER'
@@ -129,8 +131,14 @@ export function RequireStaffRole({
             </div>
 
             <div className="employee-portal-nav-links">
-              <Link href="/workbench">Workbench</Link>
-              <Link href="/demo">Demo Guide</Link>
+              <Link href="/">Login</Link>
+
+              {demoEnabled ? (
+                <>
+                  <Link href="/workbench">Workbench</Link>
+                  <Link href="/demo">Demo Guide</Link>
+                </>
+              ) : null}
             </div>
           </nav>
 
@@ -141,18 +149,18 @@ export function RequireStaffRole({
               <p>{message}</p>
             </div>
 
-            <Link className="btn-secondary" href="/workbench">
-              Back to Workbench
+            <Link className="btn-secondary" href="/">
+              Return to Login
             </Link>
           </section>
 
           <section className="employee-panel">
-            <h2>Current Role</h2>
+            <h2>Current Access</h2>
 
             <div className="mini-detail-grid">
               <div>
                 <span>Detected Role</span>
-                <strong>{role || 'No staff role selected'}</strong>
+                <strong>{role || 'No staff role detected'}</strong>
               </div>
 
               <div>
@@ -161,36 +169,45 @@ export function RequireStaffRole({
               </div>
             </div>
 
-            <div className="notice" style={{ marginTop: '1rem' }}>
-              For demo testing, use the floating Dev Role selector and select HR Manager, Director,
-              Admin, Line Manager, or Supervisor before opening this page.
-            </div>
+            {demoEnabled ? (
+              <>
+                <div className="notice" style={{ marginTop: '1rem' }}>
+                  Local demo mode is enabled. Use the floating Dev Role selector, or choose a
+                  quick role below for local testing.
+                </div>
 
-            <div className="action-row" style={{ marginTop: '1rem' }}>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => {
-                  localStorage.setItem('southinDevRole', 'HR_MANAGER');
-                  localStorage.setItem('devRole', 'HR_MANAGER');
-                  window.location.reload();
-                }}
-              >
-                Use HR Manager Demo Role
-              </button>
+                <div className="action-row" style={{ marginTop: '1rem' }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('southinDevRole', 'HR_MANAGER');
+                      localStorage.setItem('devRole', 'HR_MANAGER');
+                      window.location.reload();
+                    }}
+                  >
+                    Use HR Manager Demo Role
+                  </button>
 
-              <button
-                className="btn-secondary"
-                type="button"
-                onClick={() => {
-                  localStorage.setItem('southinDevRole', 'ADMIN');
-                  localStorage.setItem('devRole', 'ADMIN');
-                  window.location.reload();
-                }}
-              >
-                Use Admin Demo Role
-              </button>
-            </div>
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('southinDevRole', 'ADMIN');
+                      localStorage.setItem('devRole', 'ADMIN');
+                      window.location.reload();
+                    }}
+                  >
+                    Use Admin Demo Role
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="notice" style={{ marginTop: '1rem' }}>
+                Please sign in using your Microsoft 365 account, or use Employee / Field Login if
+                you do not have a Microsoft 365 account.
+              </div>
+            )}
           </section>
         </section>
       </main>
