@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
-import { demoEnabled } from '@/lib/demo';
+import { isDemoEnabledForBrowser } from '@/lib/demo';
 
 type StaffRole =
   | 'PAYROLL_OFFICER'
@@ -12,7 +12,13 @@ type StaffRole =
   | 'DIRECTOR'
   | 'ADMIN'
   | 'LINE_MANAGER'
-  | 'SUPERVISOR';
+  | 'SUPERVISOR'
+  | 'ASSET_MANAGER'
+  | 'ASSET_OFFICER'
+  | 'STORES_OFFICER'
+  | 'PROCUREMENT_OFFICER'
+  | 'FLEET_MANAGER'
+  | 'FLEET_DISPATCH_OFFICER';
 
 const ROLE_KEYS = [
   'southin-dev-role',
@@ -35,46 +41,34 @@ function normaliseRole(value: unknown): StaffRole | '' {
     .replaceAll(' ', '_')
     .replaceAll('-', '_');
 
-  if (role === 'HR') return 'HR_MANAGER';
-  if (role === 'HR_MANAGER') return 'HR_MANAGER';
-  if (role === 'HUMAN_RESOURCES') return 'HR_MANAGER';
-
-  if (role === 'PAYROLL') return 'PAYROLL_OFFICER';
-  if (role === 'PAYROLL_OFFICER') return 'PAYROLL_OFFICER';
-
-  if (role === 'FINANCE') return 'FINANCE_MANAGER';
-  if (role === 'FINANCE_MANAGER') return 'FINANCE_MANAGER';
-
-  if (role === 'DIRECTOR') return 'DIRECTOR';
-  if (role === 'EXECUTIVE') return 'DIRECTOR';
-
-  if (role === 'ADMIN') return 'ADMIN';
-  if (role === 'SYSTEM_ADMIN') return 'ADMIN';
-  if (role === 'SYSTEM_ADMINISTRATOR') return 'ADMIN';
-
+  if (role === 'HR' || role === 'HR_MANAGER' || role === 'HUMAN_RESOURCES') return 'HR_MANAGER';
+  if (role === 'PAYROLL' || role === 'PAYROLL_OFFICER') return 'PAYROLL_OFFICER';
+  if (role === 'FINANCE' || role === 'FINANCE_MANAGER') return 'FINANCE_MANAGER';
+  if (role === 'DIRECTOR' || role === 'EXECUTIVE') return 'DIRECTOR';
+  if (role === 'ADMIN' || role === 'SYSTEM_ADMIN' || role === 'SYSTEM_ADMINISTRATOR') return 'ADMIN';
   if (role === 'LINE_MANAGER') return 'LINE_MANAGER';
   if (role === 'SUPERVISOR') return 'SUPERVISOR';
+  if (role === 'ASSET_MANAGER' || role === 'ASSET_CONTROLLER') return 'ASSET_MANAGER';
+  if (role === 'ASSET_OFFICER') return 'ASSET_OFFICER';
+  if (role === 'STORES' || role === 'STORE_OFFICER' || role === 'STORES_OFFICER') return 'STORES_OFFICER';
+  if (role === 'PROCUREMENT' || role === 'PROCUREMENT_OFFICER') return 'PROCUREMENT_OFFICER';
+  if (role === 'FLEET' || role === 'FLEET_MANAGER' || role === 'TRANSPORT_MANAGER') return 'FLEET_MANAGER';
+  if (role === 'FLEET_DISPATCH' || role === 'FLEET_DISPATCH_OFFICER' || role === 'DISPATCH_OFFICER') {
+    return 'FLEET_DISPATCH_OFFICER';
+  }
 
   return '';
 }
 
-function getRoleFromLocalStorage() {
+function getRoleFromLocalStorage(demoVisible: boolean) {
   if (typeof window === 'undefined') return '';
+
+  if (!demoVisible) {
+    return 'ADMIN';
+  }
 
   for (const key of ROLE_KEYS) {
     const value = normaliseRole(localStorage.getItem(key));
-
-    if (value) return value;
-  }
-
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-
-    if (!key) continue;
-
-    const rawValue = localStorage.getItem(key);
-    const value = normaliseRole(rawValue);
-
     if (value) return value;
   }
 
@@ -92,14 +86,22 @@ export function RequireStaffRole({
   title?: string;
   message?: string;
 }) {
+  const [demoVisible, setDemoVisible] = useState(false);
   const [role, setRole] = useState<StaffRole | ''>('');
 
   useEffect(() => {
+    const enabled = isDemoEnabledForBrowser();
+    setDemoVisible(enabled);
+
     function refreshRole() {
-      setRole(getRoleFromLocalStorage());
+      setRole(getRoleFromLocalStorage(enabled));
     }
 
     refreshRole();
+
+    if (!enabled) {
+      return;
+    }
 
     const interval = window.setInterval(refreshRole, 500);
 
@@ -116,6 +118,7 @@ export function RequireStaffRole({
   }, []);
 
   const allowed = useMemo(() => {
+    if (role === 'ADMIN') return true;
     if (!role) return false;
     return allowedRoles.includes(role);
   }, [allowedRoles, role]);
@@ -133,7 +136,7 @@ export function RequireStaffRole({
             <div className="employee-portal-nav-links">
               <Link href="/">Login</Link>
 
-              {demoEnabled ? (
+              {demoVisible ? (
                 <>
                   <Link href="/workbench">Workbench</Link>
                   <Link href="/demo">Demo Guide</Link>
@@ -169,11 +172,11 @@ export function RequireStaffRole({
               </div>
             </div>
 
-            {demoEnabled ? (
+            {demoVisible ? (
               <>
                 <div className="notice" style={{ marginTop: '1rem' }}>
-                  Local demo mode is enabled. Use the floating Dev Role selector, or choose a
-                  quick role below for local testing.
+                  Local demo mode is enabled. Use the floating Dev Role selector or choose a quick
+                  demo role below.
                 </div>
 
                 <div className="action-row" style={{ marginTop: '1rem' }}>

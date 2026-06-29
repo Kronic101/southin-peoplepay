@@ -13,14 +13,17 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-picker/picker": "2.11.4",
     "expo": "~56.0.12",
+    "expo-auth-session": "~56.0.14",
     "expo-camera": "^56.0.8",
     "expo-constants": "~56.0.18",
+    "expo-crypto": "~56.0.4",
     "expo-file-system": "^56.0.8",
     "expo-image-picker": "^56.0.18",
     "expo-linking": "~56.0.14",
     "expo-router": "^56.2.11",
     "expo-secure-store": "^56.0.4",
     "expo-status-bar": "~56.0.4",
+    "expo-web-browser": "~56.0.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
@@ -30,6 +33,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eas-cli": "^20.4.0",
     "typescript": "~6.0.3"
   },
   "private": true

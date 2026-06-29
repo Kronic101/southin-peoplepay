@@ -17,6 +17,7 @@ import { FinanceModule } from './finance/finance.module';
 import { AssetsModule } from './assets/assets.module';
 import { FleetModule } from './fleet/fleet.module';
 import { HealthController } from './health.controller';
+import { ApprovalMatrixModule } from './approvals/approval-matrix.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { HealthController } from './health.controller';
     FinanceModule,
     AssetsModule,
     FleetModule,    
+    ApprovalMatrixModule,
   ],
   controllers: [
     HealthController,

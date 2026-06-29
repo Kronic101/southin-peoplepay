@@ -1,6 +1,17 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+
+import { isDemoEnabledForBrowser } from '@/lib/demo';
 
 export default function LoginPage() {
+  const [demoVisible, setDemoVisible] = useState(false);
+
+  useEffect(() => {
+    setDemoVisible(isDemoEnabledForBrowser());
+  }, []);
+
   return (
     <main className="auth-page">
       <section className="auth-card">
@@ -9,8 +20,8 @@ export default function LoginPage() {
         <h1>Microsoft 365 Login</h1>
 
         <p>
-          For HR, Finance, Payroll, Directors, Line Managers, and System Administrators. Production
-          access will use Microsoft Entra ID.
+          For HR, Finance, Payroll, Directors, Line Managers, Asset Managers, Fleet Managers,
+          and System Administrators. Production access will use Microsoft Entra ID.
         </p>
 
         <div className="auth-form">
@@ -21,8 +32,13 @@ export default function LoginPage() {
 
         <div className="auth-footer">
           <Link href="/">Back home</Link>
-          <Link href="/workbench">Use demo workbench</Link>
-          <Link href="/demo">Open Demo Guide</Link>
+
+          {demoVisible ? (
+            <>
+              <Link href="/workbench">Use demo workbench</Link>
+              <Link href="/demo">Open Demo Guide</Link>
+            </>
+          ) : null}
         </div>
       </section>
     </main>

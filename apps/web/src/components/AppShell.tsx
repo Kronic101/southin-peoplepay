@@ -1,6 +1,7 @@
 'use client';
 
 import { APP_BRAND } from '@/lib/app-branding';
+import { isDemoEnabledForBrowser } from '@/lib/demo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,6 +21,7 @@ type StaffRole =
   | 'FLEET_MANAGER'
   | 'FLEET_DISPATCH_OFFICER'
   | '';
+
 type NavItem = {
   label: string;
   href: string;
@@ -100,12 +102,16 @@ function normaliseRole(value: unknown): StaffRole {
 function getStoredRole(): StaffRole {
   if (typeof window === 'undefined') return '';
 
+  if (!demoEnabled) {
+    return 'ADMIN';
+  }
+
   for (const key of ROLE_KEYS) {
     const role = normaliseRole(localStorage.getItem(key));
     if (role) return role;
   }
 
-  return '';
+  return 'ADMIN';
 }
 
 function roleCanSee(item: NavItem, role: StaffRole) {
@@ -115,50 +121,53 @@ function roleCanSee(item: NavItem, role: StaffRole) {
   return item.roles.includes(role);
 }
 
+const demoNavItems: NavItem[] = [
+  {
+    label: 'Workbench',
+    href: '/workbench',
+    roles: [
+      '',
+      'HR_MANAGER',
+      'PAYROLL_OFFICER',
+      'FINANCE_MANAGER',
+      'DIRECTOR',
+      'ADMIN',
+      'LINE_MANAGER',
+      'SUPERVISOR',
+      'ASSET_MANAGER',
+      'ASSET_OFFICER',
+      'STORES_OFFICER',
+      'PROCUREMENT_OFFICER',
+      'FLEET_MANAGER',
+      'FLEET_DISPATCH_OFFICER',
+    ],
+  },
+  {
+    label: 'Demo Guide',
+    href: '/demo',
+    roles: [
+      '',
+      'HR_MANAGER',
+      'PAYROLL_OFFICER',
+      'FINANCE_MANAGER',
+      'DIRECTOR',
+      'ADMIN',
+      'LINE_MANAGER',
+      'SUPERVISOR',
+      'ASSET_MANAGER',
+      'ASSET_OFFICER',
+      'STORES_OFFICER',
+      'PROCUREMENT_OFFICER',
+      'FLEET_MANAGER',
+      'FLEET_DISPATCH_OFFICER',
+    ],
+  },
+];
+
 const navSections: NavSection[] = [
   {
     title: 'Core',
     items: [
-      {
-        label: 'Workbench',
-        href: '/workbench',
-        roles: [
-          '',
-          'HR_MANAGER',
-          'PAYROLL_OFFICER',
-          'FINANCE_MANAGER',
-          'DIRECTOR',
-          'ADMIN',
-          'LINE_MANAGER',
-          'SUPERVISOR',
-          'ASSET_MANAGER',
-          'ASSET_OFFICER',
-          'STORES_OFFICER',
-          'PROCUREMENT_OFFICER',
-          'FLEET_MANAGER',
-          'FLEET_DISPATCH_OFFICER',
-        ],
-      },
-      {
-        label: 'Demo Guide',
-        href: '/demo',
-        roles: [
-          '',
-          'HR_MANAGER',
-          'PAYROLL_OFFICER',
-          'FINANCE_MANAGER',
-          'DIRECTOR',
-          'ADMIN',
-          'LINE_MANAGER',
-          'SUPERVISOR',
-          'ASSET_MANAGER',
-          'ASSET_OFFICER',
-          'STORES_OFFICER',
-          'PROCUREMENT_OFFICER',
-          'FLEET_MANAGER',
-          'FLEET_DISPATCH_OFFICER',
-        ],
-      },
       {
         label: 'Dashboard',
         href: '/dashboard',
@@ -293,11 +302,6 @@ const navSections: NavSection[] = [
         roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
       },
       {
-        label: 'Payroll Audit',
-        href: '/reports/payroll-audit',
-        roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
-      },
-      {
         label: 'Finance Evidence',
         href: '/finance/approval-evidence',
         roles: ['FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
@@ -372,9 +376,10 @@ const navSections: NavSection[] = [
         href: '/assets/qr-scan',
         roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
       },
-      { label: 'Import', 
-        href: '/assets/import-preview', 
-        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER','ASSET_MANAGER', 'STORES_OFFICER'] 
+      {
+        label: 'Import',
+        href: '/assets/import-preview',
+        roles: ['DIRECTOR', 'ADMIN', 'FINANCE_MANAGER', 'ASSET_MANAGER', 'STORES_OFFICER'],
       },
     ],
   },
@@ -456,36 +461,36 @@ const navSections: NavSection[] = [
         href: '/admin',
         roles: ['ADMIN'],
       },
+      {
+        label: 'Approval Matrix',
+        href: '/admin/approval-matrix',
+        roles: ['ADMIN', 'DIRECTOR'],
+      },
     ],
   },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [role, setRole] = useState<StaffRole>('');
+  const [demoVisible, setDemoVisible] = useState(false);
 
   useEffect(() => {
-    function refreshRole() {
-      setRole(getStoredRole());
-    }
-
-    refreshRole();
-
-    const interval = window.setInterval(refreshRole, 700);
-    window.addEventListener('storage', refreshRole);
-    window.addEventListener('focus', refreshRole);
-    window.addEventListener('click', refreshRole);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('storage', refreshRole);
-      window.removeEventListener('focus', refreshRole);
-      window.removeEventListener('click', refreshRole);
-    };
+    setDemoVisible(isDemoEnabledForBrowser());
   }, []);
 
   const visibleSections = useMemo(() => {
-    return navSections
+    const sections = navSections.map((section) => {
+      if (section.title === 'Core' && demoEnabled) {
+        return {
+          ...section,
+          items: [...demoNavItems, ...section.items],
+        };
+      }
+
+      return section;
+    });
+
+    return sections
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => roleCanSee(item, role)),
@@ -496,7 +501,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <Link className="app-brand" href="/workbench">
+        <Link className="app-brand" href={demoEnabled ? '/workbench' : '/dashboard'}>
           <span className="app-brand-mark">SP</span>
           <span>
             <strong>{APP_BRAND.platformName}</strong>
@@ -504,10 +509,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
 
-        <div className="sidebar-role-box">
-          <span>Current Staff Role</span>
-          <strong>{role ? role.replaceAll('_', ' ') : 'No role selected'}</strong>
-        </div>
+        {demoEnabled ? (
+          <div className="sidebar-role-box">
+            <span>Current Staff Role</span>
+            <strong>{role ? role.replaceAll('_', ' ') : 'No role selected'}</strong>
+          </div>
+        ) : null}
 
         <nav className="app-nav">
           {visibleSections.map((section) => (
@@ -535,7 +542,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="employee-only-note">
           <strong>Employee access</strong>
-          <span>Employees use employee login only and do not use this staff ribbon.</span>
+          <span>Employees use employee login only and do not use the staff ribbon.</span>
           <Link href="/employee-login">Open Employee Login</Link>
         </div>
       </aside>

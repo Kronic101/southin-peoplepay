@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { isDemoEnabledForBrowser } from '@/lib/demo';
+
 type DevRole =
   | 'PAYROLL_OFFICER'
   | 'HR_MANAGER'
@@ -9,7 +11,11 @@ type DevRole =
   | 'DIRECTOR'
   | 'ADMIN'
   | 'LINE_MANAGER'
-  | 'SUPERVISOR';
+  | 'SUPERVISOR'
+  | 'ASSET_MANAGER'
+  | 'STORES_OFFICER'
+  | 'FLEET_MANAGER'
+  | 'FLEET_DISPATCH_OFFICER';
 
 const roleOptions: { label: string; value: DevRole }[] = [
   { label: 'Payroll', value: 'PAYROLL_OFFICER' },
@@ -19,12 +25,16 @@ const roleOptions: { label: string; value: DevRole }[] = [
   { label: 'Admin', value: 'ADMIN' },
   { label: 'Line Mgr', value: 'LINE_MANAGER' },
   { label: 'Supervisor', value: 'SUPERVISOR' },
+  { label: 'Asset Mgr', value: 'ASSET_MANAGER' },
+  { label: 'Stores', value: 'STORES_OFFICER' },
+  { label: 'Fleet Mgr', value: 'FLEET_MANAGER' },
+  { label: 'Dispatch', value: 'FLEET_DISPATCH_OFFICER' },
 ];
 
 const ROLE_KEYS = ['southinDevRole', 'southin-dev-role', 'devRole', 'role', 'x-user-role'];
 
 function getStoredRole(): DevRole {
-  if (typeof window === 'undefined') return 'PAYROLL_OFFICER';
+  if (typeof window === 'undefined') return 'ADMIN';
 
   const stored =
     localStorage.getItem('southinDevRole') ||
@@ -33,7 +43,7 @@ function getStoredRole(): DevRole {
     localStorage.getItem('role') ||
     localStorage.getItem('x-user-role');
 
-  return (stored || 'PAYROLL_OFFICER') as DevRole;
+  return (stored || 'ADMIN') as DevRole;
 }
 
 function saveRole(role: DevRole) {
@@ -43,9 +53,17 @@ function saveRole(role: DevRole) {
 }
 
 export function FloatingDevRoleSelector() {
-  const [role, setRole] = useState<DevRole>('PAYROLL_OFFICER');
+  const [demoVisible, setDemoVisible] = useState(false);
+  const [role, setRole] = useState<DevRole>('ADMIN');
 
   useEffect(() => {
+    const enabled = isDemoEnabledForBrowser();
+    setDemoVisible(enabled);
+
+    if (!enabled) {
+      return;
+    }
+
     const currentRole = getStoredRole();
     setRole(currentRole);
     saveRole(currentRole);
@@ -55,6 +73,10 @@ export function FloatingDevRoleSelector() {
     setRole(nextRole);
     saveRole(nextRole);
     window.dispatchEvent(new Event('storage'));
+  }
+
+  if (!demoVisible) {
+    return null;
   }
 
   return (

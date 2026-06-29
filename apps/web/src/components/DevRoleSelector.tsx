@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
+import { isDemoEnabledForBrowser } from '@/lib/demo';
 import {
   DEV_ROLE_LABELS,
   DEV_ROLES,
@@ -10,9 +12,17 @@ import {
 } from '@/lib/dev-role';
 
 export function DevRoleSelector() {
+  const [demoVisible, setDemoVisible] = useState(false);
   const [role, setRole] = useState<DevRole>('ADMIN');
 
   useEffect(() => {
+    const enabled = isDemoEnabledForBrowser();
+    setDemoVisible(enabled);
+
+    if (!enabled) {
+      return;
+    }
+
     setRole(getDevRole());
 
     const onRoleChanged = (event: Event) => {
@@ -31,6 +41,10 @@ export function DevRoleSelector() {
     const selectedRole = value as DevRole;
     setRole(selectedRole);
     setDevRole(selectedRole);
+  }
+
+  if (!demoVisible) {
+    return null;
   }
 
   return (
@@ -70,3 +84,5 @@ export function DevRoleSelector() {
     </div>
   );
 }
+
+export default DevRoleSelector;

@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 13.0.0"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://southinapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "true"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://southinapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "false"
+      }
+    }
+  }
+}
