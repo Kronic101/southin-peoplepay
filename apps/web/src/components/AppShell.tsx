@@ -99,8 +99,8 @@ function normaliseRole(value: unknown): StaffRole {
   return '';
 }
 
-function getStoredRole(): StaffRole {
-  if (typeof window === 'undefined') return '';
+function getStoredRole(demoEnabled: boolean): StaffRole {
+  if (typeof window === 'undefined') return 'ADMIN';
 
   if (!demoEnabled) {
     return 'ADMIN';
@@ -472,10 +472,27 @@ const navSections: NavSection[] = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [demoVisible, setDemoVisible] = useState(false);
+
+  const [demoEnabled, setDemoEnabled] = useState(false);
+  const [role, setRole] = useState<StaffRole>('ADMIN');
 
   useEffect(() => {
-    setDemoVisible(isDemoEnabledForBrowser());
+    const enabled = isDemoEnabledForBrowser();
+
+    setDemoEnabled(enabled);
+    setRole(getStoredRole(enabled));
+
+    function refreshRole() {
+      setRole(getStoredRole(enabled));
+    }
+
+    window.addEventListener('storage', refreshRole);
+    window.addEventListener('focus', refreshRole);
+
+    return () => {
+      window.removeEventListener('storage', refreshRole);
+      window.removeEventListener('focus', refreshRole);
+    };
   }, []);
 
   const visibleSections = useMemo(() => {
