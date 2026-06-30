@@ -184,3 +184,45 @@ export const resolveApprovalApprover = (payload: any) =>
     method: 'POST',
     body: JSON.stringify(payload),
   });
+
+export type ApprovalWorkflowRecord = {
+  id: string;
+  module: string;
+  workflowType: string;
+  requestTitle: string;
+  requestReference?: string | null;
+  requestDescription?: string | null;
+  requesterName?: string | null;
+  requesterRole?: string | null;
+  requesterDepartment?: string | null;
+  requesterSite?: string | null;
+  amount?: string | number | null;
+  sourceEntityType?: string | null;
+  sourceEntityId?: string | null;
+  status: string;
+  currentStep: number;
+  payload?: any;
+  submittedAt?: string;
+  createdAt?: string;
+  decisions?: any[];
+};
+
+export const getApprovalWorkflows = () =>
+  request<ApprovalWorkflowRecord[]>('/approvals/workflows');
+
+export const getApprovalInbox = (email?: string) =>
+  request<ApprovalWorkflowRecord[]>(
+    email ? `/approvals/workflows/inbox?email=${encodeURIComponent(email)}` : '/approvals/workflows/inbox',
+  );
+
+export const approveApprovalWorkflow = (id: string, payload: any) =>
+  request<any>(`/approvals/workflows/${id}/approve`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+
+export const rejectApprovalWorkflow = (id: string, payload: any) =>
+  request<any>(`/approvals/workflows/${id}/reject`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });

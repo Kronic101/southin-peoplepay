@@ -476,6 +476,11 @@ const navSections: NavSection[] = [
         href: '/admin/approval-delegations',
         roles: ['ADMIN', 'DIRECTOR'],
       },
+      {
+        label: 'Approval Inbox',
+        href: '/approvals/inbox',
+        roles: ['ADMIN', 'DIRECTOR', 'FINANCE_MANAGER', 'HR_MANAGER', 'LINE_MANAGER','SUPERVISOR', 'ASSET_MANAGER', 'FLEET_MANAGER', 'FLEET_DISPATCH_OFFICER'],
+      },
     ],
   },
 ];
