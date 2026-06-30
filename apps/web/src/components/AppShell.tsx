@@ -444,6 +444,38 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Stores',
+    items:[
+      {
+        label: 'Stores Requisitions',
+        href: '/stores/requisitions',
+        roles: [
+          'ADMIN',
+          'DIRECTOR',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+          'ASSET_MANAGER',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
+      {
+        label: 'New Stores Requisition',
+        href: '/stores/requisitions/new',
+        roles: [
+          'ADMIN',
+          'DIRECTOR',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+          'ASSET_MANAGER',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
+
+    ]
+  },
+  {
     title: 'Administration',
     items: [
       {

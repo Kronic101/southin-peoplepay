@@ -63,17 +63,23 @@ function getCurrentStepLabel(record: ApprovalWorkflowRecord) {
   const firstStep = payload.firstStep;
 
   if (nextStep?.label) return nextStep.label;
-  if (firstStep?.label) return firstStep.label;
+  if (firstStep?.label && Number(record.currentStep || 1) === Number(firstStep.sequence || 1)) {
+    return firstStep.label;
+  }
 
-  return `Step ${record.currentStep || 1}`;
+  return (record as any).currentStepRole || `Step ${record.currentStep || 1}`;
 }
 
 function getCurrentRole(record: ApprovalWorkflowRecord) {
   const payload = getPayload(record);
-  const nextStep = payload.nextStep;
-  const firstStep = payload.firstStep;
 
-  return nextStep?.role || firstStep?.role || '-';
+  return (
+    (record as any).currentStepRole ||
+    (record as any).currentApprovalRole ||
+    payload?.nextStep?.role ||
+    payload?.firstStep?.role ||
+    '-'
+  );
 }
 
 function getCurrentApprover(record: ApprovalWorkflowRecord) {
@@ -81,9 +87,11 @@ function getCurrentApprover(record: ApprovalWorkflowRecord) {
   const resolved = payload.resolvedApprover;
 
   return (
+    (record as any).currentApproverEmail ||
+    (record as any).assignedToEmail ||
+    (record as any).approverEmail ||
     resolved?.approver?.email ||
     resolved?.originalApprover?.email ||
-    record.decisions?.find((item: any) => item.status === 'PENDING')?.approverEmail ||
     '-'
   );
 }
