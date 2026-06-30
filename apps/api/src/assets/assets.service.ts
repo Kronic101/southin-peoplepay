@@ -11,9 +11,11 @@ import {
   PostAssetImportBatchDto,
 } from './dto/asset-import.dto';
 
+import { ApprovalWorkflowService } from '../approvals/approval-workflow.service';
+
 type CsvRow = Record<string, string>;
 
-function clean(value: unknown) {
+function clean(value: unknown) {  
   return String(value ?? '').trim();
 }
 
@@ -129,7 +131,10 @@ function itemTypeDefault(value: unknown) {
 
 @Injectable()
 export class AssetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   private db() {
     return this.prisma as any;
@@ -869,7 +874,15 @@ export class AssetsService {
       throw new BadRequestException('At least one movement line is required.');
     }
 
-    return this.db().stockMovement.create({
+    const missingStockItemLine = lines.find((line: any) => !clean(line.stockItemId));
+
+    if (missingStockItemLine) {
+      throw new BadRequestException(
+        'Asset movement lines require stockItemId. For general stores consumables, use /api/stores/requisitions instead.',
+      );
+    }
+
+    const movement = await this.db().stockMovement.create({
       data: {
         movementNo: body.movementNo || makeMovementNo(),
         movementType: clean(body.movementType || 'ISSUE').toUpperCase(),
@@ -880,6 +893,7 @@ export class AssetsService {
         requestedByEmail: body.requestedByEmail || null,
         department: body.department || null,
         site: body.site || body.branch || null,
+        branch: body.branch || null,
         projectCode: body.projectCode || null,
         reason: body.reason || null,
         referenceType: body.referenceType || null,
@@ -890,8 +904,9 @@ export class AssetsService {
           create: lines.map((line: any) => {
             const quantity = this.decimal(line.quantity || 1);
             const unitCost = this.decimal(line.unitCost || 0);
+
             return {
-              stockItemId: line.stockItemId,
+              stockItemId: clean(line.stockItemId),
               quantity,
               unitCost,
               totalCost: quantity.mul(unitCost),
@@ -901,17 +916,53 @@ export class AssetsService {
           }),
         },
       },
-      include: {
-        fromLocation: true,
-        toLocation: true,
-        lines: {
-          include: {
-            stockItem: true,
-            qrTag: true,
-          },
-        },
-      },
+      include: this.movementInclude(),
     });
+
+    const totalValue = (movement.lines || []).reduce((sum: number, line: any) => {
+      return sum + Number(line.totalCost || 0);
+    }, 0);
+
+    const approvalWorkflow = await this.approvalWorkflowService.startWorkflowSafe({
+      module: 'ASSET_MANAGEMENT',
+      workflowType: 'ASSET_MOVEMENT',
+      sourceType: 'ASSET_MOVEMENT',
+      sourceId: movement.id,
+      requestNo: movement.movementNo,
+      title: `Asset movement approval - ${movement.movementNo}`,
+      description: movement.reason || `Asset movement ${movement.movementType}`,
+      requestedBy: movement.requestedBy,
+      requestedByEmail: movement.requestedByEmail,
+      requesterRole: 'ASSET_REQUESTER',
+      department: movement.department,
+      site: movement.site,
+      branch: movement.branch,
+      amount: totalValue,
+      currency: 'ZMW',
+      payload: movement,
+    });
+
+    const approvalRequestId = (approvalWorkflow as any)?.approvalRequest?.id || null;
+
+    if (approvalRequestId) {
+      const updatedMovement = await this.db().stockMovement.update({
+        where: { id: movement.id },
+        data: {
+          approvalRequestId,
+        },
+        include: this.movementInclude(),
+      });
+
+      return {
+        ...this.mapMovementControlStatus(updatedMovement),
+        approvalWorkflow,
+      };
+    }
+
+    return {
+      ...this.mapMovementControlStatus(movement),
+      approvalWorkflow,
+    };
   }
 
   async approveMovement(id: string, body: any) {

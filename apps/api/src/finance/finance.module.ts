@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
+import { ApprovalMatrixModule } from '../approvals/approval-matrix.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
+import { PrismaModule } from '../prisma/prisma.module';
 import { FinanceController } from './finance.controller';
 import { FinanceService } from './finance.service';
-import { PrismaModule } from '../prisma/prisma.module';
-import { ApprovalsModule } from '../approvals/approvals.module';
 
 /**
  * FinanceModule
@@ -13,9 +14,9 @@ import { ApprovalsModule } from '../approvals/approvals.module';
  * to the shared Approval Matrix engine.
  */
 @Module({
-  imports: [PrismaModule, ApprovalsModule],
+  imports: [PrismaModule, ApprovalsModule, ApprovalMatrixModule],
   controllers: [FinanceController],
   providers: [FinanceService],
-  exports: [FinanceService],
+  exports: [FinanceService], 
 })
 export class FinanceModule {}

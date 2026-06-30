@@ -2216,6 +2216,77 @@ model AssetImportLine {
   @@index([legacyCode])
 }
 
+model StoresRequisition {
+  id                String   @id @default(uuid())
+  requisitionNo     String   @unique
+
+  title             String?
+  description       String?
+  reason            String?
+
+  requestedBy       String?
+  requestedByEmail  String?
+  requesterRole     String?
+
+  department        String?
+  departmentId      String?
+  site              String?
+  branch            String?
+  projectCode       String?
+
+  status            String   @default("SUBMITTED")
+  approvalRequestId String?
+
+  totalValue        Decimal  @default(0)
+  currency          String   @default("ZMW")
+
+  submittedAt       DateTime @default(now())
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+
+  payload           Json?
+
+  lines             StoresRequisitionLine[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([requisitionNo])
+  @@index([status])
+  @@index([site])
+  @@index([branch])
+  @@index([department])
+  @@index([approvalRequestId])
+}
+
+model StoresRequisitionLine {
+  id             String   @id @default(uuid())
+  requisitionId  String
+  requisition    StoresRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  stockItemId    String?
+  itemCode       String?
+  itemName       String
+  description    String?
+  unitOfMeasure  String   @default("EA")
+
+  quantity       Decimal  @default(1)
+  unitCost       Decimal  @default(0)
+  totalCost      Decimal  @default(0)
+
+  notes          String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([requisitionId])
+  @@index([stockItemId])
+  @@index([itemCode])
+}
+
 enum FleetVehicleStatus {
   ACTIVE
   ASSIGNED

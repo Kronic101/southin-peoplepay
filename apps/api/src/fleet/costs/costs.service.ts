@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ApprovalWorkflowService } from '../../approvals/approval-workflow.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 function clean(value: unknown) {
@@ -14,10 +15,34 @@ function removeUndefined<T extends Record<string, any>>(data: T): T {
 
 @Injectable()
 export class FleetCostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   private db() {
     return this.prisma as any;
+  }
+
+  private async startFleetCostApproval(cost: any) {
+    return this.approvalWorkflowService.startWorkflowSafe({
+      module: 'FLEET',
+      workflowType: 'FLEET_COST',
+      sourceType: 'FLEET_COST',
+      sourceId: cost.id,
+      requestNo: cost.costNo,
+      title: `Fleet cost approval - ${cost.costNo}`,
+      description: cost.description || `Fleet cost ${cost.costNo}`,
+      requestedBy: cost.requestedBy || cost.driverName || cost.postedBy || 'Fleet User',
+      requestedByEmail: cost.requestedByEmail || null,
+      requesterRole: 'FLEET_REQUESTER',
+      department: cost.department || 'Operations',
+      site: cost.site || null,
+      branch: cost.branch || null,
+      amount: cost.amount,
+      currency: 'ZMW',
+      payload: cost,
+    });
   }
 
   async getCosts() {
@@ -68,11 +93,16 @@ export class FleetCostsService {
   async reviewCost(id: string, body: any) {
     const cost = await this.db().fleetCostPosting.findUnique({
       where: { id },
+      include: {
+        vehicle: true,
+      },
     });
 
     if (!cost) {
       throw new NotFoundException('Fleet cost posting not found.');
     }
+
+    const approvalWorkflow = await this.startFleetCostApproval(cost);
 
     const decision = clean(body.decision).toUpperCase();
 
@@ -87,10 +117,12 @@ export class FleetCostsService {
           ? 'APPROVED_FOR_FINANCE'
           : 'PENDING_FINANCE_REVIEW';
 
-    return this.db().fleetCostPosting.update({
+    const updated = await this.db().fleetCostPosting.update({
       where: { id },
       data: removeUndefined({
         status,
+        reviewedBy: clean(body.reviewedBy) || clean(body.approvedBy) || 'Finance Manager',
+        reviewedAt: new Date(),
         rejectionReason:
           decision === 'REJECTED'
             ? clean(body.rejectionReason) || clean(body.comments) || 'Rejected by Finance.'
@@ -100,6 +132,11 @@ export class FleetCostsService {
         vehicle: true,
       },
     });
+
+    return {
+      ...updated,
+      approvalWorkflow,
+    };
   }
 
   async postToFinance(id: string, body: any) {
@@ -117,9 +154,7 @@ export class FleetCostsService {
     }
 
     if (cost.status !== 'APPROVED_FOR_FINANCE' && cost.status !== 'POSTED_TO_FINANCE') {
-      throw new BadRequestException(
-        'Only costs approved for finance can be posted to Finance.',
-      );
+      throw new BadRequestException('Only costs approved for finance can be posted to Finance.');
     }
 
     if (cost.status === 'POSTED_TO_FINANCE' && cost.financeExpenseId) {
@@ -143,7 +178,7 @@ export class FleetCostsService {
   }
 
   private getModelFieldNames(modelName: string): string[] {
-    const model = (this.db() as any)?._runtimeDataModel?.models?.[modelName];
+    const model = this.db()?._runtimeDataModel?.models?.[modelName];
 
     if (!model?.fields) {
       return [];
@@ -160,9 +195,7 @@ export class FleetCostsService {
     }
 
     return removeUndefined(
-      Object.fromEntries(
-        Object.entries(data).filter(([key]) => fields.includes(key)),
-      ),
+      Object.fromEntries(Object.entries(data).filter(([key]) => fields.includes(key))),
     );
   }
 

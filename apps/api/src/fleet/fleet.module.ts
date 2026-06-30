@@ -30,6 +30,10 @@ import { FleetCostsService } from './costs/costs.service';
 import { FleetInspectionsController } from './inspections/inspections.controller';
 import { FleetInspectionsService } from './inspections/inspections.service';
 
+import { ApprovalMatrixModule } from '../approvals/approval-matrix.module';
+import { PrismaModule } from '../prisma/prisma.module'
+
+
 @Module({
   controllers: [
     FleetController,
@@ -55,5 +59,6 @@ import { FleetInspectionsService } from './inspections/inspections.service';
     FleetCostsService,
     FleetInspectionsService,
   ],
+  imports: [PrismaModule, ApprovalMatrixModule]
 })
 export class FleetModule {}

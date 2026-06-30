@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { ApprovalWorkflowService } from '../approvals/approval-workflow.service';
 
 /**
  * FinanceService
@@ -29,6 +30,7 @@ import { ApprovalsService } from '../approvals/approvals.service';
 export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
     private readonly approvalsService: ApprovalsService,
   ) {}
 
@@ -262,7 +264,7 @@ export class FinanceService {
       });
     }
 
-    const nextStep = approvalRequest.decisions.find((item) => item.status === 'PENDING');
+    const nextStep = approvalRequest.decisions.find((item: any) => item.status === 'PENDING');
 
     if (!nextStep) {
       throw new BadRequestException('No pending approval step found.');
@@ -300,7 +302,7 @@ export class FinanceService {
     }
 
     const approvalRequest = await this.approvalsService.getApprovalRequest(expense.approvalRequestId);
-    const nextStep = approvalRequest.decisions.find((item) => item.status === 'PENDING');
+    const nextStep = approvalRequest.decisions.find((item: any) => item.status === 'PENDING');
 
     if (!nextStep) {
       throw new BadRequestException('No pending approval step found.');
@@ -472,7 +474,7 @@ export class FinanceService {
     }
 
     const approvalRequest = await this.approvalsService.getApprovalRequest(record.approvalRequestId);
-    const nextStep = approvalRequest.decisions.find((item) => item.status === 'PENDING');
+    const nextStep = approvalRequest.decisions.find((item: any) => item.status === 'PENDING');
 
     if (!nextStep) {
       throw new BadRequestException('No pending approval step found.');
@@ -508,7 +510,7 @@ export class FinanceService {
     }
 
     const approvalRequest = await this.approvalsService.getApprovalRequest(record.approvalRequestId);
-    const nextStep = approvalRequest.decisions.find((item) => item.status === 'PENDING');
+    const nextStep = approvalRequest.decisions.find((item: any) => item.status === 'PENDING');
 
     if (!nextStep) {
       throw new BadRequestException('No pending approval step found.');
