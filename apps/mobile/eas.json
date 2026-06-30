@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 13.0.0"
+    "version": ">= 20.4.0",
+    "appVersionSource": "local"
   },
   "build": {
     "preview": {
@@ -10,10 +11,12 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://southinapi-production.up.railway.app/api",
-        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "true"
+        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "EXPO_PUBLIC_API_URL","https://southinapi-production.up.railway.app/api":"true"
+        
       }
     },
     "production": {
+      "distribution": "store",
       "android": {
         "buildType": "app-bundle"
       },

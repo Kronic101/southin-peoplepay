@@ -1,37 +1,52 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Southin Operations Hub",
+    "slug": "southin-operations-hub-mobile",
+    "scheme": "southinoperationshub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "platforms": [
+      "android"
+    ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.southin.operationshub",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
-    
+      "expo-secure-store",
       [
         "expo-camera",
         {
           "cameraPermission": "Allow Southin Operations Hub to scan asset QR codes."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "35682025-a6d7-4986-b391-b05d6fd30055"
+      }
+    }
   }
 }
-
