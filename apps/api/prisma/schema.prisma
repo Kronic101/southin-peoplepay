@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -46,6 +46,9 @@ model Department {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   employees   Employee[]
+
+  approvalApproverAssignments ApprovalApproverAssignment[] @relation("DepartmentApprovalApproverAssignments")
+  approvalDelegations         ApprovalDelegation[]         @relation("DepartmentApprovalDelegations")
 }
 
 model JobTitle {
@@ -77,45 +80,45 @@ model EmploymentType {
 }
 
 model Employee {
-  id                String                     @id @default(uuid())
-  employeeNumber    String                     @unique
-  firstName         String
-  middleName        String?
-  lastName          String
-  gender            String?
-  dateOfBirth       DateTime?
-  nrcNumber         String?
-  email             String?
-  phone             String?
-  departmentId      String?
-  jobTitleId        String?
-  siteId            String?
-  employmentTypeId  String?
-  supervisorId      String?
-  startDate         DateTime?
-  endDate           DateTime?
-  status            EmployeeStatus             @default(DRAFT)
-  createdAt         DateTime                   @default(now())
-  updatedAt         DateTime                   @updatedAt
-  department        Department?                @relation(fields: [departmentId], references: [id])
-  employmentType    EmploymentType?            @relation(fields: [employmentTypeId], references: [id])
-  jobTitle          JobTitle?                  @relation(fields: [jobTitleId], references: [id])
-  site              Site?                      @relation(fields: [siteId], references: [id])
-  supervisor        Employee?                  @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
-  directReports     Employee[]                 @relation("EmployeeSupervisor")
-  bankAuditLogs     EmployeeBankAuditLog[]
+  id               String                 @id @default(uuid())
+  employeeNumber   String                 @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  gender           String?
+  dateOfBirth      DateTime?
+  nrcNumber        String?
+  email            String?
+  phone            String?
+  departmentId     String?
+  jobTitleId       String?
+  siteId           String?
+  employmentTypeId String?
+  supervisorId     String?
+  startDate        DateTime?
+  endDate          DateTime?
+  status           EmployeeStatus         @default(DRAFT)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  department       Department?            @relation(fields: [departmentId], references: [id])
+  employmentType   EmploymentType?        @relation(fields: [employmentTypeId], references: [id])
+  jobTitle         JobTitle?              @relation(fields: [jobTitleId], references: [id])
+  site             Site?                  @relation(fields: [siteId], references: [id])
+  supervisor       Employee?              @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  directReports    Employee[]             @relation("EmployeeSupervisor")
+  bankAuditLogs    EmployeeBankAuditLog[]
 
-  bankAccounts      EmployeeBankAccount[]
+  bankAccounts          EmployeeBankAccount[]
   bankName              String?
   bankBranch            String?
   bankAccountNumber     String?
   bankAccountName       String?
   bankSortCode          String?
-  bankDetailsStatus     String?   @default("PENDING_VALIDATION")
+  bankDetailsStatus     String?               @default("PENDING_VALIDATION")
   bankDetailsReviewedBy String?
   bankDetailsReviewedAt DateTime?
   bankDetailsNotes      String?
-  
+
   contracts         EmployeeContract[]
   portalAccount     EmployeePortalAccount?
   serviceConditions EmployeeServiceCondition[]
@@ -124,7 +127,7 @@ model Employee {
   payrollRuns       PayrollRunEmployee[]
   payslips          Payslip[]
 
-  leaveRequests     LeaveRequest[]
+  leaveRequests LeaveRequest[]
 }
 
 model EmployeePortalAccount {
@@ -157,32 +160,32 @@ model EmployeeStatutoryDetails {
 }
 
 model EmployeeBankAccount {
-  id             String         @id @default(uuid())
+  id             String                 @id @default(uuid())
   employeeId     String
   bankName       String
   branchName     String?
   accountNumber  String
   accountName    String
-  isPrimary      Boolean        @default(false)
-  approvalStatus ApprovalStatus @default(PENDING)
+  isPrimary      Boolean                @default(false)
+  approvalStatus ApprovalStatus         @default(PENDING)
   effectiveFrom  DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  employee       Employee       @relation(fields: [employeeId], references: [id])
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  employee       Employee               @relation(fields: [employeeId], references: [id])
   auditLogs      EmployeeBankAuditLog[]
 }
 
 model EmployeeBankAuditLog {
-  id            String   @id @default(uuid())
-  employeeId    String
-  bankAccountId String?
-  action        String
+  id             String   @id @default(uuid())
+  employeeId     String
+  bankAccountId  String?
+  action         String
   previousStatus String?
   newStatus      String?
-  changedBy     String
-  notes         String?
-  snapshot      Json?
-  createdAt     DateTime @default(now())
+  changedBy      String
+  notes          String?
+  snapshot       Json?
+  createdAt      DateTime @default(now())
 
   employee    Employee             @relation(fields: [employeeId], references: [id])
   bankAccount EmployeeBankAccount? @relation(fields: [bankAccountId], references: [id])
@@ -303,23 +306,23 @@ model PayrollRun {
 }
 
 model PayrollRunEmployee {
-  id              String             @id @default(uuid())
-  payrollRunId    String
-  employeeId      String
-  grossPay        Decimal            @default(0) @db.Decimal(14, 2)
-  totalDeductions Decimal            @default(0) @db.Decimal(14, 2)
-  netPay          Decimal            @default(0) @db.Decimal(14, 2)
-  employerCost    Decimal            @default(0) @db.Decimal(14, 2)
-  status          String             @default("DRAFT")
-  calculatedAt    DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  deductions      PayrollDeduction[]
+  id                String             @id @default(uuid())
+  payrollRunId      String
+  employeeId        String
+  grossPay          Decimal            @default(0) @db.Decimal(14, 2)
+  totalDeductions   Decimal            @default(0) @db.Decimal(14, 2)
+  netPay            Decimal            @default(0) @db.Decimal(14, 2)
+  employerCost      Decimal            @default(0) @db.Decimal(14, 2)
+  status            String             @default("DRAFT")
+  calculatedAt      DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deductions        PayrollDeduction[]
   paymentBatchItems PaymentBatchItem[]
-  earnings        PayrollEarning[]
-  employee        Employee           @relation(fields: [employeeId], references: [id])
-  payrollRun      PayrollRun         @relation(fields: [payrollRunId], references: [id])
-  payslip         Payslip?
+  earnings          PayrollEarning[]
+  employee          Employee           @relation(fields: [employeeId], references: [id])
+  payrollRun        PayrollRun         @relation(fields: [payrollRunId], references: [id])
+  payslip           Payslip?
 }
 
 model PayrollEarning {
@@ -361,53 +364,53 @@ model PayrollApproval {
 }
 
 model PaymentBatch {
-  id              String             @id @default(uuid())
-  payrollRunId    String
-  batchName       String
-  status          String             @default("DRAFT")
-  totalEmployees  Int                @default(0)
-  totalNetPay     Decimal            @default(0) @db.Decimal(18, 2)
-  preparedBy      String?
-  preparedAt      DateTime?
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  approvedBy      String?
-  approvedAt      DateTime?
-  evidenceNotes   String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id             String    @id @default(uuid())
+  payrollRunId   String
+  batchName      String
+  status         String    @default("DRAFT")
+  totalEmployees Int       @default(0)
+  totalNetPay    Decimal   @default(0) @db.Decimal(18, 2)
+  preparedBy     String?
+  preparedAt     DateTime?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  approvedBy     String?
+  approvedAt     DateTime?
+  evidenceNotes  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  payrollRun      PayrollRun         @relation(fields: [payrollRunId], references: [id])
-  items           PaymentBatchItem[]
+  payrollRun PayrollRun         @relation(fields: [payrollRunId], references: [id])
+  items      PaymentBatchItem[]
 
   @@index([payrollRunId])
   @@index([status])
 }
 
 model PaymentBatchItem {
-  id                   String   @id @default(uuid())
-  paymentBatchId        String
-  payrollRunEmployeeId  String
-  employeeId            String
-  employeeNumber        String
-  employeeName          String
-  department            String?
-  netPay                Decimal  @default(0) @db.Decimal(18, 2)
+  id                   String  @id @default(uuid())
+  paymentBatchId       String
+  payrollRunEmployeeId String
+  employeeId           String
+  employeeNumber       String
+  employeeName         String
+  department           String?
+  netPay               Decimal @default(0) @db.Decimal(18, 2)
 
-  bankName              String?
-  bankBranch            String?
-  bankAccountNumber     String?
-  bankAccountName       String?
-  bankDetailsStatus     String   @default("PENDING_VALIDATION")
+  bankName          String?
+  bankBranch        String?
+  bankAccountNumber String?
+  bankAccountName   String?
+  bankDetailsStatus String  @default("PENDING_VALIDATION")
 
-  paymentStatus         String   @default("PENDING")
-  validationNotes       String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  paymentStatus   String   @default("PENDING")
+  validationNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  paymentBatch          PaymentBatch        @relation(fields: [paymentBatchId], references: [id])
-  payrollRunEmployee    PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
-  employee              Employee           @relation(fields: [employeeId], references: [id])
+  paymentBatch       PaymentBatch       @relation(fields: [paymentBatchId], references: [id])
+  payrollRunEmployee PayrollRunEmployee @relation(fields: [payrollRunEmployeeId], references: [id])
+  employee           Employee           @relation(fields: [employeeId], references: [id])
 
   @@index([paymentBatchId])
   @@index([employeeId])
@@ -541,46 +544,46 @@ model SharePointPublishLog {
 }
 
 model SharePointExportLog {
-  id                String                 @id @default(uuid())
-  targetSite        String
-  targetPage        String?
-  targetLibrary     String?
-  payloadEndpoint   String
-  payloadType       String?
-  confidentiality   String?
-  requestedBy       String?
-  graphEnabled      Boolean                @default(false)
-  graphStatus       SharePointExportStatus @default(DISABLED_DEV_MODE)
-  requestPayload    Json?
-  responsePayload   Json?
-  errorMessage      String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  id              String                 @id @default(uuid())
+  targetSite      String
+  targetPage      String?
+  targetLibrary   String?
+  payloadEndpoint String
+  payloadType     String?
+  confidentiality String?
+  requestedBy     String?
+  graphEnabled    Boolean                @default(false)
+  graphStatus     SharePointExportStatus @default(DISABLED_DEV_MODE)
+  requestPayload  Json?
+  responsePayload Json?
+  errorMessage    String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 }
 
 model LeaveRequest {
-  id              String             @id @default(uuid())
-  employeeId      String
-  employee        Employee           @relation(fields: [employeeId], references: [id])
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
-  leaveType       LeaveType
-  startDate       DateTime
-  endDate         DateTime
-  totalDays       Int
-  reason          String?
+  leaveType LeaveType
+  startDate DateTime
+  endDate   DateTime
+  totalDays Int
+  reason    String?
 
   supervisorName  String?
   supervisorEmail String
 
-  status          LeaveRequestStatus @default(PENDING_SUPERVISOR)
+  status LeaveRequestStatus @default(PENDING_SUPERVISOR)
 
-  submittedAt     DateTime           @default(now())
-  reviewedAt      DateTime?
-  reviewedBy      String?
-  reviewComment   String?
+  submittedAt   DateTime  @default(now())
+  reviewedAt    DateTime?
+  reviewedBy    String?
+  reviewComment String?
 
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([employeeId])
   @@index([status])
@@ -588,28 +591,28 @@ model LeaveRequest {
 }
 
 model OrgDepartment {
-  id          String   @id @default(uuid())
-  code        String   @unique
+  id          String  @id @default(uuid())
+  code        String  @unique
   name        String
   description String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  positions OrgPosition[]
+  positions           OrgPosition[]
   approvalMatrixRules ApprovalMatrixRule[]
 
   @@map("org_departments")
 }
 
 model OrgRole {
-  id          String   @id @default(uuid())
-  code        String   @unique
+  id          String  @id @default(uuid())
+  code        String  @unique
   name        String
   description String?
-  isStaffRole Boolean  @default(true)
-  isActive    Boolean  @default(true)
+  isStaffRole Boolean @default(true)
+  isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -655,13 +658,13 @@ model ApprovalMatrixRule {
   departmentId String?
   department   OrgDepartment? @relation(fields: [departmentId], references: [id])
 
-  site        String?
-  branch      String?
+  site   String?
+  branch String?
 
-  minAmount   Decimal? @db.Decimal(18, 2)
-  maxAmount   Decimal? @db.Decimal(18, 2)
+  minAmount Decimal? @db.Decimal(18, 2)
+  maxAmount Decimal? @db.Decimal(18, 2)
 
-  requiresFinance Boolean @default(false)
+  requiresFinance  Boolean @default(false)
   requiresDirector Boolean @default(false)
 
   // JSON approval steps example:
@@ -684,7 +687,7 @@ model ApprovalMatrixRule {
 }
 
 model ApprovalRequest {
-  id           String                @id @default(uuid())
+  id           String               @id @default(uuid())
   module       OperationsModule
   workflowType ApprovalWorkflowType
 
@@ -703,15 +706,15 @@ model ApprovalRequest {
   sourceEntityType String?
   sourceEntityId   String?
 
-  status ApprovalRequestStatus @default(SUBMITTED)
-  currentStep       Int       @default(1)
+  status      ApprovalRequestStatus @default(SUBMITTED)
+  currentStep Int                   @default(1)
 
   approvalMatrixRuleId String?
   approvalMatrixRule   ApprovalMatrixRule? @relation(fields: [approvalMatrixRuleId], references: [id])
 
   payload Json?
 
-  submittedAt DateTime @default(now())
+  submittedAt DateTime  @default(now())
   closedAt    DateTime?
 
   createdAt DateTime @default(now())
@@ -722,6 +725,80 @@ model ApprovalRequest {
   @@index([module, workflowType])
   @@index([sourceEntityType, sourceEntityId])
   @@map("approval_requests")
+}
+
+model ApprovalApproverAssignment {
+  id           String                @id @default(uuid())
+  module       String?
+  workflowType ApprovalWorkflowType?
+  approvalRole ApprovalStepRole
+
+  site         String?
+  branch       String?
+  departmentId String?
+  department   Department? @relation("DepartmentApprovalApproverAssignments", fields: [departmentId], references: [id])
+
+  assigneeType    String  @default("USER") // USER, ENTRA_GROUP, ROLE_DYNAMIC
+  userId          String?
+  userEmail       String?
+  userName        String?
+  microsoftUserId String?
+
+  entraGroupId   String?
+  entraGroupName String?
+
+  isPrimary Boolean @default(true)
+  isDefault Boolean @default(false)
+  priority  Int     @default(1)
+  isActive  Boolean @default(true)
+
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([module])
+  @@index([workflowType])
+  @@index([approvalRole])
+  @@index([site])
+  @@index([branch])
+  @@index([userEmail])
+}
+
+model ApprovalDelegation {
+  id String @id @default(uuid())
+
+  approvalRole ApprovalStepRole?
+  module       String?
+  workflowType ApprovalWorkflowType?
+  site         String?
+  branch       String?
+  departmentId String?
+  department   Department?           @relation("DepartmentApprovalDelegations", fields: [departmentId], references: [id])
+
+  fromUserEmail       String
+  fromUserName        String?
+  fromMicrosoftUserId String?
+
+  toUserEmail       String
+  toUserName        String?
+  toMicrosoftUserId String?
+
+  reason   String?
+  startsAt DateTime
+  endsAt   DateTime
+  isActive Boolean  @default(true)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromUserEmail])
+  @@index([toUserEmail])
+  @@index([approvalRole])
+  @@index([site])
+  @@index([startsAt, endsAt])
 }
 
 model ApprovalDecision {
@@ -750,21 +827,21 @@ model ApprovalDecision {
 }
 
 model FinanceReportExportLog {
-  id              String                    @id @default(uuid())
+  id String @id @default(uuid())
 
-  reportType      FinanceReportType
-  exportFormat    FinanceExportFormat       @default(JSON)
-  status          FinanceReportExportStatus @default(GENERATED)
+  reportType   FinanceReportType
+  exportFormat FinanceExportFormat       @default(JSON)
+  status       FinanceReportExportStatus @default(GENERATED)
 
-  requestedBy     String?
+  requestedBy      String?
   requestedByEmail String?
 
-  filterPayload   Json?
-  resultSummary   Json?
-  fileName        String?
-  errorMessage    String?
+  filterPayload Json?
+  resultSummary Json?
+  fileName      String?
+  errorMessage  String?
 
-  createdAt       DateTime                  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([reportType])
   @@index([exportFormat])
@@ -773,31 +850,31 @@ model FinanceReportExportLog {
 }
 
 model FinanceExpense {
-  id              String               @id @default(uuid())
-  expenseNo       String               @unique
+  id        String @id @default(uuid())
+  expenseNo String @unique
 
-  category        String
-  description     String
-  amount          Decimal              @db.Decimal(18, 2)
-  department      String?
-  site            String?
-  payee           String?
-  requestedBy     String?
+  category         String
+  description      String
+  amount           Decimal @db.Decimal(18, 2)
+  department       String?
+  site             String?
+  payee            String?
+  requestedBy      String?
   requestedByEmail String?
 
-  status          FinanceExpenseStatus @default(SUBMITTED)
-  evidenceStatus  FinanceEvidenceStatus @default(REQUIRED)
+  status         FinanceExpenseStatus  @default(SUBMITTED)
+  evidenceStatus FinanceEvidenceStatus @default(REQUIRED)
 
   approvalRequestId String?
-  paidBy          String?
-  paidAt          DateTime?
-  paymentReference String?
+  paidBy            String?
+  paidAt            DateTime?
+  paymentReference  String?
 
-  financeComment  String?
-  payload          Json?
+  financeComment String?
+  payload        Json?
 
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   stockMovements      StockMovement[]
   stockLedgerEntries  StockLedger[]
@@ -811,20 +888,20 @@ model FinanceExpense {
 }
 
 model FinancePaymentEvidence {
-  id              String   @id @default(uuid())
-  expenseId       String?
-  paymentBatchId  String?
-  procurementId   String?
+  id             String  @id @default(uuid())
+  expenseId      String?
+  paymentBatchId String?
+  procurementId  String?
 
-  evidenceType    String
-  title           String
-  status          String   @default("REQUIRED")
-  documentId      String?
-  notes           String?
+  evidenceType String
+  title        String
+  status       String  @default("REQUIRED")
+  documentId   String?
+  notes        String?
 
-  createdBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([expenseId])
   @@index([paymentBatchId])
@@ -833,8 +910,8 @@ model FinancePaymentEvidence {
 }
 
 model HubDocument {
-  id              String                    @id @default(uuid())
-  module          OperationsModule
+  id               String           @id @default(uuid())
+  module           OperationsModule
   sourceEntityType String?
   sourceEntityId   String?
 
@@ -843,21 +920,21 @@ model HubDocument {
   fileName        String?
   mimeType        String?
   fileSizeBytes   Int?
-  storageProvider String                    @default("LOCAL_DEV")
+  storageProvider String  @default("LOCAL_DEV")
   storagePath     String?
   sharePointUrl   String?
 
-  status          HubDocumentStatus         @default(DRAFT)
+  status          HubDocumentStatus          @default(DRAFT)
   confidentiality HubDocumentConfidentiality @default(INTERNAL)
 
-  uploadedBy      String?
-  approvedBy      String?
-  approvedAt      DateTime?
+  uploadedBy String?
+  approvedBy String?
+  approvedAt DateTime?
 
-  metadata        Json?
+  metadata Json?
 
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([module])
   @@index([sourceEntityType, sourceEntityId])
@@ -865,24 +942,24 @@ model HubDocument {
 }
 
 model ProcurementRequest {
-  id                String                   @id @default(uuid())
-  requisitionNo     String                   @unique
+  id            String @id @default(uuid())
+  requisitionNo String @unique
 
-  department        String
-  site              String?
-  requestedBy       String?
-  supplierName      String?
-  supplierId        String?
-  description       String
-  amount            Decimal                  @db.Decimal(18, 2)
+  department   String
+  site         String?
+  requestedBy  String?
+  supplierName String?
+  supplierId   String?
+  description  String
+  amount       Decimal @db.Decimal(18, 2)
 
-  procurementStage  String                   @default("REQUISITION_SUBMITTED")
-  financeStage      String                   @default("NOT_REVIEWED")
-  status            ProcurementRequestStatus @default(SUBMITTED)
+  procurementStage String                   @default("REQUISITION_SUBMITTED")
+  financeStage     String                   @default("NOT_REVIEWED")
+  status           ProcurementRequestStatus @default(SUBMITTED)
 
-  invoiceStatus     String                   @default("PENDING")
-  paymentStatus     String                   @default("NOT_PAID")
-  proofOfPaymentStatus String                @default("NOT_UPLOADED")
+  invoiceStatus        String @default("PENDING")
+  paymentStatus        String @default("NOT_PAID")
+  proofOfPaymentStatus String @default("NOT_UPLOADED")
 
   purchaseOrderNo   String?
   invoiceNo         String?
@@ -891,10 +968,10 @@ model ProcurementRequest {
   approvalRequestId String?
   payload           Json?
 
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  supplier           Supplier?               @relation(fields: [supplierId], references: [id])
+  supplier           Supplier?       @relation(fields: [supplierId], references: [id])
   stockMovements     StockMovement[]
   stockLedgerEntries StockLedger[]
 
@@ -906,105 +983,105 @@ model ProcurementRequest {
 }
 
 model HubAsset {
-  id              String        @id @default(uuid())
-  assetNo         String        @unique
-  assetTag        String?
-  category        AssetCategory
-  name            String
-  description     String?
+  id          String        @id @default(uuid())
+  assetNo     String        @unique
+  assetTag    String?
+  category    AssetCategory
+  name        String
+  description String?
 
-  department      String?
-  site            String?
-  location        String?
+  department String?
+  site       String?
+  location   String?
 
-  serialNumber    String?
-  purchaseDate    DateTime?
-  purchaseValue   Decimal?      @db.Decimal(18, 2)
-  currentValue    Decimal?      @db.Decimal(18, 2)
+  serialNumber  String?
+  purchaseDate  DateTime?
+  purchaseValue Decimal?  @db.Decimal(18, 2)
+  currentValue  Decimal?  @db.Decimal(18, 2)
 
-  purchaseCurrency String?
-  currentBookValue Decimal?      @db.Decimal(18, 2)
+  purchaseCurrency        String?
+  currentBookValue        Decimal? @db.Decimal(18, 2)
   accumulatedDepreciation Decimal? @db.Decimal(18, 2)
-  depreciationMethod String?
+  depreciationMethod      String?
   monthlyDepreciationRate Decimal? @db.Decimal(8, 4)
 
-  supplierName    String?
-  supplierId      String?
+  supplierName         String?
+  supplierId           String?
   procurementRequestId String?
 
-  status          AssetStatus   @default(ACTIVE)
+  status AssetStatus @default(ACTIVE)
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  movements       HubAssetMovement[]
-  inspections     HubAssetInspection[]
-  qrTags          AssetQrTag[]
+  movements   HubAssetMovement[]
+  inspections HubAssetInspection[]
+  qrTags      AssetQrTag[]
+
+  supplier            Supplier?                  @relation(fields: [supplierId], references: [id])
+  custodyAssignments  AssetCustodyAssignment[]
+  depreciationHistory AssetDepreciationHistory[]
 
   @@index([category])
   @@index([status])
   @@index([site])
   @@index([supplierId])
   @@map("hub_assets")
-
-  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
-  custodyAssignments AssetCustodyAssignment[]
-  depreciationHistory AssetDepreciationHistory[]
 }
 
 model HubAssetMovement {
-  id              String   @id @default(uuid())
-  assetId         String
-  asset           HubAsset @relation(fields: [assetId], references: [id])
+  id      String   @id @default(uuid())
+  assetId String
+  asset   HubAsset @relation(fields: [assetId], references: [id])
 
-  movementType    String
-  fromLocation    String?
-  toLocation      String?
-  requestedBy     String?
-  approvedBy      String?
-  movedAt         DateTime @default(now())
-  notes           String?
+  movementType String
+  fromLocation String?
+  toLocation   String?
+  requestedBy  String?
+  approvedBy   String?
+  movedAt      DateTime @default(now())
+  notes        String?
 
   approvalRequestId String?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([assetId])
   @@map("hub_asset_movements")
 }
 
 model HubAssetInspection {
-  id              String   @id @default(uuid())
-  assetId         String
-  asset           HubAsset @relation(fields: [assetId], references: [id])
+  id      String   @id @default(uuid())
+  assetId String
+  asset   HubAsset @relation(fields: [assetId], references: [id])
 
-  inspectionType  String
-  inspectionDate  DateTime @default(now())
-  inspectedBy     String?
-  conditionStatus String
-  findings        String?
+  inspectionType   String
+  inspectionDate   DateTime @default(now())
+  inspectedBy      String?
+  conditionStatus  String
+  findings         String?
   correctiveAction String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([assetId])
   @@map("hub_asset_inspections")
 }
 
 model FleetVehicle {
-  id              String              @id @default(uuid())
-  registrationNo  String              @unique
-  assetId         String?
-  make            String
-  model           String
-  year            Int?
-  vehicleType     String
-  department      String?
-  site            String?
+  id             String  @id @default(uuid())
+  registrationNo String  @unique
+  assetId        String?
+  make           String
+  model          String
+  year           Int?
+  vehicleType    String
+  department     String?
+  site           String?
 
-  odometerCurrent Decimal             @default(0) @db.Decimal(18, 2)
-  status          FleetVehicleStatus  @default(ACTIVE)
+  odometerCurrent Decimal            @default(0) @db.Decimal(18, 2)
+  status          FleetVehicleStatus @default(ACTIVE)
 
   insuranceExpiry DateTime?
   fitnessExpiry   DateTime?
@@ -1013,19 +1090,19 @@ model FleetVehicle {
   telematicsProvider String?
   telematicsUnitId   String?
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  inspections       FleetInspection[]
-  defects           FleetDefect[]
-  trips             FleetTrip[]
-  fuelLogs          FleetFuelLog[]
-  workshopJobs      FleetWorkshopJob[]
-  assignments       FleetVehicleAssignment[]
-  dueItems          FleetDueItem[]
-  documents         FleetDocument[]
-  notifications     FleetNotification[]
-  costPostings      FleetCostPosting[]
+  inspections   FleetInspection[]
+  defects       FleetDefect[]
+  trips         FleetTrip[]
+  fuelLogs      FleetFuelLog[]
+  workshopJobs  FleetWorkshopJob[]
+  assignments   FleetVehicleAssignment[]
+  dueItems      FleetDueItem[]
+  documents     FleetDocument[]
+  notifications FleetNotification[]
+  costPostings  FleetCostPosting[]
 
   @@index([status])
   @@index([site])
@@ -1033,30 +1110,30 @@ model FleetVehicle {
 }
 
 model FleetDriverProfile {
-  id             String   @id @default(uuid())
+  id             String  @id @default(uuid())
   employeeId     String?
   employeeNumber String?
   driverName     String
   phone          String?
   email          String?
 
-  licenceNo      String?
-  licenceClass   String?
-  licenceExpiry  DateTime?
+  licenceNo     String?
+  licenceClass  String?
+  licenceExpiry DateTime?
 
-  department     String?
-  site           String?
-  branch         String?
+  department String?
+  site       String?
+  branch     String?
 
-  status         String   @default("ACTIVE")
+  status String @default("ACTIVE")
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  assignments    FleetVehicleAssignment[]
-  inspections    FleetInspection[]
-  trips          FleetTrip[]
-  fuelLogs       FleetFuelLog[]
+  assignments FleetVehicleAssignment[]
+  inspections FleetInspection[]
+  trips       FleetTrip[]
+  fuelLogs    FleetFuelLog[]
 
   @@index([employeeId])
   @@index([employeeNumber])
@@ -1066,25 +1143,25 @@ model FleetDriverProfile {
 }
 
 model FleetVehicleAssignment {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  vehicleId   String
-  vehicle     FleetVehicle @relation(fields: [vehicleId], references: [id])
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  driverId    String
-  driver      FleetDriverProfile @relation(fields: [driverId], references: [id])
+  driverId String
+  driver   FleetDriverProfile @relation(fields: [driverId], references: [id])
 
-  assignedBy  String?
-  assignedAt  DateTime @default(now())
+  assignedBy String?
+  assignedAt DateTime @default(now())
 
-  returnedBy  String?
-  returnedAt  DateTime?
+  returnedBy String?
+  returnedAt DateTime?
 
-  status      String   @default("ACTIVE")
-  notes       String?
+  status String  @default("ACTIVE")
+  notes  String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
   @@index([driverId])
@@ -1093,28 +1170,28 @@ model FleetVehicleAssignment {
 }
 
 model FleetDueItem {
-  id           String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  vehicleId    String
-  vehicle      FleetVehicle @relation(fields: [vehicleId], references: [id])
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  dueType      String
-  title        String
-  description  String?
+  dueType     String
+  title       String
+  description String?
 
-  dueDate      DateTime?
-  dueOdometer  Decimal? @db.Decimal(18, 2)
+  dueDate     DateTime?
+  dueOdometer Decimal?  @db.Decimal(18, 2)
 
-  status       String   @default("OPEN")
-  priority     String   @default("MEDIUM")
+  status   String @default("OPEN")
+  priority String @default("MEDIUM")
 
-  completedBy  String?
-  completedAt  DateTime?
+  completedBy String?
+  completedAt DateTime?
 
-  notes        String?
+  notes String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
   @@index([status])
@@ -1123,31 +1200,31 @@ model FleetDueItem {
 }
 
 model FleetDocument {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  vehicleId        String?
-  vehicle          FleetVehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId String?
+  vehicle   FleetVehicle? @relation(fields: [vehicleId], references: [id])
 
-  documentType     String
-  title            String
-  documentNo       String?
+  documentType String
+  title        String
+  documentNo   String?
 
-  issueDate        DateTime?
-  expiryDate       DateTime?
+  issueDate  DateTime?
+  expiryDate DateTime?
 
-  status           String   @default("ACTIVE")
+  status String @default("ACTIVE")
 
-  fileName         String?
-  storagePath      String?
-  sharePointUrl    String?
+  fileName      String?
+  storagePath   String?
+  sharePointUrl String?
 
-  uploadedBy       String?
-  uploadedAt       DateTime @default(now())
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
 
-  notes            String?
+  notes String?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
   @@index([documentType])
@@ -1157,27 +1234,27 @@ model FleetDocument {
 }
 
 model FleetNotification {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  vehicleId        String?
-  vehicle          FleetVehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId String?
+  vehicle   FleetVehicle? @relation(fields: [vehicleId], references: [id])
 
   notificationType String
   title            String
   message          String
 
-  severity         String   @default("INFO")
-  status           String   @default("OPEN")
+  severity String @default("INFO")
+  status   String @default("OPEN")
 
-  dueDate          DateTime?
-  sentTo           String?
-  sentAt           DateTime?
+  dueDate DateTime?
+  sentTo  String?
+  sentAt  DateTime?
 
-  resolvedBy       String?
-  resolvedAt       DateTime?
+  resolvedBy String?
+  resolvedAt DateTime?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
   @@index([notificationType])
@@ -1187,26 +1264,26 @@ model FleetNotification {
 }
 
 model FleetInspection {
-  id              String                @id @default(uuid())
-  vehicleId       String
-  vehicle         FleetVehicle           @relation(fields: [vehicleId], references: [id])
+  id        String       @id @default(uuid())
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  driverId        String?
-  driver          FleetDriverProfile? @relation(fields: [driverId], references: [id])
+  driverId String?
+  driver   FleetDriverProfile? @relation(fields: [driverId], references: [id])
 
-  employeeId      String?
-  employeeNumber  String?
-  driverName      String?
+  employeeId     String?
+  employeeNumber String?
+  driverName     String?
 
-  inspectionDate  DateTime              @default(now())
-  odometer        Decimal               @db.Decimal(18, 2)
-  checklistPhase  String
-  overallStatus   FleetInspectionStatus @default(SUBMITTED)
-  notes           String?
-  payload         Json?
+  inspectionDate DateTime              @default(now())
+  odometer       Decimal               @db.Decimal(18, 2)
+  checklistPhase String
+  overallStatus  FleetInspectionStatus @default(SUBMITTED)
+  notes          String?
+  payload        Json?
 
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([driverId])
   @@index([vehicleId])
@@ -1215,25 +1292,25 @@ model FleetInspection {
 }
 
 model FleetDefect {
-  id              String       @id @default(uuid())
-  defectNo        String       @unique
+  id       String @id @default(uuid())
+  defectNo String @unique
 
-  vehicleId       String
-  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
-  workshopJobs    FleetWorkshopJob[]
+  vehicleId    String
+  vehicle      FleetVehicle       @relation(fields: [vehicleId], references: [id])
+  workshopJobs FleetWorkshopJob[]
 
-  reportedBy      String?
-  title           String
-  description     String
-  severity        String
-  status          String       @default("OPEN")
+  reportedBy  String?
+  title       String
+  description String
+  severity    String
+  status      String  @default("OPEN")
 
-  reportedAt      DateTime     @default(now())
-  resolvedAt      DateTime?
-  closedAt        DateTime?
+  reportedAt DateTime  @default(now())
+  resolvedAt DateTime?
+  closedAt   DateTime?
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
   @@index([status])
@@ -1241,12 +1318,12 @@ model FleetDefect {
 }
 
 model FleetTrip {
-  id              String       @id @default(uuid())
-  vehicleId       String
-  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+  id        String       @id @default(uuid())
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  driverId         String?
-  driver           FleetDriverProfile? @relation(fields: [driverId], references: [id])
+  driverId String?
+  driver   FleetDriverProfile? @relation(fields: [driverId], references: [id])
 
   driverEmployeeId String?
   driverName       String?
@@ -1255,13 +1332,13 @@ model FleetTrip {
   origin          String
   destination     String
   purpose         String
-  openingOdometer Decimal      @db.Decimal(18, 2)
-  closingOdometer Decimal?     @db.Decimal(18, 2)
-  distanceKm      Decimal?     @db.Decimal(18, 2)
-  status          String       @default("PLANNED")
+  openingOdometer Decimal  @db.Decimal(18, 2)
+  closingOdometer Decimal? @db.Decimal(18, 2)
+  distanceKm      Decimal? @db.Decimal(18, 2)
+  status          String   @default("PLANNED")
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([driverId])
   @@index([vehicleId])
@@ -1270,22 +1347,22 @@ model FleetTrip {
 }
 
 model FleetFuelLog {
-  id              String       @id @default(uuid())
-  vehicleId       String
-  vehicle         FleetVehicle @relation(fields: [vehicleId], references: [id])
+  id        String       @id @default(uuid())
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  driverId        String?
-  driver          FleetDriverProfile? @relation(fields: [driverId], references: [id])
+  driverId String?
+  driver   FleetDriverProfile? @relation(fields: [driverId], references: [id])
 
-  fuelDate        DateTime
-  stationName     String
-  litres          Decimal      @db.Decimal(18, 2)
-  amount          Decimal      @db.Decimal(18, 2)
-  odometer        Decimal      @db.Decimal(18, 2)
+  fuelDate          DateTime
+  stationName       String
+  litres            Decimal  @db.Decimal(18, 2)
+  amount            Decimal  @db.Decimal(18, 2)
+  odometer          Decimal  @db.Decimal(18, 2)
   receiptDocumentId String?
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([driverId])
   @@index([vehicleId])
@@ -1308,17 +1385,17 @@ model FleetCostPosting {
   site                String?
   status              String   @default("PENDING_FINANCE_REVIEW")
 
-  reviewedBy          String?
-  reviewedAt          DateTime?
-  postedBy            String?
-  postedAt            DateTime?
-  financeExpenseId    String?
-  rejectionReason     String?
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  postedBy         String?
+  postedAt         DateTime?
+  financeExpenseId String?
+  rejectionReason  String?
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  vehicle             FleetVehicle? @relation(fields: [vehicleId], references: [id])
+  vehicle FleetVehicle? @relation(fields: [vehicleId], references: [id])
 
   @@unique([sourceType, sourceId])
   @@index([vehicleId])
@@ -1329,29 +1406,29 @@ model FleetCostPosting {
 }
 
 model SafetyIncident {
-  id              String               @id @default(uuid())
-  incidentNo      String               @unique
+  id         String @id @default(uuid())
+  incidentNo String @unique
 
-  incidentDate    DateTime
-  reportedBy      String?
-  department      String?
-  site            String?
-  location        String?
+  incidentDate DateTime
+  reportedBy   String?
+  department   String?
+  site         String?
+  location     String?
 
-  incidentType    String
-  severity        String
-  description     String
+  incidentType String
+  severity     String
+  description  String
 
-  status          SafetyIncidentStatus @default(REPORTED)
+  status           SafetyIncidentStatus @default(REPORTED)
   correctiveAction String?
-  closedBy        String?
-  closedAt        DateTime?
+  closedBy         String?
+  closedAt         DateTime?
 
   approvalRequestId String?
-  payload         Json?
+  payload           Json?
 
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([site])
@@ -1359,25 +1436,25 @@ model SafetyIncident {
 }
 
 model QualityRecord {
-  id              String              @id @default(uuid())
-  recordNo        String              @unique
+  id       String @id @default(uuid())
+  recordNo String @unique
 
-  recordType      String
-  department      String?
-  site            String?
-  raisedBy        String?
-  title           String
-  description     String
+  recordType  String
+  department  String?
+  site        String?
+  raisedBy    String?
+  title       String
+  description String
 
-  status          QualityRecordStatus @default(OPEN)
+  status           QualityRecordStatus @default(OPEN)
   correctiveAction String?
-  closedBy        String?
-  closedAt        DateTime?
+  closedBy         String?
+  closedAt         DateTime?
 
-  payload         Json?
+  payload Json?
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([site])
@@ -1410,43 +1487,43 @@ model Supplier {
 }
 
 model StockItem {
-  id              String        @id @default(uuid())
-  itemCode        String        @unique
-  itemName        String
-  itemType        StockItemType
-  category        String?
-  description     String?
+  id          String        @id @default(uuid())
+  itemCode    String        @unique
+  itemName    String
+  itemType    StockItemType
+  category    String?
+  description String?
 
-  unitOfMeasure   String        @default("EA")
-  minimumLevel    Decimal?      @db.Decimal(18, 2)
-  reorderLevel    Decimal?      @db.Decimal(18, 2)
-  standardCost    Decimal?      @db.Decimal(18, 2)
+  unitOfMeasure String   @default("EA")
+  minimumLevel  Decimal? @db.Decimal(18, 2)
+  reorderLevel  Decimal? @db.Decimal(18, 2)
+  standardCost  Decimal? @db.Decimal(18, 2)
 
-  supplierId      String?
-  supplierCode    String?
-  supplierName    String?
-  poNumber        String?
-  legacyCode      String?
-  legacySource    String?
+  supplierId   String?
+  supplierCode String?
+  supplierName String?
+  poNumber     String?
+  legacyCode   String?
+  legacySource String?
 
-  isSerialized    Boolean       @default(false)
-  isQrTracked     Boolean       @default(false)
-  isRfidTracked   Boolean       @default(false)
-  isActive        Boolean       @default(true)
+  isSerialized  Boolean @default(false)
+  isQrTracked   Boolean @default(false)
+  isRfidTracked Boolean @default(false)
+  isActive      Boolean @default(true)
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
-  balances        StockBalance[]
-  movements       StockMovementLine[]
-  qrTags          AssetQrTag[]
+  supplier           Supplier?           @relation(fields: [supplierId], references: [id])
+  balances           StockBalance[]
+  movements          StockMovementLine[]
+  qrTags             AssetQrTag[]
   scaffoldComponents ScaffoldComponent[] @relation("StockItemScaffoldComponents")
-  workshopParts   FleetWorkshopPart[]
+  workshopParts      FleetWorkshopPart[]
 
-  ledgerEntries   StockLedger[]
-  stockCountLines StockCountLine[]
-  custodyAssignments AssetCustodyAssignment[]
+  ledgerEntries       StockLedger[]
+  stockCountLines     StockCountLine[]
+  custodyAssignments  AssetCustodyAssignment[]
   scaffoldDeployments ScaffoldDeployment[]
 
   @@index([itemType])
@@ -1457,29 +1534,29 @@ model StockItem {
 }
 
 model StockLocation {
-  id              String   @id @default(uuid())
-  locationCode    String   @unique
-  locationName    String
-  locationType    String   @default("SITE_STORE")
+  id           String @id @default(uuid())
+  locationCode String @unique
+  locationName String
+  locationType String @default("SITE_STORE")
 
-  site            String?
-  branch          String?
-  department      String?
+  site       String?
+  branch     String?
+  department String?
 
-  isActive        Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  balances        StockBalance[]
-  movementsFrom   StockMovement[] @relation("StockMovementFromLocation")
-  movementsTo     StockMovement[] @relation("StockMovementToLocation")
-  assignedQrTags  AssetQrTag[] @relation("QrTagAssignedLocation")
+  balances       StockBalance[]
+  movementsFrom  StockMovement[] @relation("StockMovementFromLocation")
+  movementsTo    StockMovement[] @relation("StockMovementToLocation")
+  assignedQrTags AssetQrTag[]    @relation("QrTagAssignedLocation")
 
-  ledgerEntries   StockLedger[]
-  stockCountSessions StockCountSession[]
-  stockCountLines StockCountLine[]
-  custodyAssignments AssetCustodyAssignment[]
+  ledgerEntries       StockLedger[]
+  stockCountSessions  StockCountSession[]
+  stockCountLines     StockCountLine[]
+  custodyAssignments  AssetCustodyAssignment[]
   scaffoldDeployments ScaffoldDeployment[]
 
   @@index([site])
@@ -1488,20 +1565,20 @@ model StockLocation {
 }
 
 model StockBalance {
-  id              String        @id @default(uuid())
+  id String @id @default(uuid())
 
-  stockItemId     String
-  stockItem       StockItem     @relation(fields: [stockItemId], references: [id])
+  stockItemId String
+  stockItem   StockItem @relation(fields: [stockItemId], references: [id])
 
-  locationId      String
-  location        StockLocation @relation(fields: [locationId], references: [id])
+  locationId String
+  location   StockLocation @relation(fields: [locationId], references: [id])
 
-  quantityOnHand  Decimal       @default(0) @db.Decimal(18, 2)
-  quantityIssued  Decimal       @default(0) @db.Decimal(18, 2)
-  quantityDamaged Decimal       @default(0) @db.Decimal(18, 2)
-  quantityLost    Decimal       @default(0) @db.Decimal(18, 2)
+  quantityOnHand  Decimal @default(0) @db.Decimal(18, 2)
+  quantityIssued  Decimal @default(0) @db.Decimal(18, 2)
+  quantityDamaged Decimal @default(0) @db.Decimal(18, 2)
+  quantityLost    Decimal @default(0) @db.Decimal(18, 2)
 
-  updatedAt       DateTime      @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@unique([stockItemId, locationId])
   @@index([locationId])
@@ -1509,32 +1586,32 @@ model StockBalance {
 }
 
 model StockCountSession {
-  id             String   @id @default(uuid())
-  countNo        String   @unique
+  id      String @id @default(uuid())
+  countNo String @unique
 
-  title          String
-  locationId     String?
-  locationName   String?
-  department     String?
-  site           String?
-  branch         String?
+  title        String
+  locationId   String?
+  locationName String?
+  department   String?
+  site         String?
+  branch       String?
 
-  status         String   @default("DRAFT")
-  startedBy      String?
-  startedAt      DateTime?
-  submittedBy    String?
-  submittedAt    DateTime?
-  approvedBy     String?
-  approvedAt     DateTime?
-  postedBy       String?
-  postedAt       DateTime?
+  status      String    @default("DRAFT")
+  startedBy   String?
+  startedAt   DateTime?
+  submittedBy String?
+  submittedAt DateTime?
+  approvedBy  String?
+  approvedAt  DateTime?
+  postedBy    String?
+  postedAt    DateTime?
 
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  location       StockLocation? @relation(fields: [locationId], references: [id])
-  lines          StockCountLine[]
+  location StockLocation?   @relation(fields: [locationId], references: [id])
+  lines    StockCountLine[]
 
   @@index([locationId])
   @@index([status])
@@ -1542,16 +1619,16 @@ model StockCountSession {
 }
 
 model AssetDepreciationHistory {
-  id              String   @id @default(uuid())
-  assetId         String
-  period          String
-  depreciationAmount Decimal @db.Decimal(18, 2)
-  accumulatedDepreciation Decimal @db.Decimal(18, 2)
-  bookValue       Decimal @db.Decimal(18, 2)
-  calculatedBy    String?
-  calculatedAt    DateTime @default(now())
+  id                      String   @id @default(uuid())
+  assetId                 String
+  period                  String
+  depreciationAmount      Decimal  @db.Decimal(18, 2)
+  accumulatedDepreciation Decimal  @db.Decimal(18, 2)
+  bookValue               Decimal  @db.Decimal(18, 2)
+  calculatedBy            String?
+  calculatedAt            DateTime @default(now())
 
-  asset           HubAsset @relation(fields: [assetId], references: [id])
+  asset HubAsset @relation(fields: [assetId], references: [id])
 
   @@index([assetId])
   @@index([period])
@@ -1559,74 +1636,74 @@ model AssetDepreciationHistory {
 }
 
 model AssetApprovalHistory {
-  id            String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  entityType    String
-  entityId      String
+  entityType String
+  entityId   String
 
-  workflowName  String   @default("ASSET_MOVEMENT")
+  workflowName  String @default("ASSET_MOVEMENT")
   approvalLevel String
   decision      String
 
-  approverName  String
-  approverRole  String?
-  comments      String?
+  approverName String
+  approverRole String?
+  comments     String?
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model StockMovement {
-  id                String              @id @default(uuid())
-  movementNo        String              @unique
+  id         String @id @default(uuid())
+  movementNo String @unique
 
-  movementType      StockMovementType
-  status            StockMovementStatus @default(DRAFT)
+  movementType StockMovementType
+  status       StockMovementStatus @default(DRAFT)
 
-  fromLocationId    String?
-  fromLocation      StockLocation?      @relation("StockMovementFromLocation", fields: [fromLocationId], references: [id])
+  fromLocationId String?
+  fromLocation   StockLocation? @relation("StockMovementFromLocation", fields: [fromLocationId], references: [id])
 
-  toLocationId      String?
-  toLocation        StockLocation?      @relation("StockMovementToLocation", fields: [toLocationId], references: [id])
+  toLocationId String?
+  toLocation   StockLocation? @relation("StockMovementToLocation", fields: [toLocationId], references: [id])
 
-  requestedBy       String?
-  requestedByEmail  String?
-  department        String?
-  site              String?
-  branch            String?
-  projectCode       String?
+  requestedBy      String?
+  requestedByEmail String?
+  department       String?
+  site             String?
+  branch           String?
+  projectCode      String?
 
-  reason            String?
-  referenceType     String?
-  referenceId       String?
-  referenceNo       String?
+  reason        String?
+  referenceType String?
+  referenceId   String?
+  referenceNo   String?
 
   financeExpenseId     String?
   procurementRequestId String?
   workshopJobId        String?
 
-  approvalRequestId String?
-  approvalPath      String?
-  currentApprovalStep Int? @default(0)
-  approvalStatus    String?
+  approvalRequestId   String?
+  approvalPath        String?
+  currentApprovalStep Int?    @default(0)
+  approvalStatus      String?
 
-  submittedAt       DateTime?
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  rejectionReason   String?
-  postedBy          String?
-  postedAt          DateTime?
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  postedBy        String?
+  postedAt        DateTime?
 
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   financeExpense     FinanceExpense?     @relation(fields: [financeExpenseId], references: [id])
   procurementRequest ProcurementRequest? @relation(fields: [procurementRequestId], references: [id])
   workshopJob        FleetWorkshopJob?   @relation(fields: [workshopJobId], references: [id])
 
-  lines             StockMovementLine[]
-  ledgerEntries     StockLedger[]
+  lines               StockMovementLine[]
+  ledgerEntries       StockLedger[]
   workshopPartsIssued FleetWorkshopPart[]
 
   @@index([movementType])
@@ -1641,26 +1718,26 @@ model StockMovement {
 }
 
 model StockMovementLine {
-  id              String        @id @default(uuid())
+  id String @id @default(uuid())
 
-  movementId      String
-  movement        StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  movementId String
+  movement   StockMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
 
-  stockItemId     String
-  stockItem       StockItem     @relation(fields: [stockItemId], references: [id])
+  stockItemId String
+  stockItem   StockItem @relation(fields: [stockItemId], references: [id])
 
-  quantity        Decimal       @db.Decimal(18, 2)
-  unitCost        Decimal?      @db.Decimal(18, 2)
-  totalCost       Decimal?      @db.Decimal(18, 2)
+  quantity  Decimal  @db.Decimal(18, 2)
+  unitCost  Decimal? @db.Decimal(18, 2)
+  totalCost Decimal? @db.Decimal(18, 2)
 
-  qrTagId         String?
-  qrTag           AssetQrTag?   @relation(fields: [qrTagId], references: [id])
+  qrTagId String?
+  qrTag   AssetQrTag? @relation(fields: [qrTagId], references: [id])
 
-  notes           String?
+  notes String?
 
-  createdAt       DateTime      @default(now())
+  createdAt DateTime @default(now())
 
-  ledgerEntries   StockLedger[]
+  ledgerEntries StockLedger[]
 
   @@index([movementId])
   @@index([stockItemId])
@@ -1669,45 +1746,45 @@ model StockMovementLine {
 }
 
 model StockLedger {
-  id              String   @id @default(uuid())
-  stockItemId     String
-  locationId      String
+  id          String @id @default(uuid())
+  stockItemId String
+  locationId  String
 
-  movementId      String?
-  movementLineId  String?
+  movementId     String?
+  movementLineId String?
 
   financeExpenseId     String?
   procurementRequestId String?
   workshopJobId        String?
 
   transactionType String
-  quantityIn      Decimal  @default(0) @db.Decimal(18, 2)
-  quantityOut     Decimal  @default(0) @db.Decimal(18, 2)
-  balanceAfter    Decimal  @default(0) @db.Decimal(18, 2)
+  quantityIn      Decimal @default(0) @db.Decimal(18, 2)
+  quantityOut     Decimal @default(0) @db.Decimal(18, 2)
+  balanceAfter    Decimal @default(0) @db.Decimal(18, 2)
 
-  unitCost        Decimal? @db.Decimal(18, 2)
-  totalCost       Decimal? @db.Decimal(18, 2)
+  unitCost  Decimal? @db.Decimal(18, 2)
+  totalCost Decimal? @db.Decimal(18, 2)
 
-  referenceType   String?
-  referenceId     String?
-  referenceNo     String?
+  referenceType String?
+  referenceId   String?
+  referenceNo   String?
 
-  department      String?
-  site            String?
-  branch          String?
-  projectCode     String?
+  department  String?
+  site        String?
+  branch      String?
+  projectCode String?
 
-  notes           String?
-  createdBy       String?
-  createdAt       DateTime @default(now())
+  notes     String?
+  createdBy String?
+  createdAt DateTime @default(now())
 
-  stockItem       StockItem          @relation(fields: [stockItemId], references: [id])
-  location        StockLocation      @relation(fields: [locationId], references: [id])
-  movement        StockMovement?     @relation(fields: [movementId], references: [id])
-  movementLine    StockMovementLine? @relation(fields: [movementLineId], references: [id])
-  financeExpense  FinanceExpense?    @relation(fields: [financeExpenseId], references: [id])
+  stockItem          StockItem           @relation(fields: [stockItemId], references: [id])
+  location           StockLocation       @relation(fields: [locationId], references: [id])
+  movement           StockMovement?      @relation(fields: [movementId], references: [id])
+  movementLine       StockMovementLine?  @relation(fields: [movementLineId], references: [id])
+  financeExpense     FinanceExpense?     @relation(fields: [financeExpenseId], references: [id])
   procurementRequest ProcurementRequest? @relation(fields: [procurementRequestId], references: [id])
-  workshopJob     FleetWorkshopJob?  @relation(fields: [workshopJobId], references: [id])
+  workshopJob        FleetWorkshopJob?   @relation(fields: [workshopJobId], references: [id])
 
   @@index([stockItemId])
   @@index([locationId])
@@ -1722,23 +1799,23 @@ model StockLedger {
 }
 
 model StockCountLine {
-  id              String   @id @default(uuid())
-  sessionId       String
-  stockItemId     String
-  locationId      String?
+  id          String  @id @default(uuid())
+  sessionId   String
+  stockItemId String
+  locationId  String?
 
-  systemQuantity  Decimal  @default(0) @db.Decimal(18, 2)
-  countedQuantity Decimal  @default(0) @db.Decimal(18, 2)
-  variance        Decimal  @default(0) @db.Decimal(18, 2)
+  systemQuantity  Decimal @default(0) @db.Decimal(18, 2)
+  countedQuantity Decimal @default(0) @db.Decimal(18, 2)
+  variance        Decimal @default(0) @db.Decimal(18, 2)
 
-  varianceReason  String?
-  adjustmentPosted Boolean @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  varianceReason   String?
+  adjustmentPosted Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  session         StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  stockItem       StockItem         @relation(fields: [stockItemId], references: [id])
-  location        StockLocation?    @relation(fields: [locationId], references: [id])
+  session   StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  stockItem StockItem         @relation(fields: [stockItemId], references: [id])
+  location  StockLocation?    @relation(fields: [locationId], references: [id])
 
   @@index([sessionId])
   @@index([stockItemId])
@@ -1747,13 +1824,13 @@ model StockCountLine {
 }
 
 model AssetCustodyAssignment {
-  id              String   @id @default(uuid())
-  assignmentNo    String   @unique
+  id           String @id @default(uuid())
+  assignmentNo String @unique
 
-  assetId         String?
-  stockItemId     String?
-  qrTagId         String?
-  locationId      String?
+  assetId          String?
+  stockItemId      String?
+  qrTagId          String?
+  locationId       String?
   financeExpenseId String?
 
   assignedToType  String
@@ -1761,32 +1838,32 @@ model AssetCustodyAssignment {
   assignedToEmail String?
   employeeNumber  String?
 
-  department      String?
-  site            String?
-  branch          String?
+  department String?
+  site       String?
+  branch     String?
 
-  assignedBy      String?
-  assignedAt      DateTime @default(now())
+  assignedBy String?
+  assignedAt DateTime @default(now())
 
   expectedReturnAt DateTime?
-  returnedBy      String?
-  returnedAt      DateTime?
+  returnedBy       String?
+  returnedAt       DateTime?
 
-  status          String   @default("ASSIGNED")
-  conditionOut    String?
-  conditionIn     String?
-  notes           String?
+  status       String  @default("ASSIGNED")
+  conditionOut String?
+  conditionIn  String?
+  notes        String?
 
   approvalRequestId String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  asset           HubAsset?       @relation(fields: [assetId], references: [id])
-  stockItem       StockItem?      @relation(fields: [stockItemId], references: [id])
-  qrTag           AssetQrTag?     @relation(fields: [qrTagId], references: [id])
-  location        StockLocation?  @relation(fields: [locationId], references: [id])
-  financeExpense  FinanceExpense? @relation(fields: [financeExpenseId], references: [id])
+  asset          HubAsset?       @relation(fields: [assetId], references: [id])
+  stockItem      StockItem?      @relation(fields: [stockItemId], references: [id])
+  qrTag          AssetQrTag?     @relation(fields: [qrTagId], references: [id])
+  location       StockLocation?  @relation(fields: [locationId], references: [id])
+  financeExpense FinanceExpense? @relation(fields: [financeExpenseId], references: [id])
 
   @@index([assetId])
   @@index([stockItemId])
@@ -1799,42 +1876,42 @@ model AssetCustodyAssignment {
 }
 
 model ScaffoldDeployment {
-  id              String   @id @default(uuid())
-  deploymentNo    String   @unique
+  id           String @id @default(uuid())
+  deploymentNo String @unique
 
   scaffoldComponentId String?
-  stockItemId     String?
-  qrTagId         String?
-  movementId      String?
-  issuedToLocationId String?
-  financeExpenseId String?
+  stockItemId         String?
+  qrTagId             String?
+  movementId          String?
+  issuedToLocationId  String?
+  financeExpenseId    String?
 
-  issuedToSite    String
-  issuedToPerson  String?
-  issuedBy        String?
+  issuedToSite   String
+  issuedToPerson String?
+  issuedBy       String?
 
-  quantity        Decimal  @default(1) @db.Decimal(18, 2)
-  status          String   @default("ISSUED")
+  quantity Decimal @default(1) @db.Decimal(18, 2)
+  status   String  @default("ISSUED")
 
-  issuedAt        DateTime @default(now())
+  issuedAt         DateTime  @default(now())
   expectedReturnAt DateTime?
-  returnedAt      DateTime?
-  returnedBy      String?
+  returnedAt       DateTime?
+  returnedBy       String?
 
-  conditionOut    String?
-  conditionIn     String?
-  returnNotes     String?
+  conditionOut String?
+  conditionIn  String?
+  returnNotes  String?
 
   approvalRequestId String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   scaffoldComponent ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
-  stockItem       StockItem?           @relation(fields: [stockItemId], references: [id])
-  qrTag           AssetQrTag?          @relation(fields: [qrTagId], references: [id])
-  issuedToLocation StockLocation?      @relation(fields: [issuedToLocationId], references: [id])
-  financeExpense  FinanceExpense?      @relation(fields: [financeExpenseId], references: [id])
+  stockItem         StockItem?         @relation(fields: [stockItemId], references: [id])
+  qrTag             AssetQrTag?        @relation(fields: [qrTagId], references: [id])
+  issuedToLocation  StockLocation?     @relation(fields: [issuedToLocationId], references: [id])
+  financeExpense    FinanceExpense?    @relation(fields: [financeExpenseId], references: [id])
 
   @@index([scaffoldComponentId])
   @@index([stockItemId])
@@ -1847,42 +1924,41 @@ model ScaffoldDeployment {
   @@map("scaffold_deployments")
 }
 
-
 model ScaffoldInspection {
-  id                  String             @id @default(uuid())
-  inspectionNo        String?            @unique
+  id           String  @id @default(uuid())
+  inspectionNo String? @unique
 
   scaffoldComponentId String?
   scaffoldComponent   ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
 
-  qrTagId             String?
-  qrTag               AssetQrTag?        @relation(fields: [qrTagId], references: [id])
+  qrTagId String?
+  qrTag   AssetQrTag? @relation(fields: [qrTagId], references: [id])
 
-  inspectionType      String             @default("GENERAL")
-  inspectionStatus    String             @default("OPEN")
+  inspectionType   String @default("GENERAL")
+  inspectionStatus String @default("OPEN")
 
-  inspectionDate      DateTime           @default(now())
-  inspectedAt         DateTime           @default(now())
-  inspectedBy         String?
+  inspectionDate DateTime @default(now())
+  inspectedAt    DateTime @default(now())
+  inspectedBy    String?
 
-  site                String?
-  location            String?
+  site     String?
+  location String?
 
-  conditionStatus     String?
-  findings            String?
-  actionRequired      String?
-  correctiveAction    String?
-  isSafeForUse        Boolean            @default(true)
+  conditionStatus  String?
+  findings         String?
+  actionRequired   String?
+  correctiveAction String?
+  isSafeForUse     Boolean @default(true)
 
-  defectsFound        Boolean            @default(false)
-  defectNotes         String?
-  nextInspectionDate  DateTime?
+  defectsFound       Boolean   @default(false)
+  defectNotes        String?
+  nextInspectionDate DateTime?
 
-  evidenceDocumentId  String?
-  approvalRequestId   String?
+  evidenceDocumentId String?
+  approvalRequestId  String?
 
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([scaffoldComponentId])
   @@index([qrTagId])
@@ -1892,16 +1968,16 @@ model ScaffoldInspection {
 }
 
 model AssetQrTag {
-  id              String            @id @default(uuid())
-  tagCode         String            @unique
-  qrPayload       String?
-  barcodeValue    String?
+  id           String  @id @default(uuid())
+  tagCode      String  @unique
+  qrPayload    String?
+  barcodeValue String?
 
-  stockItemId     String?
-  stockItem       StockItem?        @relation(fields: [stockItemId], references: [id])
+  stockItemId String?
+  stockItem   StockItem? @relation(fields: [stockItemId], references: [id])
 
-  assetId         String?
-  asset           HubAsset?         @relation(fields: [assetId], references: [id])
+  assetId String?
+  asset   HubAsset? @relation(fields: [assetId], references: [id])
 
   scaffoldComponentId String?
   scaffoldComponent   ScaffoldComponent? @relation(fields: [scaffoldComponentId], references: [id])
@@ -1909,17 +1985,17 @@ model AssetQrTag {
   assignedLocationId String?
   assignedLocation   StockLocation? @relation("QrTagAssignedLocation", fields: [assignedLocationId], references: [id])
 
-  status          ScaffoldTagStatus @default(AVAILABLE)
+  status ScaffoldTagStatus @default(AVAILABLE)
 
-  lastScannedAt   DateTime?
-  lastScannedBy   String?
-  lastScanSite    String?
+  lastScannedAt DateTime?
+  lastScannedBy String?
+  lastScanSite  String?
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  movementLines   StockMovementLine[]
-  custodyAssignments AssetCustodyAssignment[]
+  movementLines       StockMovementLine[]
+  custodyAssignments  AssetCustodyAssignment[]
   scaffoldDeployments ScaffoldDeployment[]
   scaffoldInspections ScaffoldInspection[]
 
@@ -1931,33 +2007,33 @@ model AssetQrTag {
 }
 
 model ScaffoldComponent {
-  id              String                @id @default(uuid())
-  componentNo     String                @unique
+  id          String @id @default(uuid())
+  componentNo String @unique
 
-  componentType   ScaffoldComponentType
-  description     String?
+  componentType ScaffoldComponentType
+  description   String?
 
-  stockItemId     String?
-  stockItem       StockItem?            @relation("StockItemScaffoldComponents", fields: [stockItemId], references: [id])
+  stockItemId String?
+  stockItem   StockItem? @relation("StockItemScaffoldComponents", fields: [stockItemId], references: [id])
 
   currentSite     String?
   currentLocation String?
 
-  conditionStatus String                @default("GOOD")
-  tagStatus       ScaffoldTagStatus     @default(AVAILABLE)
+  conditionStatus String            @default("GOOD")
+  tagStatus       ScaffoldTagStatus @default(AVAILABLE)
 
-  purchaseDate    DateTime?
-  purchaseValue   Decimal?              @db.Decimal(18, 2)
+  purchaseDate  DateTime?
+  purchaseValue Decimal?  @db.Decimal(18, 2)
 
   lastInspectionDate DateTime?
   nextInspectionDate DateTime?
 
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  qrTags          AssetQrTag[]
-  deployments     ScaffoldDeployment[]
-  inspections     ScaffoldInspection[]
+  qrTags      AssetQrTag[]
+  deployments ScaffoldDeployment[]
+  inspections ScaffoldInspection[]
 
   @@index([componentType])
   @@index([tagStatus])
@@ -1966,51 +2042,51 @@ model ScaffoldComponent {
 }
 
 model FleetWorkshopJob {
-  id              String              @id @default(uuid())
-  jobCardNo       String              @unique
+  id        String @id @default(uuid())
+  jobCardNo String @unique
 
-  vehicleId       String
-  vehicle         FleetVehicle         @relation(fields: [vehicleId], references: [id])
+  vehicleId String
+  vehicle   FleetVehicle @relation(fields: [vehicleId], references: [id])
 
-  defectId        String?
-  defect          FleetDefect?         @relation(fields: [defectId], references: [id])
+  defectId String?
+  defect   FleetDefect? @relation(fields: [defectId], references: [id])
 
-  jobType         WorkshopJobType
-  priority        WorkshopJobPriority  @default(MEDIUM)
-  status          WorkshopJobStatus    @default(OPEN)
+  jobType  WorkshopJobType
+  priority WorkshopJobPriority @default(MEDIUM)
+  status   WorkshopJobStatus   @default(OPEN)
 
-  title           String
-  description     String?
-  diagnosis       String?
-  workDone        String?
+  title       String
+  description String?
+  diagnosis   String?
+  workDone    String?
 
-  openedBy        String?
-  assignedTo      String?
-  approvedBy      String?
-  releasedBy      String?
+  openedBy   String?
+  assignedTo String?
+  approvedBy String?
+  releasedBy String?
 
-  openedAt        DateTime             @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
-  approvedAt      DateTime?
-  releasedAt      DateTime?
-  closedAt        DateTime?
+  openedAt    DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  approvedAt  DateTime?
+  releasedAt  DateTime?
+  closedAt    DateTime?
 
-  odometerIn      Decimal?             @db.Decimal(18, 2)
-  odometerOut     Decimal?             @db.Decimal(18, 2)
+  odometerIn  Decimal? @db.Decimal(18, 2)
+  odometerOut Decimal? @db.Decimal(18, 2)
 
-  labourCost      Decimal?             @db.Decimal(18, 2)
-  partsCost       Decimal?             @db.Decimal(18, 2)
-  totalCost       Decimal?             @db.Decimal(18, 2)
+  labourCost Decimal? @db.Decimal(18, 2)
+  partsCost  Decimal? @db.Decimal(18, 2)
+  totalCost  Decimal? @db.Decimal(18, 2)
 
   approvalRequestId String?
 
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  parts           FleetWorkshopPart[]
-  labourLines     FleetWorkshopLabour[]
-  stockMovements  StockMovement[]
+  parts              FleetWorkshopPart[]
+  labourLines        FleetWorkshopLabour[]
+  stockMovements     StockMovement[]
   stockLedgerEntries StockLedger[]
 
   @@index([vehicleId])
@@ -2020,23 +2096,23 @@ model FleetWorkshopJob {
 }
 
 model FleetWorkshopPart {
-  id              String           @id @default(uuid())
+  id String @id @default(uuid())
 
-  workshopJobId   String
-  workshopJob     FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
+  workshopJobId String
+  workshopJob   FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
 
-  stockItemId     String?
-  stockItem       StockItem?       @relation(fields: [stockItemId], references: [id])
+  stockItemId String?
+  stockItem   StockItem? @relation(fields: [stockItemId], references: [id])
 
-  partName        String
-  quantity        Decimal          @db.Decimal(18, 2)
-  unitCost        Decimal?         @db.Decimal(18, 2)
-  totalCost       Decimal?         @db.Decimal(18, 2)
+  partName  String
+  quantity  Decimal  @db.Decimal(18, 2)
+  unitCost  Decimal? @db.Decimal(18, 2)
+  totalCost Decimal? @db.Decimal(18, 2)
 
   issuedMovementId String?
   issuedMovement   StockMovement? @relation(fields: [issuedMovementId], references: [id])
 
-  createdAt       DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@index([workshopJobId])
   @@index([stockItemId])
@@ -2045,70 +2121,70 @@ model FleetWorkshopPart {
 }
 
 model FleetWorkshopLabour {
-  id              String           @id @default(uuid())
+  id String @id @default(uuid())
 
-  workshopJobId   String
-  workshopJob     FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
+  workshopJobId String
+  workshopJob   FleetWorkshopJob @relation(fields: [workshopJobId], references: [id], onDelete: Cascade)
 
-  technicianName  String
-  labourHours     Decimal          @db.Decimal(18, 2)
-  hourlyRate      Decimal?         @db.Decimal(18, 2)
-  labourCost      Decimal?         @db.Decimal(18, 2)
-  notes           String?
+  technicianName String
+  labourHours    Decimal  @db.Decimal(18, 2)
+  hourlyRate     Decimal? @db.Decimal(18, 2)
+  labourCost     Decimal? @db.Decimal(18, 2)
+  notes          String?
 
-  createdAt       DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@index([workshopJobId])
   @@map("fleet_workshop_labour")
 }
 
 model AssetImportBatch {
-  id          String                 @id @default(uuid())
-  batchNo     String                 @unique
-  sourceType  String
-  fileName    String?
-  status      AssetImportBatchStatus @default(DRAFT)
+  id         String                 @id @default(uuid())
+  batchNo    String                 @unique
+  sourceType String
+  fileName   String?
+  status     AssetImportBatchStatus @default(DRAFT)
 
-  totalRows   Int                    @default(0)
-  validRows   Int                    @default(0)
-  warningRows Int                    @default(0)
-  errorRows   Int                    @default(0)
-  postedRows  Int                    @default(0)
+  totalRows   Int @default(0)
+  validRows   Int @default(0)
+  warningRows Int @default(0)
+  errorRows   Int @default(0)
+  postedRows  Int @default(0)
 
-  createdBy   String?
-  postedBy    String?
-  postedAt    DateTime?
-  notes       String?
-  rawPayload  Json?
+  createdBy  String?
+  postedBy   String?
+  postedAt   DateTime?
+  notes      String?
+  rawPayload Json?
 
-  lines       AssetImportLine[]
+  lines AssetImportLine[]
 
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AssetImportLine {
-  id                 String                @id @default(uuid())
-  batchId            String
-  batch              AssetImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  id      String           @id @default(uuid())
+  batchId String
+  batch   AssetImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-  rowNumber          Int
-  itemCode           String?
-  itemName           String?
-  itemType           String?
-  category           String?
-  unitOfMeasure      String?
-  locationCode       String?
-  locationName       String?
-  locationType       String?
-  site               String?
-  branch             String?
-  department         String?
+  rowNumber     Int
+  itemCode      String?
+  itemName      String?
+  itemType      String?
+  category      String?
+  unitOfMeasure String?
+  locationCode  String?
+  locationName  String?
+  locationType  String?
+  site          String?
+  branch        String?
+  department    String?
 
-  quantityOnHand     Decimal?              @db.Decimal(18, 2)
-  minimumLevel       Decimal?              @db.Decimal(18, 2)
-  reorderLevel       Decimal?              @db.Decimal(18, 2)
-  standardCost       Decimal?              @db.Decimal(18, 2)
+  quantityOnHand Decimal? @db.Decimal(18, 2)
+  minimumLevel   Decimal? @db.Decimal(18, 2)
+  reorderLevel   Decimal? @db.Decimal(18, 2)
+  standardCost   Decimal? @db.Decimal(18, 2)
 
   scaffoldComponentNo String?
   componentType       String?
@@ -2116,22 +2192,22 @@ model AssetImportLine {
   tagStatus           String?
   qrTagCode           String?
 
-  status             AssetImportLineStatus @default(VALID)
-  validationErrors   Json?
-  rawPayload         Json?
+  status           AssetImportLineStatus @default(VALID)
+  validationErrors Json?
+  rawPayload       Json?
 
-  legacySourceTable  String?
-  legacyRecordId     String?
-  legacyCode         String?
-  legacyPayload      Json?
+  legacySourceTable String?
+  legacyRecordId    String?
+  legacyCode        String?
+  legacyPayload     Json?
 
-  postedStockItemId  String?
-  postedLocationId   String?
-  postedBalanceId    String?
-  postedMovementId   String?
+  postedStockItemId String?
+  postedLocationId  String?
+  postedBalanceId   String?
+  postedMovementId  String?
 
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([batchId])
   @@index([itemCode])
@@ -2353,7 +2429,6 @@ enum HubDocumentConfidentiality {
   CONFIDENTIAL_EXECUTIVE
 }
 
-
 enum FinanceExpenseStatus {
   DRAFT
   SUBMITTED
@@ -2433,6 +2508,7 @@ enum ApprovalStepRole {
   REQUESTER
   SUPERVISOR
   LINE_MANAGER
+  SITE_MANAGER
   FOREMAN
   BRANCH_MANAGER
   HOD
@@ -2446,6 +2522,7 @@ enum ApprovalStepRole {
   FLEET_DISPATCH_OFFICER
   WORKSHOP_MANAGER
   OPERATIONS_MANAGER
+  ADMINISTRATION_MANAGER
   QUALITY_ADMIN_MANAGER
   SAFETY_OFFICER
   DIRECTOR_FINANCE

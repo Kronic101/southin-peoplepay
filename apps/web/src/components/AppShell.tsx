@@ -466,6 +466,16 @@ const navSections: NavSection[] = [
         href: '/admin/approval-matrix',
         roles: ['ADMIN', 'DIRECTOR'],
       },
+      {
+        label: 'Approver Assignments',
+        href: '/admin/approval-assignments',
+        roles: ['ADMIN', 'DIRECTOR'],
+      },
+      {
+        label: 'Approval Delegations',
+        href: '/admin/approval-delegations',
+        roles: ['ADMIN', 'DIRECTOR'],
+      },
     ],
   },
 ];

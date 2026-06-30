@@ -96,3 +96,91 @@ export const upsertApprovalUser = (payload: any) =>
     method: 'POST',
     body: JSON.stringify(payload),
   });
+
+export type ApprovalApproverAssignmentRecord = {
+  id: string;
+  module?: string | null;
+  workflowType?: string | null;
+  approvalRole: string;
+  site?: string | null;
+  branch?: string | null;
+  departmentId?: string | null;
+  assigneeType: string;
+  userEmail?: string | null;
+  userName?: string | null;
+  microsoftUserId?: string | null;
+  entraGroupId?: string | null;
+  entraGroupName?: string | null;
+  isPrimary: boolean;
+  isDefault: boolean;
+  priority: number;
+  isActive: boolean;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+};
+
+export type ApprovalDelegationRecord = {
+  id: string;
+  approvalRole?: string | null;
+  module?: string | null;
+  workflowType?: string | null;
+  site?: string | null;
+  branch?: string | null;
+  departmentId?: string | null;
+  fromUserEmail: string;
+  fromUserName?: string | null;
+  toUserEmail: string;
+  toUserName?: string | null;
+  reason?: string | null;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+};
+
+export const getApprovalAssignments = () =>
+  request<ApprovalApproverAssignmentRecord[]>('/approvals/assignments');
+
+export const createApprovalAssignment = (payload: any) =>
+  request<ApprovalApproverAssignmentRecord>('/approvals/assignments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const updateApprovalAssignment = (id: string, payload: any) =>
+  request<ApprovalApproverAssignmentRecord>(`/approvals/assignments/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+
+export const toggleApprovalAssignment = (id: string) =>
+  request<ApprovalApproverAssignmentRecord>(`/approvals/assignments/${id}/toggle`, {
+    method: 'PATCH',
+    body: JSON.stringify({}),
+  });
+
+export const getApprovalDelegations = () =>
+  request<ApprovalDelegationRecord[]>('/approvals/delegations');
+
+export const createApprovalDelegation = (payload: any) =>
+  request<ApprovalDelegationRecord>('/approvals/delegations', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const updateApprovalDelegation = (id: string, payload: any) =>
+  request<ApprovalDelegationRecord>(`/approvals/delegations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+
+export const toggleApprovalDelegation = (id: string) =>
+  request<ApprovalDelegationRecord>(`/approvals/delegations/${id}/toggle`, {
+    method: 'PATCH',
+    body: JSON.stringify({}),
+  });
+
+export const resolveApprovalApprover = (payload: any) =>
+  request<any>('/approvals/resolve', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
