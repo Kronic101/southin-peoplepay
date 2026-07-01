@@ -2134,3 +2134,438 @@ pre {
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* =========================================================
+   Employee Self-Service Portal - Corporate Uniformity Pass
+   ========================================================= */
+
+.employee-portal-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(242, 106, 33, 0.08), transparent 28rem),
+    linear-gradient(135deg, #f8fafc 0%, #eaf2f8 100%);
+  color: #020617;
+  padding: 1.5rem;
+}
+
+.employee-portal-shell {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.employee-portal-nav {
+  background: #06142a;
+  color: white;
+  border-radius: 1rem;
+  padding: 1.1rem 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+}
+
+.employee-portal-nav strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.employee-portal-nav span {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+.employee-portal-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.employee-portal-nav-links a,
+.employee-portal-nav-links button {
+  border: 0;
+  background: transparent;
+  color: white;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.65rem;
+}
+
+.employee-portal-nav-links a:hover,
+.employee-portal-nav-links button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.employee-hero-card,
+.employee-page-hero,
+.employee-panel,
+.employee-payslip-card {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 65px rgba(15, 23, 42, 0.09);
+}
+
+.employee-hero-card,
+.employee-page-hero {
+  padding: 1.75rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.employee-hero-card h1,
+.employee-page-hero h1 {
+  margin: 0;
+  color: #020617;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.employee-hero-card p,
+.employee-page-hero p {
+  margin: 0.75rem 0 0;
+  color: #334155;
+  max-width: 850px;
+  line-height: 1.55;
+}
+
+.hero-kicker,
+.employee-page-hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  background: #fff7ed;
+  color: #f26a21;
+  border-radius: 999px;
+  padding: 0.32rem 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.employee-avatar-card {
+  min-width: 190px;
+  border: 1px solid #fed7aa;
+  border-radius: 1rem;
+  background: #fff7ed;
+  padding: 1rem;
+  text-align: center;
+}
+
+.employee-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 1rem;
+  background: #f26a21;
+  color: white;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 0.65rem;
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.employee-avatar-card strong,
+.employee-avatar-card span {
+  display: block;
+}
+
+.employee-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.employee-tile {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 1.15rem;
+  padding: 1.25rem;
+  color: #020617;
+  text-decoration: none;
+  box-shadow: 0 16px 45px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 190px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.employee-tile:hover {
+  transform: translateY(-2px);
+  border-color: #f26a21;
+  box-shadow: 0 22px 55px rgba(242, 106, 33, 0.16);
+}
+
+.tile-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #fff7ed;
+  border-radius: 0.9rem;
+  font-size: 1.2rem;
+}
+
+.employee-tile h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #020617;
+}
+
+.employee-tile p {
+  color: #475569;
+  line-height: 1.45;
+  margin: 0.5rem 0;
+}
+
+.employee-tile strong {
+  color: #020617;
+}
+
+.employee-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.employee-panel,
+.employee-payslip-card {
+  padding: 1.5rem;
+}
+
+.employee-panel h2,
+.employee-payslip-card h2 {
+  margin: 0 0 1rem;
+  color: #020617;
+  font-size: 1.4rem;
+}
+
+.employee-portal-page .mini-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.employee-portal-page .mini-detail-grid > div,
+.employee-portal-page .leave-summary-card,
+.latest-payslip-card {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.9rem;
+  padding: 1rem;
+}
+
+.employee-portal-page .mini-detail-grid span,
+.employee-portal-page .leave-summary-card span,
+.latest-payslip-card span,
+.employee-payslip-summary span,
+.payslip-money span {
+  display: block;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.35rem;
+}
+
+.employee-portal-page .mini-detail-grid strong,
+.employee-portal-page .leave-summary-card strong,
+.latest-payslip-card strong,
+.employee-payslip-summary strong,
+.payslip-money strong {
+  display: block;
+  color: #020617;
+  font-size: 1rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.latest-payslip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.employee-payslip-centre {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.employee-payslip-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.employee-payslip-summary > div {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 16px 45px rgba(15, 23, 42, 0.06);
+}
+
+.employee-panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.employee-muted {
+  color: #64748b;
+  margin: 0.25rem 0 0;
+}
+
+.employee-payslip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.employee-payslip-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 0.45fr)) auto auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  background: #f8fafc;
+  color: #020617;
+  text-decoration: none;
+  padding: 1rem;
+}
+
+.payslip-main {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.payslip-icon {
+  width: 44px;
+  height: 44px;
+  background: #fff7ed;
+  color: #f26a21;
+  display: grid;
+  place-items: center;
+  border-radius: 0.9rem;
+  font-weight: 900;
+}
+
+.payslip-main strong,
+.payslip-main span {
+  display: block;
+}
+
+.payslip-main span {
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+.payslip-money.highlight {
+  background: #dcfce7;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+}
+
+.payslip-open-link {
+  color: #f26a21;
+  font-weight: 900;
+}
+
+.empty-state,
+.notice {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  padding: 1.1rem;
+  color: #334155;
+}
+
+.notice.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.employee-portal-page .btn,
+.employee-portal-page .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-weight: 900;
+  text-decoration: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.employee-portal-page .btn {
+  background: #f26a21;
+  color: white;
+  box-shadow: 0 16px 34px rgba(242, 106, 33, 0.28);
+}
+
+.employee-portal-page .btn-secondary {
+  background: #06142a;
+  color: white;
+}
+
+@media (max-width: 1100px) {
+  .employee-tile-grid,
+  .employee-dashboard-grid,
+  .employee-payslip-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-payslip-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .employee-portal-page {
+    padding: 0.85rem;
+  }
+
+  .employee-portal-nav,
+  .employee-hero-card,
+  .employee-page-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .employee-portal-nav-links {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .employee-tile-grid,
+  .employee-dashboard-grid,
+  .employee-payslip-summary,
+  .employee-portal-page .mini-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-avatar-card {
+    width: 100%;
+  }
+}
