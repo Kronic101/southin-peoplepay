@@ -41,14 +41,30 @@ function statusClass(value?: string | null) {
   const status = String(value || '').toUpperCase();
 
   if (status === 'APPROVED') return 'status-pill success';
+  if (status === 'ISSUED') return 'status-pill success';
   if (status === 'REJECTED') return 'status-pill danger';
   if (status === 'APPROVER_NOT_CONFIGURED') return 'status-pill danger';
 
   return 'status-pill warning';
 }
 
+function isReadyForIssue(record: StoresRequisitionRecord) {
+  const issueStatus = String((record as any).issueStatus || '').toUpperCase();
+  return record.status === 'APPROVED' && issueStatus !== 'ISSUED';
+}
+
+function getOperationalStatus(record: StoresRequisitionRecord) {
+  const issueStatus = String((record as any).issueStatus || '').toUpperCase();
+
+  if (issueStatus === 'ISSUED') return 'ISSUED';
+  if (isReadyForIssue(record)) return 'READY_FOR_ISSUE';
+
+  return record.status;
+}
+
 export default function StoresRequisitionsPage() {
   const [records, setRecords] = useState<StoresRequisitionRecord[]>([]);
+  const [filter, setFilter] = useState('ALL');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -71,11 +87,22 @@ export default function StoresRequisitionsPage() {
     loadData();
   }, []);
 
+  const filteredRecords = useMemo(() => {
+    if (filter === 'ALL') return records;
+
+    if (filter === 'READY_FOR_ISSUE') {
+      return records.filter((item) => isReadyForIssue(item));
+    }
+
+    return records.filter((item) => getOperationalStatus(item) === filter || item.status === filter);
+  }, [filter, records]);
+
   const stats = useMemo(() => {
     return {
       total: records.length,
       submitted: records.filter((item) => item.status === 'SUBMITTED').length,
       approved: records.filter((item) => item.status === 'APPROVED').length,
+      readyForIssue: records.filter((item) => isReadyForIssue(item)).length,
       rejected: records.filter((item) => item.status === 'REJECTED').length,
       approverMissing: records.filter((item) => item.status === 'APPROVER_NOT_CONFIGURED').length,
       value: records.reduce((sum, item) => sum + asNumber(item.totalValue), 0),
@@ -101,7 +128,8 @@ export default function StoresRequisitionsPage() {
               <p className="eyebrow">Stores Management</p>
               <h1>Stores Requisitions</h1>
               <p className="muted">
-                Create, track and approve stores requisitions through the Southin approval chain.
+                Create, track, approve and issue stores requisitions through the Southin approval
+                chain.
               </p>
             </div>
 
@@ -119,30 +147,30 @@ export default function StoresRequisitionsPage() {
           {error ? <div className="alert error">{error}</div> : null}
 
           <div className="finance-summary-grid">
-            <div className="finance-summary-card">
+            <button className="finance-summary-card" type="button" onClick={() => setFilter('ALL')}>
               <span>Total Requests</span>
               <strong>{stats.total}</strong>
-            </div>
+            </button>
 
-            <div className="finance-summary-card">
+            <button className="finance-summary-card" type="button" onClick={() => setFilter('SUBMITTED')}>
               <span>Submitted</span>
               <strong>{stats.submitted}</strong>
-            </div>
+            </button>
 
-            <div className="finance-summary-card">
+            <button className="finance-summary-card" type="button" onClick={() => setFilter('APPROVED')}>
               <span>Approved</span>
               <strong>{stats.approved}</strong>
-            </div>
+            </button>
 
-            <div className="finance-summary-card">
-              <span>Rejected</span>
-              <strong>{stats.rejected}</strong>
-            </div>
+            <button className="finance-summary-card" type="button" onClick={() => setFilter('READY_FOR_ISSUE')}>
+              <span>Ready for Issue</span>
+              <strong>{stats.readyForIssue}</strong>
+            </button>
 
-            <div className="finance-summary-card">
+            <button className="finance-summary-card" type="button" onClick={() => setFilter('APPROVER_NOT_CONFIGURED')}>
               <span>Missing Approver</span>
               <strong>{stats.approverMissing}</strong>
-            </div>
+            </button>
 
             <div className="finance-summary-card">
               <span>Total Value</span>
@@ -151,7 +179,24 @@ export default function StoresRequisitionsPage() {
           </div>
 
           <div className="finance-card">
-            <h2>Requisition Register</h2>
+            <div className="section-title-row">
+              <div>
+                <h2>Requisition Register</h2>
+                <p className="muted">
+                  Current filter: <strong>{filter}</strong>
+                </p>
+              </div>
+
+              <div className="action-row">
+                <button className="btn-secondary" type="button" onClick={() => setFilter('READY_FOR_ISSUE')}>
+                  Procurement / Stores Ready for Issue
+                </button>
+
+                <button className="btn-secondary" type="button" onClick={() => setFilter('ALL')}>
+                  Show All
+                </button>
+              </div>
+            </div>
 
             <div className="employee-table-wrap">
               <table className="employee-table">
@@ -164,65 +209,76 @@ export default function StoresRequisitionsPage() {
                     <th>Lines</th>
                     <th>Value</th>
                     <th>Status</th>
+                    <th>Issue</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {!records.length ? (
+                  {!filteredRecords.length ? (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         {loading ? 'Loading stores requisitions...' : 'No stores requisitions found.'}
                       </td>
                     </tr>
                   ) : (
-                    records.map((record) => (
-                      <tr key={record.id}>
-                        <td>
-                          <strong>{record.requisitionNo}</strong>
-                          <br />
-                          <span className="muted">{formatDate(record.submittedAt || record.createdAt)}</span>
-                        </td>
+                    filteredRecords.map((record) => {
+                      const operationalStatus = getOperationalStatus(record);
 
-                        <td>
-                          <strong>{record.requestedBy || '-'}</strong>
-                          <br />
-                          <span className="muted">{record.requestedByEmail || '-'}</span>
-                        </td>
+                      return (
+                        <tr key={record.id}>
+                          <td>
+                            <strong>{record.requisitionNo}</strong>
+                            <br />
+                            <span className="muted">{formatDate(record.submittedAt || record.createdAt)}</span>
+                          </td>
 
-                        <td>
-                          <strong>{record.site || '-'}</strong>
-                          <br />
-                          <span className="muted">{record.branch || '-'}</span>
-                        </td>
+                          <td>
+                            <strong>{record.requestedBy || '-'}</strong>
+                            <br />
+                            <span className="muted">{record.requestedByEmail || '-'}</span>
+                          </td>
 
-                        <td>{record.reason || record.description || '-'}</td>
+                          <td>
+                            <strong>{record.site || '-'}</strong>
+                            <br />
+                            <span className="muted">{record.branch || '-'}</span>
+                          </td>
 
-                        <td>{record.lines?.length || 0}</td>
+                          <td>{record.reason || record.description || '-'}</td>
 
-                        <td>{money(record.totalValue)}</td>
+                          <td>{record.lines?.length || 0}</td>
 
-                        <td>
-                          <span className={statusClass(record.status)}>
-                            {record.status}
-                          </span>
-                        </td>
+                          <td>{money(record.totalValue)}</td>
 
-                        <td>
-                          <div className="action-row">
-                            <Link className="btn-secondary" href={`/stores/requisitions/${record.id}`}>
-                              View
-                            </Link>
+                          <td>
+                            <span className={statusClass(record.status)}>{record.status}</span>
+                          </td>
 
-                            {record.approvalRequestId ? (
-                              <Link className="btn-secondary" href="/approvals/inbox">
-                                Inbox
+                          <td>
+                            <span className={statusClass(operationalStatus)}>{operationalStatus}</span>
+                          </td>
+
+                          <td>
+                            <div className="action-row">
+                              <Link className="btn-secondary" href={`/stores/requisitions/${record.id}`}>
+                                View
                               </Link>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+
+                              {record.status === 'APPROVED' ? (
+                                <Link className="btn" href={`/stores/requisitions/${record.id}/docket`}>
+                                  Print Docket
+                                </Link>
+                              ) : record.approvalRequestId ? (
+                                <Link className="btn-secondary" href="/approvals/inbox">
+                                  Inbox
+                                </Link>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

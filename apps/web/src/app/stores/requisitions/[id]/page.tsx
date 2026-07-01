@@ -58,48 +58,68 @@ function getPayload(record?: ApprovalWorkflowRecord | null) {
   return record.payload;
 }
 
-function getWorkflowStatus(record?: ApprovalWorkflowRecord | null) {
-  if (!record) return '-';
-  const payload = getPayload(record);
-  return payload.workflowStatus || record.status;
+function getWorkflowStatus(requisition?: StoresRequisitionRecord | null, approval?: ApprovalWorkflowRecord | null) {
+  if (requisition?.status === 'APPROVED') return 'APPROVED';
+  if (requisition?.status === 'REJECTED') return 'REJECTED';
+
+  if (!approval) return '-';
+
+  const payload = getPayload(approval);
+  return payload.workflowStatus || approval.status;
 }
 
-function getCurrentStepLabel(record?: ApprovalWorkflowRecord | null) {
-  if (!record) return '-';
+function getCurrentStepLabel(requisition?: StoresRequisitionRecord | null, approval?: ApprovalWorkflowRecord | null) {
+  if (requisition?.status === 'APPROVED' || approval?.status === 'APPROVED') {
+    return 'Completed';
+  }
 
-  const payload = getPayload(record);
+  if (requisition?.status === 'REJECTED' || approval?.status === 'REJECTED') {
+    return 'Rejected';
+  }
+
+  if (!approval) return '-';
+
+  const payload = getPayload(approval);
 
   return (
     payload?.nextStep?.label ||
     payload?.firstStep?.label ||
-    (record as any).currentStepRole ||
-    `Step ${record.currentStep || 1}`
+    (approval as any).currentStepRole ||
+    `Step ${approval.currentStep || 1}`
   );
 }
 
-function getCurrentRole(record?: ApprovalWorkflowRecord | null) {
-  if (!record) return '-';
+function getCurrentRole(requisition?: StoresRequisitionRecord | null, approval?: ApprovalWorkflowRecord | null) {
+  if (requisition?.status === 'APPROVED' || approval?.status === 'APPROVED') {
+    return 'FINAL_APPROVED';
+  }
 
-  const payload = getPayload(record);
+  if (!approval) return '-';
+
+  const payload = getPayload(approval);
 
   return (
-    (record as any).currentStepRole ||
-    (record as any).currentApprovalRole ||
+    (approval as any).currentStepRole ||
+    (approval as any).currentApprovalRole ||
     payload?.nextStep?.role ||
     payload?.firstStep?.role ||
     '-'
   );
 }
 
-function getCurrentApprover(record?: ApprovalWorkflowRecord | null) {
-  if (!record) return '-';
+function getCurrentApprover(requisition?: StoresRequisitionRecord | null, approval?: ApprovalWorkflowRecord | null) {
+  if (requisition?.status === 'APPROVED') {
+    return requisition.approvedBy || 'Final approval completed';
+  }
+
+  if (!approval) return '-';
 
   return (
-    (record as any).currentApproverEmail ||
-    (record as any).assignedToEmail ||
-    (record as any).approverEmail ||
-    getPayload(record)?.resolvedApprover?.approver?.email ||
-    getPayload(record)?.resolvedApprover?.originalApprover?.email ||
+    (approval as any).currentApproverEmail ||
+    (approval as any).assignedToEmail ||
+    (approval as any).approverEmail ||
+    getPayload(approval)?.resolvedApprover?.approver?.email ||
+    getPayload(approval)?.resolvedApprover?.originalApprover?.email ||
     '-'
   );
 }
@@ -165,6 +185,10 @@ export default function StoresRequisitionDetailPage() {
     return (record?.lines || []).reduce((sum, line) => sum + asNumber(line.totalCost), 0);
   }, [record]);
 
+  const isApproved = record?.status === 'APPROVED' || approval?.status === 'APPROVED';
+  const isRejected = record?.status === 'REJECTED' || approval?.status === 'REJECTED';
+  const approvalClosed = isApproved || isRejected;
+
   async function handleApprove() {
     if (!approval) return;
 
@@ -173,7 +197,7 @@ export default function StoresRequisitionDetailPage() {
     setError('');
 
     try {
-      const approverEmail = getCurrentApprover(approval);
+      const approverEmail = getCurrentApprover(record, approval);
 
       const result = await approveApprovalWorkflow(approval.id, {
         approvedBy: approverEmail,
@@ -201,7 +225,7 @@ export default function StoresRequisitionDetailPage() {
     setError('');
 
     try {
-      const approverEmail = getCurrentApprover(approval);
+      const approverEmail = getCurrentApprover(record, approval);
 
       const result = await rejectApprovalWorkflow(approval.id, {
         rejectedBy: approverEmail,
@@ -250,6 +274,12 @@ export default function StoresRequisitionDetailPage() {
                 Back to Requisitions
               </Link>
 
+              {record && isApproved ? (
+                <Link className="btn" href={`/stores/requisitions/${record.id}/docket`}>
+                  Print Docket
+                </Link>
+              ) : null}
+
               <button className="btn-secondary" type="button" onClick={loadData}>
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
@@ -265,7 +295,7 @@ export default function StoresRequisitionDetailPage() {
 
           {record ? (
             <>
-              <div className="summary-grid">
+              <div className="finance-summary-grid">
                 <div className="finance-summary-card">
                   <span>Status</span>
                   <strong>{record.status}</strong>
@@ -273,22 +303,22 @@ export default function StoresRequisitionDetailPage() {
 
                 <div className="finance-summary-card">
                   <span>Workflow Status</span>
-                  <strong>{getWorkflowStatus(approval)}</strong>
+                  <strong>{getWorkflowStatus(record, approval)}</strong>
                 </div>
 
                 <div className="finance-summary-card">
                   <span>Current Step</span>
-                  <strong>{getCurrentStepLabel(approval)}</strong>
+                  <strong>{getCurrentStepLabel(record, approval)}</strong>
                 </div>
 
                 <div className="finance-summary-card">
                   <span>Current Role</span>
-                  <strong>{getCurrentRole(approval)}</strong>
+                  <strong>{getCurrentRole(record, approval)}</strong>
                 </div>
 
                 <div className="finance-summary-card">
                   <span>Current Approver</span>
-                  <strong>{getCurrentApprover(approval)}</strong>
+                  <strong>{getCurrentApprover(record, approval)}</strong>
                 </div>
 
                 <div className="finance-summary-card">
@@ -296,6 +326,18 @@ export default function StoresRequisitionDetailPage() {
                   <strong>{money(totalValue || record.totalValue)}</strong>
                 </div>
               </div>
+
+              {isApproved ? (
+                <div className="alert success">
+                  Final approval is complete. Procurement / Stores can now print the delivery docket
+                  and issue the items.
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <Link className="btn" href={`/stores/requisitions/${record.id}/docket`}>
+                      Open Printable Delivery Docket
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="finance-summary-card">
                 <h2>Requisition Details</h2>
@@ -386,7 +428,7 @@ export default function StoresRequisitionDetailPage() {
               </div>
 
               {approval ? (
-                <div className="finance-summary-card">
+                <div className="finance-card">
                   <h2>Approval Action</h2>
 
                   <div className="mini-detail-grid">
@@ -397,52 +439,51 @@ export default function StoresRequisitionDetailPage() {
 
                     <div>
                       <span>Current Step</span>
-                      <strong>{getCurrentStepLabel(approval)}</strong>
+                      <strong>{getCurrentStepLabel(record, approval)}</strong>
                     </div>
 
                     <div>
                       <span>Current Role</span>
-                      <strong>{getCurrentRole(approval)}</strong>
+                      <strong>{getCurrentRole(record, approval)}</strong>
                     </div>
 
                     <div>
                       <span>Current Approver</span>
-                      <strong>{getCurrentApprover(approval)}</strong>
+                      <strong>{getCurrentApprover(record, approval)}</strong>
                     </div>
                   </div>
 
-                  <label style={{ display: 'block', marginTop: '1rem' }}>
-                    Comments
-                    <textarea
-                      value={comments}
-                      onChange={(event) => setComments(event.target.value)}
-                      placeholder="Add approval or rejection comments."
-                    />
-                  </label>
+                  {approvalClosed ? (
+                    <div className={isApproved ? 'alert success' : 'alert error'} style={{ marginTop: '1rem' }}>
+                      This approval request is {isApproved ? 'fully approved' : 'rejected'}. No further
+                      approval action is required.
+                    </div>
+                  ) : (
+                    <>
+                      <label style={{ display: 'block', marginTop: '1rem' }}>
+                        Comments
+                        <textarea
+                          value={comments}
+                          onChange={(event) => setComments(event.target.value)}
+                          placeholder="Add approval or rejection comments."
+                        />
+                      </label>
 
-                  <div className="action-row" style={{ marginTop: '1rem' }}>
-                    <button
-                      className="btn"
-                      type="button"
-                      disabled={actioning || approval.status === 'APPROVED' || approval.status === 'REJECTED'}
-                      onClick={handleApprove}
-                    >
-                      {actioning ? 'Processing...' : 'Approve'}
-                    </button>
+                      <div className="action-row" style={{ marginTop: '1rem' }}>
+                        <button className="btn" type="button" disabled={actioning} onClick={handleApprove}>
+                          {actioning ? 'Processing...' : 'Approve'}
+                        </button>
 
-                    <button
-                      className="btn-secondary"
-                      type="button"
-                      disabled={actioning || approval.status === 'APPROVED' || approval.status === 'REJECTED'}
-                      onClick={handleReject}
-                    >
-                      Reject
-                    </button>
+                        <button className="btn-secondary" type="button" disabled={actioning} onClick={handleReject}>
+                          Reject
+                        </button>
 
-                    <Link className="btn-secondary" href="/approvals/inbox">
-                      Open Inbox
-                    </Link>
-                  </div>
+                        <Link className="btn-secondary" href="/approvals/inbox">
+                          Open Inbox
+                        </Link>
+                      </div>
+                    </>
+                  )}
 
                   <h3 style={{ marginTop: '1.5rem' }}>Approval History</h3>
 
