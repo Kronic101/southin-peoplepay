@@ -175,24 +175,24 @@ export default function ApprovalAssignmentsPage() {
           {message ? <div className="alert success">{message}</div> : null}
           {error ? <div className="alert error">{error}</div> : null}
 
-          <div className="summary-grid">
-            <div className="leave-summary-card">
+          <div className="finance-summary-grid">
+            <div className="finance-summary-card">
               <span>Total Assignments</span>
               <strong>{stats.total}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Active</span>
               <strong>{stats.active}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>User Based</span>
               <strong>{stats.userAssignments}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Group Based</span>
               <strong>{stats.groupAssignments}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Default Fallbacks</span>
               <strong>{stats.defaults}</strong>
             </div>

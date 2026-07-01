@@ -266,38 +266,38 @@ export default function StoresRequisitionDetailPage() {
           {record ? (
             <>
               <div className="summary-grid">
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Status</span>
                   <strong>{record.status}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Workflow Status</span>
                   <strong>{getWorkflowStatus(approval)}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Current Step</span>
                   <strong>{getCurrentStepLabel(approval)}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Current Role</span>
                   <strong>{getCurrentRole(approval)}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Current Approver</span>
                   <strong>{getCurrentApprover(approval)}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Total Value</span>
                   <strong>{money(totalValue || record.totalValue)}</strong>
                 </div>
               </div>
 
-              <div className="finance-card">
+              <div className="finance-summary-card">
                 <h2>Requisition Details</h2>
 
                 <div className="mini-detail-grid">
@@ -386,7 +386,7 @@ export default function StoresRequisitionDetailPage() {
               </div>
 
               {approval ? (
-                <div className="finance-card">
+                <div className="finance-summary-card">
                   <h2>Approval Action</h2>
 
                   <div className="mini-detail-grid">

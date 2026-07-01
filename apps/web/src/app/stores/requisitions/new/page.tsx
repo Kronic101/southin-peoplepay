@@ -364,13 +364,13 @@ export default function NewStoresRequisitionPage() {
                 </table>
               </div>
 
-              <div className="summary-grid" style={{ marginTop: '1rem' }}>
-                <div className="leave-summary-card">
+              <div className="finance-summary-grid" style={{ marginTop: '1rem' }}> 
+                <div className="finance-summary-card">
                   <span>Total Lines</span>
                   <strong>{lines.length}</strong>
                 </div>
 
-                <div className="leave-summary-card">
+                <div className="finance-summary-card">
                   <span>Total Value</span>
                   <strong>{money(totalValue)}</strong>
                 </div>

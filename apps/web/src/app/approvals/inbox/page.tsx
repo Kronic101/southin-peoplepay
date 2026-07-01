@@ -234,23 +234,23 @@ export default function ApprovalInboxPage() {
           {error ? <div className="alert error">{error}</div> : null}
 
           <div className="summary-grid">
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Total</span>
               <strong>{stats.total}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>In Review</span>
               <strong>{stats.inReview}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Submitted</span>
               <strong>{stats.submitted}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Approved</span>
               <strong>{stats.approved}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Rejected</span>
               <strong>{stats.rejected}</strong>
             </div>

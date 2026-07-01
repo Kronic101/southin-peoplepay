@@ -186,19 +186,19 @@ export default function ApprovalDelegationsPage() {
           {error ? <div className="alert error">{error}</div> : null}
 
           <div className="summary-grid">
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Total Delegations</span>
               <strong>{stats.total}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Enabled</span>
               <strong>{stats.active}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Active Now</span>
               <strong>{stats.activeNow}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Expired</span>
               <strong>{stats.expired}</strong>
             </div>

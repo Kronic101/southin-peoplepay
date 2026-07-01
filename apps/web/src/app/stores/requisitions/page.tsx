@@ -118,33 +118,33 @@ export default function StoresRequisitionsPage() {
 
           {error ? <div className="alert error">{error}</div> : null}
 
-          <div className="summary-grid">
-            <div className="leave-summary-card">
+          <div className="finance-summary-grid">
+            <div className="finance-summary-card">
               <span>Total Requests</span>
               <strong>{stats.total}</strong>
             </div>
 
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Submitted</span>
               <strong>{stats.submitted}</strong>
             </div>
 
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Approved</span>
               <strong>{stats.approved}</strong>
             </div>
 
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Rejected</span>
               <strong>{stats.rejected}</strong>
             </div>
 
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Missing Approver</span>
               <strong>{stats.approverMissing}</strong>
             </div>
 
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Total Value</span>
               <strong>{money(stats.value)}</strong>
             </div>

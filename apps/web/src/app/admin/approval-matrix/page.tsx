@@ -303,24 +303,24 @@ export default function ApprovalMatrixAdminPage() {
           {message ? <div className="alert success">{message}</div> : null}
           {error ? <div className="alert error">{error}</div> : null}
 
-          <div className="summary-grid">
-            <div className="leave-summary-card">
+          <div className="finance-summary-grid">
+            <div className="finance-summary-card">
               <span>Total Rules</span>
               <strong>{stats.totalRules}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Active Rules</span>
               <strong>{stats.activeRules}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Finance Rules</span>
               <strong>{stats.financeRules}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Director Rules</span>
               <strong>{stats.directorRules}</strong>
             </div>
-            <div className="leave-summary-card">
+            <div className="finance-summary-card">
               <span>Approvers</span>
               <strong>{stats.approvers}</strong>
             </div>
