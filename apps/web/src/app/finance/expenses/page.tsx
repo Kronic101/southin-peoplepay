@@ -1,69 +1,91 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import AppShell from '../../../components/AppShell';
+import Link from 'next/link';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
+import AppShell from '@/components/AppShell';
 import {
-  approveFinanceExpense,
   createFinanceExpense,
   getFinanceExpenses,
   markFinanceExpensePaid,
-  rejectFinanceExpense,
-  type FinanceExpense,
-  type FinanceExpensesResponse,
-} from '../../../lib/api';
+} from '@/lib/api';
 
-function money(value: string | number | null | undefined) {
-  return new Intl.NumberFormat('en-ZM', {
-    style: 'currency',
-    currency: 'ZMW',
+function asNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function money(value: unknown) {
+  return `K ${asNumber(value).toLocaleString('en-ZM', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number(value || 0));
+  })}`;
 }
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-
-  return new Intl.DateTimeFormat('en-ZM', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-ZM', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
-function statusClass(status: string) {
-  const normalised = status.toUpperCase();
-
-  if (['APPROVED', 'PAID', 'READY_FOR_PAYMENT'].includes(normalised)) {
-    return 'status-pill success';
-  }
-
-  if (['REJECTED', 'CANCELLED'].includes(normalised)) {
-    return 'status-pill danger';
-  }
-
-  if (['SUBMITTED', 'IN_REVIEW', 'REQUIRED'].includes(normalised)) {
-    return 'status-pill warning';
-  }
-
-  return 'status-pill';
+function cleanStatus(value?: string | null) {
+  return String(value || '-').replaceAll('_', ' ');
 }
 
-const emptyResponse: FinanceExpensesResponse = {
-  summary: {
-    totalRecords: 0,
-    totalValue: 0,
-    submitted: 0,
-    approved: 0,
-    rejected: 0,
-    paid: 0,
-  },
-  expenses: [],
-};
+function statusClass(status?: string | null) {
+  const value = String(status || '').toUpperCase();
+  if (['APPROVED', 'READY_FOR_PAYMENT', 'PAID', 'POSTED'].includes(value)) return 'status-pill success';
+  if (['REJECTED', 'CANCELLED', 'FAILED', 'APPROVER_NOT_CONFIGURED'].includes(value)) return 'status-pill danger';
+  return 'status-pill warning';
+}
+
+function normalizeExpensesResponse(data: any) {
+  if (Array.isArray(data)) {
+    return {
+      summary: {
+        totalRecords: data.length,
+        totalValue: data.reduce((sum: number, item: any) => sum + asNumber(item.amount), 0),
+        submitted: data.filter((item: any) => item.status === 'SUBMITTED').length,
+        approved: data.filter((item: any) => item.status === 'APPROVED').length,
+        rejected: data.filter((item: any) => item.status === 'REJECTED').length,
+        paid: data.filter((item: any) => item.status === 'PAID').length,
+      },
+      expenses: data,
+    };
+  }
+
+  return {
+    summary: data?.summary || {
+      totalRecords: data?.expenses?.length || 0,
+      totalValue: 0,
+      submitted: 0,
+      approved: 0,
+      rejected: 0,
+      paid: 0,
+    },
+    expenses: data?.expenses || data?.items || data?.records || [],
+  };
+}
+
+function canMarkPaid(expense: any) {
+  return ['APPROVED', 'READY_FOR_PAYMENT'].includes(String(expense.status || '').toUpperCase());
+}
 
 export default function FinanceExpensesPage() {
-  const [data, setData] = useState<FinanceExpensesResponse>(emptyResponse);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>({
+    summary: { totalRecords: 0, totalValue: 0, submitted: 0, approved: 0, rejected: 0, paid: 0 },
+    expenses: [],
+  });
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [payingId, setPayingId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -72,8 +94,8 @@ export default function FinanceExpensesPage() {
     setError('');
 
     try {
-      const response = await getFinanceExpenses();
-      setData(response);
+      const result = await getFinanceExpenses();
+      setData(normalizeExpensesResponse(result));
     } catch (err: any) {
       setError(err?.message || 'Failed to load finance expenses.');
     } finally {
@@ -85,9 +107,20 @@ export default function FinanceExpensesPage() {
     loadExpenses();
   }, []);
 
-  const latestExpenses = useMemo(() => data.expenses || [], [data.expenses]);
+  const expenses = useMemo(() => data.expenses || [], [data.expenses]);
+  const summary = useMemo(() => {
+    return {
+      totalRecords: expenses.length,
+      totalValue: expenses.reduce((sum: number, item: any) => sum + asNumber(item.amount), 0),
+      submitted: expenses.filter((item: any) => item.status === 'SUBMITTED').length,
+      approved: expenses.filter((item: any) => ['APPROVED', 'READY_FOR_PAYMENT'].includes(item.status)).length,
+      rejected: expenses.filter((item: any) => item.status === 'REJECTED').length,
+      paid: expenses.filter((item: any) => item.status === 'PAID').length,
+      missingApprover: expenses.filter((item: any) => item.status === 'APPROVER_NOT_CONFIGURED').length,
+    };
+  }, [expenses]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setMessage('');
@@ -108,254 +141,149 @@ export default function FinanceExpensesPage() {
       });
 
       event.currentTarget.reset();
-      setMessage('Expense submitted successfully.');
+      setMessage('Finance expense submitted to approval workflow.');
       await loadExpenses();
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit expense.');
+      setError(err?.message || 'Failed to create expense.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleApprove(expense: FinanceExpense) {
-    setMessage('');
-    setError('');
-
-    try {
-      await approveFinanceExpense(expense.id, 'Approved by Finance for payment preparation.');
-      setMessage(`${expense.expenseNo} approved.`);
-      await loadExpenses();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to approve expense.');
-    }
-  }
-
-  async function handleReject(expense: FinanceExpense) {
-    setMessage('');
-    setError('');
-
-    try {
-      await rejectFinanceExpense(expense.id, 'Rejected by Finance.');
-      setMessage(`${expense.expenseNo} rejected.`);
-      await loadExpenses();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to reject expense.');
-    }
-  }
-
-  async function handleMarkPaid(expense: FinanceExpense) {
+  async function handleMarkPaid(expense: any) {
+    setPayingId(expense.id);
     setMessage('');
     setError('');
 
     try {
       await markFinanceExpensePaid(expense.id, {
         paidBy: 'finance@southincon.com',
-        paymentReference: `PAY-${expense.expenseNo}`,
-        financeComment: 'Expense paid and ready for evidence filing.',
+        paymentReference: `PAY-${expense.expenseNo || expense.id}`,
+        financeComment: 'Expense paid from Finance Expenses page.',
       });
 
-      setMessage(`${expense.expenseNo} marked as paid.`);
+      setMessage(`${expense.expenseNo || 'Expense'} marked as paid.`);
       await loadExpenses();
     } catch (err: any) {
       setError(err?.message || 'Failed to mark expense as paid.');
+    } finally {
+      setPayingId('');
     }
   }
 
   return (
     <AppShell>
-    <section className="page-stack finance-live-page">
-      <div className="finance-live-card">
-        <div className="finance-live-header">
+      <section className="finance-page">
+        <div className="finance-card finance-hero-card">
           <div>
             <p className="eyebrow">Finance Workflow</p>
-            <h1>Expense Approvals</h1>
+            <h1>Finance Expenses</h1>
             <p className="muted">
-              Database-backed finance expense register with approval, rejection, payment status and
-              evidence readiness.
+              Finance expense register connected to the unified approval workflow. Payments are only available after approval.
             </p>
           </div>
 
-          <button className="btn-secondary" onClick={loadExpenses} type="button">
-            Refresh
-          </button>
+          <div className="action-row">
+            <Link className="btn-secondary" href="/approvals/inbox">Approval Inbox</Link>
+            <button className="btn-secondary" onClick={loadExpenses} type="button">{loading ? 'Refreshing...' : 'Refresh'}</button>
+          </div>
         </div>
 
-        {message && <div className="notice">{message}</div>}
-        {error && <div className="notice danger">{error}</div>}
+        {message ? <div className="alert success">{message}</div> : null}
+        {error ? <div className="alert error">{error}</div> : null}
 
         <div className="finance-summary-grid">
-          <div className="finance-summary-card">
-            <span>Total Records</span>
-            <strong>{data.summary.totalRecords}</strong>
+          <div className="finance-summary-card"><span>Total Records</span><strong>{summary.totalRecords}</strong></div>
+          <div className="finance-summary-card"><span>Total Value</span><strong>{money(summary.totalValue)}</strong></div>
+          <div className="finance-summary-card"><span>Submitted</span><strong>{summary.submitted}</strong></div>
+          <div className="finance-summary-card"><span>Approved / Ready</span><strong>{summary.approved}</strong></div>
+          <div className="finance-summary-card"><span>Rejected</span><strong>{summary.rejected}</strong></div>
+          <div className="finance-summary-card"><span>Paid</span><strong>{summary.paid}</strong></div>
+          <div className="finance-summary-card"><span>Missing Approver</span><strong>{summary.missingApprover}</strong></div>
+        </div>
+
+        <div className="finance-card">
+          <h2>Submit Expense</h2>
+
+          <form className="finance-form-grid" onSubmit={handleSubmit}>
+            <label>Category<input name="category" placeholder="Transport, Fuel, Accommodation" required /></label>
+            <label>Description<input name="description" placeholder="Expense description" required /></label>
+            <label>Amount<input name="amount" type="number" min="0" step="0.01" required /></label>
+            <label>Department<input name="department" defaultValue="Finance" required /></label>
+            <label>Site<input name="site" defaultValue="Solwezi Head Office" /></label>
+            <label>Payee<input name="payee" placeholder="Supplier / employee / payee" /></label>
+            <label>Requested By<input name="requestedBy" defaultValue="Finance Manager" /></label>
+            <label>Requester Email<input name="requestedByEmail" defaultValue="finance@southincon.com" /></label>
+            <div className="form-actions full-span"><button className="btn" type="submit" disabled={saving}>{saving ? 'Submitting...' : 'Submit for Approval'}</button></div>
+          </form>
+        </div>
+
+        <div className="finance-card">
+          <div className="section-heading-row">
+            <div>
+              <h2>Expense Register</h2>
+              <p className="muted">Approval status and payment actions are controlled from the workflow.</p>
+            </div>
           </div>
-          <div className="finance-summary-card">
-            <span>Total Value</span>
-            <strong>{money(data.summary.totalValue)}</strong>
-          </div>
-          <div className="finance-summary-card">
-            <span>Submitted</span>
-            <strong>{data.summary.submitted}</strong>
-          </div>
-          <div className="finance-summary-card">
-            <span>Approved</span>
-            <strong>{data.summary.approved}</strong>
-          </div>
-          <div className="finance-summary-card">
-            <span>Rejected</span>
-            <strong>{data.summary.rejected}</strong>
-          </div>
-          <div className="finance-summary-card">
-            <span>Paid</span>
-            <strong>{data.summary.paid}</strong>
+
+          <div className="employee-table-wrap">
+            <table className="employee-table">
+              <thead>
+                <tr>
+                  <th>Expense</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th>Payee</th>
+                  <th>Amount</th>
+                  <th>Approval</th>
+                  <th>Payment</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!expenses.length ? (
+                  <tr><td colSpan={9}>{loading ? 'Loading finance expenses...' : 'No finance expenses found.'}</td></tr>
+                ) : (
+                  expenses.map((expense: any) => {
+                    const approved = canMarkPaid(expense);
+                    const paid = String(expense.status || '').toUpperCase() === 'PAID';
+                    const hasApproval = Boolean(expense.approvalRequestId);
+
+                    return (
+                      <tr key={expense.id}>
+                        <td><strong>{expense.expenseNo || expense.referenceNo || '-'}</strong></td>
+                        <td>{cleanStatus(expense.category)}</td>
+                        <td>{expense.description || '-'}</td>
+                        <td>{expense.payee || expense.supplierName || '-'}</td>
+                        <td>{money(expense.amount)}</td>
+                        <td>
+                          <span className={statusClass(expense.status)}>{cleanStatus(expense.status)}</span><br />
+                          <span className="muted">{expense.approvalRequestId || 'No approval link'}</span>
+                        </td>
+                        <td>{paid ? <span className="status-pill success">Paid</span> : <span className="status-pill warning">Not Paid</span>}</td>
+                        <td>{formatDate(expense.expenseDate || expense.createdAt)}</td>
+                        <td>
+                          <div className="action-row">
+                            {hasApproval && !approved && !paid ? <Link className="btn-secondary" href="/approvals/inbox">Open Approval</Link> : null}
+                            {approved && !paid ? (
+                              <button className="btn" type="button" disabled={payingId === expense.id} onClick={() => handleMarkPaid(expense)}>
+                                {payingId === expense.id ? 'Marking...' : 'Mark Paid'}
+                              </button>
+                            ) : null}
+                            {paid ? <span className="status-pill success">Complete</span> : null}
+                            {!hasApproval && !paid ? <span className="status-pill warning">Approval not linked</span> : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
-
-      <div className="finance-live-card">
-        <h2>Submit Expense</h2>
-
-        <form className="finance-form-grid" onSubmit={handleSubmit}>
-          <label>
-            Category
-            <input name="category" placeholder="Transport, Fuel, Accommodation" required />
-          </label>
-
-          <label>
-            Amount
-            <input name="amount" min="1" step="0.01" type="number" required />
-          </label>
-
-          <label>
-            Department
-            <input name="department" defaultValue="Operations" />
-          </label>
-
-          <label>
-            Site
-            <input name="site" defaultValue="Kitwe Main Distribution Centre" />
-          </label>
-
-          <label>
-            Payee
-            <input name="payee" defaultValue="Employee" />
-          </label>
-
-          <label>
-            Requested By
-            <input name="requestedBy" defaultValue="Finance Manager" />
-          </label>
-
-          <label>
-            Requested By Email
-            <input name="requestedByEmail" defaultValue="finance@southincon.com" type="email" />
-          </label>
-
-          <label className="span-2">
-            Description
-            <textarea
-              name="description"
-              placeholder="Describe the expense and reason for payment."
-              required
-            />
-          </label>
-
-          <button className="btn" disabled={saving} type="submit">
-            {saving ? 'Submitting...' : 'Submit Expense'}
-          </button>
-        </form>
-      </div>
-
-      <div className="finance-live-card">
-        <h2>Expense Register</h2>
-
-        <div className="finance-table-wrap">
-          <table className="finance-table">
-            <thead>
-              <tr>
-                <th>Expense No.</th>
-                <th>Category</th>
-                <th>Description</th>
-                <th>Department</th>
-                <th>Site</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Evidence</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={10}>Loading finance expenses...</td>
-                </tr>
-              ) : latestExpenses.length === 0 ? (
-                <tr>
-                  <td colSpan={10}>No finance expenses found.</td>
-                </tr>
-              ) : (
-                latestExpenses.map((expense) => (
-                  <tr key={expense.id}>
-                    <td>{expense.expenseNo}</td>
-                    <td>{expense.category}</td>
-                    <td>{expense.description}</td>
-                    <td>{expense.department || '-'}</td>
-                    <td>{expense.site || '-'}</td>
-                    <td>{money(expense.amount)}</td>
-                    <td>
-                      <span className={statusClass(expense.status)}>{expense.status}</span>
-                    </td>
-                    <td>
-                      <span className={statusClass(expense.evidenceStatus)}>
-                        {expense.evidenceStatus}
-                      </span>
-                    </td>
-                    <td>{formatDate(expense.createdAt)}</td>
-                    <td>
-                      <div className="finance-inline-actions">
-                        {expense.status === 'SUBMITTED' && (
-                          <>
-                            <button
-                              className="btn-secondary"
-                              onClick={() => handleApprove(expense)}
-                              type="button"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              className="btn-secondary danger"
-                              onClick={() => handleReject(expense)}
-                              type="button"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-
-                        {expense.status === 'APPROVED' && (
-                          <button
-                            className="btn-secondary"
-                            onClick={() => handleMarkPaid(expense)}
-                            type="button"
-                          >
-                            Mark Paid
-                          </button>
-                        )}
-
-                        {!['SUBMITTED', 'APPROVED'].includes(expense.status) && (
-                          <span className="muted">No action</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-    </AppShell> 
+      </section>
+    </AppShell>
   );
 }

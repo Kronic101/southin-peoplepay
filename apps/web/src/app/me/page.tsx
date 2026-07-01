@@ -128,7 +128,7 @@ export default function EmployeePortalHomePage() {
   if (error) {
     return (
       <main className="employee-portal-page">
-        <section className="employee-portal-shell">
+        <section className="finance-summary-grid">
           <EmployeePortalNav onLogout={handleLogout} />
 
           <div className="notice danger">

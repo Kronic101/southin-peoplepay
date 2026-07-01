@@ -2569,3 +2569,142 @@ pre {
     width: 100%;
   }
 }
+
+/* =========================================================
+   Employee Payslip One-Page Print Fix
+   ========================================================= */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+    width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .employee-portal-nav,
+  .employee-portal-nav-links,
+  .no-print,
+  .browser-only,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .employee-portal-page,
+  .employee-portal-shell,
+  .employee-payslip-centre {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+  }
+
+  .payslip-print-document,
+  .employee-payslip-document,
+  .payslip-document {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+
+  .payslip-print-document h1,
+  .employee-payslip-document h1,
+  .payslip-document h1 {
+    font-size: 20px !important;
+    line-height: 1.05 !important;
+    margin: 0 !important;
+  }
+
+  .payslip-print-document h2,
+  .employee-payslip-document h2,
+  .payslip-document h2 {
+    font-size: 13px !important;
+    margin: 6px 0 !important;
+  }
+
+  .payslip-print-document h3,
+  .employee-payslip-document h3,
+  .payslip-document h3 {
+    font-size: 12px !important;
+    margin: 6px 0 !important;
+  }
+
+  .payslip-print-document p,
+  .employee-payslip-document p,
+  .payslip-document p {
+    margin: 3px 0 !important;
+  }
+
+  .employee-portal-page .mini-detail-grid,
+  .payslip-detail-grid,
+  .payslip-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .employee-portal-page .mini-detail-grid > div,
+  .payslip-detail-grid > div,
+  .payslip-summary-grid > div,
+  .leave-summary-card,
+  .latest-payslip-card {
+    padding: 6px !important;
+    min-height: auto !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+  }
+
+  .payslip-two-column {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  th,
+  td {
+    padding: 4px 5px !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+  .payslip-print-footer,
+  .payslip-footer {
+    font-size: 8.5px !important;
+    margin-top: 6px !important;
+    padding-top: 5px !important;
+  }
+
+  .btn,
+  .btn-secondary,
+  button {
+    display: none !important;
+  }
+}

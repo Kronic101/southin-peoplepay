@@ -1,68 +1,103 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import AppShell from '../../../components/AppShell';
+import AppShell from '@/components/AppShell';
 import {
   createProcurementPayment,
   getProcurementPayments,
   markProcurementInvoiceReceived,
   markProcurementPaid,
   markProcurementPopUploaded,
-  type ProcurementPaymentRecord,
-  type ProcurementPaymentsResponse,
-} from '../../../lib/api';
+} from '@/lib/api';
 
-function money(value: string | number | null | undefined) {
-  return new Intl.NumberFormat('en-ZM', {
-    style: 'currency',
-    currency: 'ZMW',
+function asNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function money(value: unknown) {
+  return `K ${asNumber(value).toLocaleString('en-ZM', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number(value || 0));
+  })}`;
 }
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-
-  return new Intl.DateTimeFormat('en-ZM', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-ZM', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
-function statusClass(status: string) {
+function cleanStatus(value?: string | null) {
+  return String(value || '-').replaceAll('_', ' ');
+}
+
+function statusClass(status?: string | null) {
   const value = String(status || '').toUpperCase();
-
-  if (['PAID', 'APPROVED', 'GOODS_RECEIVED', 'INVOICE_RECEIVED'].includes(value)) {
-    return 'status-pill success';
-  }
-
-  if (['REJECTED', 'CANCELLED'].includes(value)) {
-    return 'status-pill danger';
-  }
-
-  if (['SUBMITTED', 'PENDING', 'NOT_PAID', 'NOT_REVIEWED'].includes(value)) {
-    return 'status-pill warning';
-  }
-
-  return 'status-pill';
+  if (['PAID', 'APPROVED', 'GOODS_RECEIVED', 'INVOICE_RECEIVED', 'POP_UPLOADED'].includes(value)) return 'status-pill success';
+  if (['REJECTED', 'CANCELLED', 'FAILED', 'APPROVER_NOT_CONFIGURED'].includes(value)) return 'status-pill danger';
+  return 'status-pill warning';
 }
 
-const emptyResponse: ProcurementPaymentsResponse = {
-  summary: {
-    totalRecords: 0,
-    totalValue: 0,
-    invoicePending: 0,
-    paymentPending: 0,
-    paid: 0,
-  },
-  records: [],
-};
+function normalizeResponse(data: any) {
+  if (Array.isArray(data)) {
+    return {
+      summary: {
+        totalRecords: data.length,
+        totalValue: data.reduce((sum: number, item: any) => sum + asNumber(item.amount), 0),
+        invoicePending: data.filter((item: any) => item.invoiceStatus !== 'INVOICE_RECEIVED').length,
+        paymentPending: data.filter((item: any) => item.paymentStatus !== 'PAID').length,
+        paid: data.filter((item: any) => item.paymentStatus === 'PAID' || item.status === 'PAID').length,
+      },
+      records: data,
+    };
+  }
+
+  return {
+    summary: data?.summary || {
+      totalRecords: data?.records?.length || 0,
+      totalValue: 0,
+      invoicePending: 0,
+      paymentPending: 0,
+      paid: 0,
+    },
+    records: data?.records || data?.items || data?.payments || [],
+  };
+}
+
+function isApproved(record: any) {
+  return String(record.status || '').toUpperCase() === 'APPROVED';
+}
+
+function invoiceReceived(record: any) {
+  return String(record.invoiceStatus || '').toUpperCase() === 'INVOICE_RECEIVED';
+}
+
+function popUploaded(record: any) {
+  return String(record.popStatus || '').toUpperCase() === 'POP_UPLOADED';
+}
+
+function paid(record: any) {
+  return String(record.paymentStatus || record.status || '').toUpperCase() === 'PAID';
+}
 
 export default function ProcurementTrackerPage() {
-  const [data, setData] = useState<ProcurementPaymentsResponse>(emptyResponse);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>({
+    summary: { totalRecords: 0, totalValue: 0, invoicePending: 0, paymentPending: 0, paid: 0 },
+    records: [],
+  });
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionId, setActionId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -71,8 +106,8 @@ export default function ProcurementTrackerPage() {
     setError('');
 
     try {
-      const response = await getProcurementPayments();
-      setData(response);
+      const result = await getProcurementPayments();
+      setData(normalizeResponse(result));
     } catch (err: any) {
       setError(err?.message || 'Failed to load procurement tracker.');
     } finally {
@@ -85,8 +120,19 @@ export default function ProcurementTrackerPage() {
   }, []);
 
   const records = useMemo(() => data.records || [], [data.records]);
+  const summary = useMemo(() => {
+    return {
+      totalRecords: records.length,
+      totalValue: records.reduce((sum: number, item: any) => sum + asNumber(item.amount), 0),
+      submitted: records.filter((item: any) => String(item.status).toUpperCase() === 'SUBMITTED').length,
+      approved: records.filter(isApproved).length,
+      invoicePending: records.filter((item: any) => !invoiceReceived(item)).length,
+      paymentPending: records.filter((item: any) => !paid(item)).length,
+      paid: records.filter(paid).length,
+    };
+  }, [records]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setMessage('');
@@ -102,10 +148,11 @@ export default function ProcurementTrackerPage() {
         description: String(formData.get('description') || ''),
         amount: Number(formData.get('amount') || 0),
         requestedBy: String(formData.get('requestedBy') || 'Procurement Officer'),
+        requestedByEmail: String(formData.get('requestedByEmail') || 'procurement@southincon.com'),
       });
 
       event.currentTarget.reset();
-      setMessage('Procurement payment record created successfully.');
+      setMessage('Procurement request submitted to approval workflow.');
       await loadRecords();
     } catch (err: any) {
       setError(err?.message || 'Failed to create procurement record.');
@@ -114,220 +161,155 @@ export default function ProcurementTrackerPage() {
     }
   }
 
-  async function handleInvoiceReceived(record: ProcurementPaymentRecord) {
+  async function runAction(record: any, action: 'invoice' | 'pop' | 'paid') {
+    setActionId(`${record.id}-${action}`);
     setMessage('');
     setError('');
 
     try {
-      await markProcurementInvoiceReceived(record.id, record.invoiceNo || `INV-${record.requisitionNo}`);
-      setMessage(`${record.requisitionNo} invoice marked as received.`);
+      if (action === 'invoice') {
+        await markProcurementInvoiceReceived(record.id, record.invoiceNo || `INV-${record.requisitionNo || record.id}`);
+        setMessage(`${record.requisitionNo || 'Procurement record'} invoice marked as received.`);
+      }
+
+      if (action === 'pop') {
+        await markProcurementPopUploaded(record.id);
+        setMessage(`${record.requisitionNo || 'Procurement record'} proof of payment marked as uploaded.`);
+      }
+
+      if (action === 'paid') {
+        await markProcurementPaid(record.id);
+        setMessage(`${record.requisitionNo || 'Procurement record'} marked as paid.`);
+      }
+
       await loadRecords();
     } catch (err: any) {
-      setError(err?.message || 'Failed to update invoice status.');
-    }
-  }
-
-  async function handlePopUploaded(record: ProcurementPaymentRecord) {
-    setMessage('');
-    setError('');
-
-    try {
-      await markProcurementPopUploaded(record.id);
-      setMessage(`${record.requisitionNo} proof of payment marked as uploaded.`);
-      await loadRecords();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to update proof of payment.');
-    }
-  }
-
-  async function handlePaid(record: ProcurementPaymentRecord) {
-    setMessage('');
-    setError('');
-
-    try {
-      await markProcurementPaid(record.id);
-      setMessage(`${record.requisitionNo} marked as paid.`);
-      await loadRecords();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to mark procurement record as paid.');
+      setError(err?.message || 'Failed to update procurement record.');
+    } finally {
+      setActionId('');
     }
   }
 
   return (
     <AppShell>
-      <section className="page-stack finance-live-page">
-        <div className="finance-live-card">
-          <div className="finance-live-header">
-            <div>
-              <p className="eyebrow">Finance Workflow</p>
-              <h1>Procurement Payment Tracker</h1>
-              <p className="muted">
-                Finance-controlled procurement payment register for invoices, proof of payment and payment status.
-              </p>
-            </div>
-
-            <button className="btn-secondary" onClick={loadRecords} type="button">
-              Refresh
-            </button>
+      <section className="finance-page">
+        <div className="finance-card finance-hero-card">
+          <div>
+            <p className="eyebrow">Procurement Workflow</p>
+            <h1>Procurement Payment Tracker</h1>
+            <p className="muted">
+              Procurement requests routed through approvals before invoice, proof of payment and payment completion are recorded.
+            </p>
           </div>
 
-          {message && <div className="notice">{message}</div>}
-          {error && <div className="notice danger">{error}</div>}
-
-          <div className="finance-summary-grid">
-            <div className="finance-summary-card">
-              <span>Total Records</span>
-              <strong>{data.summary.totalRecords}</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Total Value</span>
-              <strong>{money(data.summary.totalValue)}</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Invoice Pending</span>
-              <strong>{data.summary.invoicePending}</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Payment Pending</span>
-              <strong>{data.summary.paymentPending}</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Paid</span>
-              <strong>{data.summary.paid}</strong>
-            </div>
+          <div className="action-row">
+            <Link className="btn-secondary" href="/approvals/inbox">Approval Inbox</Link>
+            <button className="btn-secondary" onClick={loadRecords} type="button">{loading ? 'Refreshing...' : 'Refresh'}</button>
           </div>
         </div>
 
-        <div className="finance-live-card">
-          <h2>Create Procurement Payment Record</h2>
+        {message ? <div className="alert success">{message}</div> : null}
+        {error ? <div className="alert error">{error}</div> : null}
+
+        <div className="finance-summary-grid">
+          <div className="finance-summary-card"><span>Total Records</span><strong>{summary.totalRecords}</strong></div>
+          <div className="finance-summary-card"><span>Total Value</span><strong>{money(summary.totalValue)}</strong></div>
+          <div className="finance-summary-card"><span>Submitted</span><strong>{summary.submitted}</strong></div>
+          <div className="finance-summary-card"><span>Approved</span><strong>{summary.approved}</strong></div>
+          <div className="finance-summary-card"><span>Invoice Pending</span><strong>{summary.invoicePending}</strong></div>
+          <div className="finance-summary-card"><span>Payment Pending</span><strong>{summary.paymentPending}</strong></div>
+          <div className="finance-summary-card"><span>Paid</span><strong>{summary.paid}</strong></div>
+        </div>
+
+        <div className="finance-card">
+          <h2>Create Procurement Request</h2>
 
           <form className="finance-form-grid" onSubmit={handleSubmit}>
-            <label>
-              Department
-              <input name="department" defaultValue="Operations" required />
-            </label>
-
-            <label>
-              Site
-              <input name="site" defaultValue="Kitwe Main Distribution Centre" />
-            </label>
-
-            <label>
-              Supplier
-              <input name="supplierName" placeholder="Supplier name" required />
-            </label>
-
-            <label>
-              Amount
-              <input name="amount" min="1" step="0.01" type="number" required />
-            </label>
-
-            <label>
-              Requested By
-              <input name="requestedBy" defaultValue="Procurement Officer" />
-            </label>
-
-            <label className="span-2">
-              Description
-              <textarea name="description" placeholder="Describe the procurement item or invoice." required />
-            </label>
-
-            <button className="btn" disabled={saving} type="submit">
-              {saving ? 'Creating...' : 'Create Record'}
-            </button>
+            <label>Department<input name="department" defaultValue="Operations" required /></label>
+            <label>Site<input name="site" defaultValue="Solwezi Head Office" /></label>
+            <label>Supplier<input name="supplierName" placeholder="Supplier name" required /></label>
+            <label>Description<input name="description" placeholder="Goods / services requested" required /></label>
+            <label>Amount<input name="amount" type="number" min="0" step="0.01" required /></label>
+            <label>Requested By<input name="requestedBy" defaultValue="Procurement Officer" /></label>
+            <label>Requester Email<input name="requestedByEmail" defaultValue="procurement@southincon.com" /></label>
+            <div className="form-actions full-span"><button className="btn" type="submit" disabled={saving}>{saving ? 'Submitting...' : 'Submit for Approval'}</button></div>
           </form>
         </div>
 
-        <div className="finance-live-card">
-          <h2>Procurement Register</h2>
+        <div className="finance-card">
+          <div className="section-heading-row">
+            <div>
+              <h2>Procurement Register</h2>
+              <p className="muted">Approval must be complete before payment tracking actions are enabled.</p>
+            </div>
+          </div>
 
-          <div className="table-wrap">
-            <table>
+          <div className="employee-table-wrap">
+            <table className="employee-table">
               <thead>
                 <tr>
-                  <th>Requisition No.</th>
+                  <th>Reference</th>
                   <th>Supplier</th>
                   <th>Description</th>
-                  <th>Department</th>
-                  <th>Site</th>
                   <th>Amount</th>
+                  <th>Approval</th>
                   <th>Invoice</th>
+                  <th>POP</th>
                   <th>Payment</th>
-                  <th>Proof</th>
-                  <th>Created</th>
+                  <th>Date</th>
                   <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={11}>Loading procurement records...</td>
-                  </tr>
-                ) : records.length === 0 ? (
-                  <tr>
-                    <td colSpan={11}>No procurement payment records found.</td>
-                  </tr>
+                {!records.length ? (
+                  <tr><td colSpan={10}>{loading ? 'Loading procurement records...' : 'No procurement records found.'}</td></tr>
                 ) : (
-                  records.map((record) => (
-                    <tr key={record.id}>
-                      <td>{record.requisitionNo}</td>
-                      <td>{record.supplierName || '-'}</td>
-                      <td>{record.description}</td>
-                      <td>{record.department}</td>
-                      <td>{record.site || '-'}</td>
-                      <td>{money(record.amount)}</td>
-                      <td>
-                        <span className={statusClass(record.invoiceStatus)}>
-                          {record.invoiceStatus}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={statusClass(record.paymentStatus)}>
-                          {record.paymentStatus}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={statusClass(record.proofOfPaymentStatus)}>
-                          {record.proofOfPaymentStatus}
-                        </span>
-                      </td>
-                      <td>{formatDate(record.createdAt)}</td>
-                      <td>
-                        <div className="inline-actions">
-                          {record.invoiceStatus !== 'RECEIVED' && (
-                            <button
-                              className="btn-secondary"
-                              onClick={() => handleInvoiceReceived(record)}
-                              type="button"
-                            >
-                              Invoice Received
-                            </button>
-                          )}
+                  records.map((record: any) => {
+                    const approved = isApproved(record);
+                    const invoiceDone = invoiceReceived(record);
+                    const popDone = popUploaded(record);
+                    const paidDone = paid(record);
+                    const hasApproval = Boolean(record.approvalRequestId);
 
-                          {record.proofOfPaymentStatus !== 'UPLOADED' && (
-                            <button
-                              className="btn-secondary"
-                              onClick={() => handlePopUploaded(record)}
-                              type="button"
-                            >
-                              POP Uploaded
-                            </button>
-                          )}
-
-                          {record.paymentStatus !== 'PAID' && (
-                            <button
-                              className="btn-secondary"
-                              onClick={() => handlePaid(record)}
-                              type="button"
-                            >
-                              Mark Paid
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                    return (
+                      <tr key={record.id}>
+                        <td><strong>{record.requisitionNo || record.requestNo || '-'}</strong></td>
+                        <td>{record.supplierName || '-'}</td>
+                        <td>{record.description || '-'}</td>
+                        <td>{money(record.amount)}</td>
+                        <td>
+                          <span className={statusClass(record.status)}>{cleanStatus(record.status)}</span><br />
+                          <span className="muted">{record.approvalRequestId || 'No approval link'}</span>
+                        </td>
+                        <td><span className={statusClass(record.invoiceStatus)}>{cleanStatus(record.invoiceStatus || 'PENDING')}</span></td>
+                        <td><span className={statusClass(record.popStatus)}>{cleanStatus(record.popStatus || 'PENDING')}</span></td>
+                        <td><span className={statusClass(record.paymentStatus || record.status)}>{cleanStatus(record.paymentStatus || 'NOT PAID')}</span></td>
+                        <td>{formatDate(record.createdAt)}</td>
+                        <td>
+                          <div className="action-row">
+                            {hasApproval && !approved && !paidDone ? <Link className="btn-secondary" href="/approvals/inbox">Open Approval</Link> : null}
+                            {approved && !invoiceDone ? (
+                              <button className="btn-secondary" type="button" disabled={actionId === `${record.id}-invoice`} onClick={() => runAction(record, 'invoice')}>
+                                {actionId === `${record.id}-invoice` ? 'Saving...' : 'Invoice Received'}
+                              </button>
+                            ) : null}
+                            {approved && invoiceDone && !popDone ? (
+                              <button className="btn-secondary" type="button" disabled={actionId === `${record.id}-pop`} onClick={() => runAction(record, 'pop')}>
+                                {actionId === `${record.id}-pop` ? 'Saving...' : 'POP Uploaded'}
+                              </button>
+                            ) : null}
+                            {approved && invoiceDone && popDone && !paidDone ? (
+                              <button className="btn" type="button" disabled={actionId === `${record.id}-paid`} onClick={() => runAction(record, 'paid')}>
+                                {actionId === `${record.id}-paid` ? 'Saving...' : 'Mark Paid'}
+                              </button>
+                            ) : null}
+                            {paidDone ? <span className="status-pill success">Complete</span> : null}
+                            {!hasApproval && !paidDone ? <span className="status-pill warning">Approval not linked</span> : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
