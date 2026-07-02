@@ -207,22 +207,58 @@ export type ApprovalWorkflowRecord = {
   decisions?: any[];
 };
 
-export const getApprovalWorkflows = () =>
-  request<ApprovalWorkflowRecord[]>('/approvals/workflows');
+export type ApprovalInboxFilter = {
+  email?: string;
+  role?: string;
+};
 
-export const getApprovalInbox = (email?: string) =>
-  request<ApprovalWorkflowRecord[]>(
-    email ? `/approvals/workflows/inbox?email=${encodeURIComponent(email)}` : '/approvals/workflows/inbox',
+export type ApprovalActionPayload = {
+  approvedBy?: string;
+  approvedByEmail?: string;
+  approvedByEntraObjectId?: string;
+  approvedByRole?: string;
+
+  rejectedBy?: string;
+  rejectedByEmail?: string;
+  rejectedByEntraObjectId?: string;
+  rejectedByRole?: string;
+
+  actionedBy?: string;
+  actionedByEmail?: string;
+  actionedByEntraObjectId?: string;
+  actionedByRole?: string;
+
+  comments?: string;
+  rejectionReason?: string;
+};
+
+export const getApprovalWorkflows = () => request<ApprovalWorkflowRecord[]>('/approvals/workflows');
+
+export const getApprovalInbox = (filter?: string | ApprovalInboxFilter) => {
+  const params = new URLSearchParams();
+
+  if (typeof filter === 'string') {
+    if (filter) params.set('email', filter);
+  } else {
+    if (filter?.email) params.set('email', filter.email);
+    if (filter?.role) params.set('role', filter.role);
+  }
+
+  const query = params.toString();
+
+  return request<ApprovalWorkflowRecord[]>(
+    query ? `/approvals/workflows/inbox?${query}` : '/approvals/workflows/inbox',
   );
+};
 
-export const approveApprovalWorkflow = (id: string, payload: any) =>
-  request<any>(`/approvals/workflows/${id}/approve`, {
+export const approveApprovalWorkflow = (id: string, payload: ApprovalActionPayload) =>
+  request<ApprovalWorkflowRecord>(`/approvals/workflows/${id}/approve`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
 
-export const rejectApprovalWorkflow = (id: string, payload: any) =>
-  request<any>(`/approvals/workflows/${id}/reject`, {
+export const rejectApprovalWorkflow = (id: string, payload: ApprovalActionPayload) =>
+  request<ApprovalWorkflowRecord>(`/approvals/workflows/${id}/reject`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });

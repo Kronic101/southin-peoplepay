@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalRoutingService } from './approval-routing.service';
+import {
+  ApprovalDecisionStatus,
+  ApprovalRequestStatus,
+  ApprovalStepRole,
+  ApprovalWorkflowType,
+  OperationsModule,
+  Prisma,
+} from '@prisma/client';
 
 function clean(value: unknown) {
   if (value === undefined || value === null) return '';
@@ -479,20 +487,142 @@ export class ApprovalWorkflowService {
     });
   }
 
-  async getInbox(email?: string) {
+  async getInbox(email?: string, role?: string) {
     const cleanEmail = clean(email).toLowerCase();
+    const cleanRole = clean(role).toUpperCase();
 
-    return this.db().approvalRequest.findMany({
-      where: {
-        OR: cleanEmail
-          ? [
-              { currentApproverEmail: cleanEmail },
-              { approverEmail: cleanEmail },
-              { assignedToEmail: cleanEmail },
-            ]
-          : undefined,
+    const bootstrapAdmins = String(process.env.SOUTHIN_BOOTSTRAP_ADMIN_EMAILS || '')
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+
+    const isAdmin =
+      cleanRole === 'ADMIN' ||
+      (!!cleanEmail && bootstrapAdmins.includes(cleanEmail));
+
+    const roleFilter = this.staffRoleToApprovalStepRoles(cleanRole);
+
+    const where: any = {
+      status: {
+        in: [
+          ApprovalRequestStatus.SUBMITTED,
+          ApprovalRequestStatus.IN_REVIEW,
+        ],
       },
-      orderBy: [{ createdAt: 'desc' }],
+    };
+
+    if (!isAdmin) {
+      where.decisions = {
+        some: {
+          status: ApprovalDecisionStatus.PENDING,
+          OR: [
+            ...(cleanEmail
+              ? [
+                  { approverEmail: cleanEmail },
+                  { actionedByEmail: cleanEmail },
+                ]
+              : []),
+            ...(roleFilter.length
+              ? roleFilter.map((approvalRole: ApprovalStepRole) => ({ role: approvalRole }))
+              : []),
+          ],
+        },
+      };
+    }
+
+    const records = await this.db().approvalRequest.findMany({
+      where,
+      include: {
+        approvalMatrixRule: true,
+        decisions: {
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+      },
+      orderBy: [
+        {
+          createdAt: 'desc',
+        },
+      ],
+    });
+
+    const assignments = await this.db().approvalApproverAssignment.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [
+        { isPrimary: 'desc' },
+        { isDefault: 'desc' },
+        { priority: 'asc' },
+      ],
+    });
+
+    return records.map((record: any) => {
+      const pendingDecision = record.decisions?.find(
+        (item: any) => item.status === ApprovalDecisionStatus.PENDING,
+      );
+
+      const assignment = pendingDecision
+        ? assignments.find((item: any) => {
+            const moduleMatches =
+              !item.module || String(item.module) === String(record.module);
+
+            const workflowMatches =
+              !item.workflowType ||
+              String(item.workflowType) === String(record.workflowType);
+
+            const roleMatches =
+              String(item.approvalRole) === String(pendingDecision.role);
+
+            return moduleMatches && workflowMatches && roleMatches;
+          })
+        : null;
+
+      const payload =
+        record.payload && typeof record.payload === 'object' && !Array.isArray(record.payload)
+          ? record.payload
+          : {};
+
+      return {
+        ...record,
+
+        currentStepRole: pendingDecision?.role || null,
+        currentApprovalRole: pendingDecision?.role || null,
+
+        currentApproverEmail:
+          pendingDecision?.approverEmail ||
+          assignment?.userEmail ||
+          null,
+
+        assignedToEmail: assignment?.userEmail || null,
+
+        approverEmail:
+          pendingDecision?.approverEmail ||
+          assignment?.userEmail ||
+          null,
+
+        payload: {
+          ...payload,
+          nextStep: pendingDecision
+            ? {
+                sequence: pendingDecision.sequence,
+                role: pendingDecision.role,
+                label: `Step ${pendingDecision.sequence} - ${String(pendingDecision.role).replaceAll('_', ' ')}`,
+              }
+            : null,
+          resolvedApprover: assignment
+            ? {
+                approver: {
+                  name: assignment.userName,
+                  email: assignment.userEmail,
+                  microsoftUserId: assignment.microsoftUserId,
+                },
+                source: 'APPROVER_ASSIGNMENT',
+              }
+            : null,
+        },
+      };
     });
   }
 
@@ -725,5 +855,94 @@ export class ApprovalWorkflowService {
       sourceUpdate,
       message: 'Approval request rejected.',
     };
+  }
+
+  private staffRoleToApprovalStepRoles(role: string): ApprovalStepRole[] {
+    const cleanRole = clean(role).toUpperCase();
+
+    if (!cleanRole || cleanRole === 'ADMIN') {
+      return [];
+    }
+
+    const map: Record<string, ApprovalStepRole[]> = {
+      DIRECTOR: [
+        ApprovalStepRole.DIRECTOR,
+        ApprovalStepRole.DIRECTOR_FINANCE,
+        ApprovalStepRole.DIRECTOR_OPERATIONS,
+      ],
+
+      FINANCE_MANAGER: [
+        ApprovalStepRole.FINANCE_MANAGER,
+        ApprovalStepRole.DIRECTOR_FINANCE,
+      ],
+
+      FINANCE_OFFICER: [
+        ApprovalStepRole.FINANCE_MANAGER,
+      ],
+
+      HR_MANAGER: [
+        ApprovalStepRole.HR_MANAGER,
+      ],
+
+      HR_OFFICER: [
+        ApprovalStepRole.HR_MANAGER,
+      ],
+
+      LINE_MANAGER: [
+        ApprovalStepRole.LINE_MANAGER,
+        ApprovalStepRole.SUPERVISOR,
+        ApprovalStepRole.HOD,
+        ApprovalStepRole.SITE_MANAGER,
+        ApprovalStepRole.FOREMAN,
+        ApprovalStepRole.BRANCH_MANAGER,
+      ],
+
+      SUPERVISOR: [
+        ApprovalStepRole.SUPERVISOR,
+        ApprovalStepRole.LINE_MANAGER,
+        ApprovalStepRole.FOREMAN,
+      ],
+
+      PAYROLL_OFFICER: [
+        ApprovalStepRole.PAYROLL_OFFICER,
+      ],
+
+      PROCUREMENT_OFFICER: [
+        ApprovalStepRole.PROCUREMENT_OFFICER,
+      ],
+
+      STORES_OFFICER: [
+        ApprovalStepRole.STORES_OFFICER,
+      ],
+
+      ASSET_MANAGER: [
+        ApprovalStepRole.ASSET_MANAGER,
+      ],
+
+      ASSET_OFFICER: [
+        ApprovalStepRole.ASSET_MANAGER,
+      ],
+
+      FLEET_MANAGER: [
+        ApprovalStepRole.FLEET_MANAGER,
+        ApprovalStepRole.WORKSHOP_MANAGER,
+      ],
+
+      FLEET_DISPATCH_OFFICER: [
+        ApprovalStepRole.FLEET_DISPATCH_OFFICER,
+      ],
+
+      SAFETY_OFFICER: [
+        ApprovalStepRole.SAFETY_OFFICER,
+      ],
+
+      QAQC_OFFICER: [
+        ApprovalStepRole.QUALITY_ADMIN_MANAGER,
+      ],
+
+      AUDITOR: [],
+    };
+
+    return map[cleanRole] || [];
   }
 }

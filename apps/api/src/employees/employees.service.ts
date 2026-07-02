@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -204,42 +205,107 @@ export class EmployeesService {
     return employee;
   }
 
-  async createPortalAccount(id: string, input: any) {
-    const employee = await this.ensureEmployeeExists(id);
+  private getDefaultPortalModules(accessProfile?: string) {
+    const profile = String(accessProfile || 'EMPLOYEE').toUpperCase();
 
-    const existing = await this.prisma.employeePortalAccount.findUnique({
-      where: { employeeId: id },
+    const map: Record<string, string[]> = {
+      DRIVER: ['FLEET_CHECKLIST', 'FLEET_TRIPS', 'FLEET_DEFECTS'],
+      STORES: ['STORES_REQUISITIONS', 'STOCK_UPDATES'],
+      ASSETS: ['ASSET_MOVEMENTS', 'ASSET_STATUS_UPDATES'],
+      SAFETY: ['SAFETY_OBSERVATIONS', 'SAFETY_INCIDENTS'],
+      QAQC: ['QAQC_RECORDS', 'QAQC_STATUS_UPDATES'],
+      EMPLOYEE: ['EMPLOYEE_PROFILE', 'EMPLOYEE_REQUESTS', 'EMPLOYEE_PAYSLIPS'],
+    };
+
+    return map[profile] || map.EMPLOYEE;
+  }
+
+  async updatePortalAccount(employeeId: string, body: any = {}) {
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id: employeeId,
+      },
+      include: {
+        portalAccount: true,
+      },
     });
 
-    if (existing) {
-      return {
-        message: 'Employee portal account already exists.',
-        temporaryPin: input?.returnTemporaryPin ? undefined : undefined,
-        portalAccount: existing,
-        employee: await this.findOne(id),
-      };
+    if (!employee) {
+      throw new NotFoundException('Employee not found.');
     }
 
-    const temporaryPin =
-      input?.temporaryPin && /^\d{6}$/.test(String(input.temporaryPin))
-        ? String(input.temporaryPin)
-        : '123456';
+    if (!employee.portalAccount) {
+      throw new BadRequestException('Employee does not have a portal account.');
+    }
 
-    const portalAccount = await this.prisma.employeePortalAccount.create({
+    const accessProfile = String(
+      body?.accessProfile || employee.portalAccount.accessProfile || 'EMPLOYEE',
+    ).toUpperCase();
+
+    const allowedModules = Array.isArray(body?.allowedModules)
+      ? body.allowedModules
+      : this.getDefaultPortalModules(accessProfile);
+
+    return this.prisma.employeePortalAccount.update({
+      where: {
+        employeeId: employee.id,
+      },
       data: {
-        employeeId: id,
+        accessProfile,
+        allowedModules,
+        isActive:
+          body?.isActive === undefined
+            ? employee.portalAccount.isActive
+            : Boolean(body.isActive),
+      },
+    });
+  }
+
+  async createPortalAccount(employeeId: string, body: any = {}) {
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id: employeeId,
+      },
+      include: {
+        portalAccount: true,
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found.');
+    }
+
+    if (employee.portalAccount) {
+      throw new BadRequestException('Employee already has a portal account.');
+    }
+
+    const temporaryPin = String(Math.floor(100000 + Math.random() * 900000));
+    const pinHash = await bcrypt.hash(temporaryPin, 10);
+
+    const accessProfile = String(body?.accessProfile || 'EMPLOYEE').toUpperCase();
+
+    const allowedModules = Array.isArray(body?.allowedModules)
+      ? body.allowedModules
+      : this.getDefaultPortalModules(accessProfile);
+
+    const account = await this.prisma.employeePortalAccount.create({
+      data: {
+        employeeId: employee.id,
         employeeNumber: employee.employeeNumber,
-        pinHash: this.hashPin(temporaryPin),
+        pinHash,
         mustChangePin: true,
         isActive: true,
+        accessProfile,
+        allowedModules,
       },
     });
 
     return {
-      message: 'Employee portal account created.',
+      message: 'Portal account created successfully.',
+      employeeNumber: employee.employeeNumber,
+      accessProfile: account.accessProfile,
+      allowedModules: account.allowedModules,
       temporaryPin,
-      portalAccount,
-      employee: await this.findOne(id),
     };
   }
 
@@ -681,11 +747,16 @@ export class EmployeesService {
       portalAccount: {
         select: {
           id: true,
+          employeeNumber: true,
           isActive: true,
           mustChangePin: true,
+          accessProfile: true,
+          allowedModules: true,
           lastLoginAt: true,
           failedAttempts: true,
           lockedUntil: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       contracts: true,
@@ -822,6 +893,33 @@ export class EmployeesService {
             }
           : null,
       })),
+    };
+  }
+
+  async getSetupLookups() {
+    const [
+      departments,
+      jobTitles,
+      sites,
+      employmentTypes,
+      contractTypes,
+      serviceConditionTemplates,
+    ] = await Promise.all([
+      this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.jobTitle.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.site.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.employmentType.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.contractType.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.serviceConditionTemplate.findMany({ orderBy: { name: 'asc' } }),
+    ]);
+
+    return {
+      departments,
+      jobTitles,
+      sites,
+      employmentTypes,
+      contractTypes,
+      serviceConditionTemplates,
     };
   }
 

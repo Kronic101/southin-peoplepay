@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 import AppShell from '@/components/AppShell';
 import { RequireStaffRole } from '@/components/RequireStaffRole';
@@ -11,11 +12,47 @@ import {
   rejectApprovalWorkflow,
 } from '@/lib/approvals-api';
 
+type StaffRole =
+  | 'ADMIN'
+  | 'DIRECTOR'
+  | 'FINANCE_MANAGER'
+  | 'FINANCE_OFFICER'
+  | 'HR_MANAGER'
+  | 'HR_OFFICER'
+  | 'LINE_MANAGER'
+  | 'SUPERVISOR'
+  | 'ASSET_MANAGER'
+  | 'ASSET_OFFICER'
+  | 'FLEET_MANAGER'
+  | 'FLEET_DISPATCH_OFFICER'
+  | 'PAYROLL_OFFICER'
+  | 'PROCUREMENT_OFFICER'
+  | 'STORES_OFFICER'
+  | 'AUDITOR';
+
+const ALLOWED_APPROVAL_ROLES: StaffRole[] = [
+  'ADMIN',
+  'DIRECTOR',
+  'FINANCE_MANAGER',
+  'FINANCE_OFFICER',
+  'HR_MANAGER',
+  'HR_OFFICER',
+  'LINE_MANAGER',
+  'SUPERVISOR',
+  'ASSET_MANAGER',
+  'ASSET_OFFICER',
+  'FLEET_MANAGER',
+  'FLEET_DISPATCH_OFFICER',
+  'PAYROLL_OFFICER',
+  'PROCUREMENT_OFFICER',
+  'STORES_OFFICER',
+  'AUDITOR',
+];
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
 
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return '-';
 
   return date.toLocaleString('en-ZM', {
@@ -38,18 +75,48 @@ function formatAmount(value?: string | number | null) {
   })}`;
 }
 
-function getPayload(record: ApprovalWorkflowRecord) {
-  if (!record.payload) return {};
+function normalise(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replaceAll(' ', '_')
+    .replaceAll('-', '_');
+}
 
-  if (typeof record.payload === 'string') {
+function cleanStatus(value?: string | null) {
+  return normalise(value || 'UNKNOWN').replaceAll('_', ' ');
+}
+
+function statusClass(value?: string | null) {
+  const status = normalise(value);
+
+  if (status === 'APPROVED' || status === 'COMPLETED' || status === 'PAID') {
+    return 'status-pill success';
+  }
+
+  if (status === 'REJECTED' || status === 'CANCELLED' || status === 'FAILED') {
+    return 'status-pill danger';
+  }
+
+  return 'status-pill warning';
+}
+
+function getPayload(record: ApprovalWorkflowRecord): Record<string, any> {
+  const payload = (record as any).payload;
+
+  if (!payload) return {};
+
+  if (typeof payload === 'string') {
     try {
-      return JSON.parse(record.payload);
+      return JSON.parse(payload);
     } catch {
       return {};
     }
   }
 
-  return record.payload;
+  if (typeof payload === 'object') return payload;
+
+  return {};
 }
 
 function getWorkflowStatus(record: ApprovalWorkflowRecord) {
@@ -63,19 +130,33 @@ function getCurrentStepLabel(record: ApprovalWorkflowRecord) {
   const firstStep = payload.firstStep;
 
   if (nextStep?.label) return nextStep.label;
-  if (firstStep?.label && Number(record.currentStep || 1) === Number(firstStep.sequence || 1)) {
+
+  if (firstStep?.label && Number((record as any).currentStep || 1) === Number(firstStep.sequence || 1)) {
     return firstStep.label;
   }
 
-  return (record as any).currentStepRole || `Step ${record.currentStep || 1}`;
+  const pendingDecision = Array.isArray((record as any).decisions)
+    ? (record as any).decisions.find((item: any) => normalise(item.status) === 'PENDING')
+    : null;
+
+  if (pendingDecision?.role) {
+    return `Step ${pendingDecision.sequence || (record as any).currentStep || 1}`;
+  }
+
+  return (record as any).currentStepRole || `Step ${(record as any).currentStep || 1}`;
 }
 
 function getCurrentRole(record: ApprovalWorkflowRecord) {
   const payload = getPayload(record);
 
+  const pendingDecision = Array.isArray((record as any).decisions)
+    ? (record as any).decisions.find((item: any) => normalise(item.status) === 'PENDING')
+    : null;
+
   return (
     (record as any).currentStepRole ||
     (record as any).currentApprovalRole ||
+    pendingDecision?.role ||
     payload?.nextStep?.role ||
     payload?.firstStep?.role ||
     '-'
@@ -86,10 +167,15 @@ function getCurrentApprover(record: ApprovalWorkflowRecord) {
   const payload = getPayload(record);
   const resolved = payload.resolvedApprover;
 
+  const pendingDecision = Array.isArray((record as any).decisions)
+    ? (record as any).decisions.find((item: any) => normalise(item.status) === 'PENDING')
+    : null;
+
   return (
     (record as any).currentApproverEmail ||
     (record as any).assignedToEmail ||
     (record as any).approverEmail ||
+    pendingDecision?.approverEmail ||
     resolved?.approver?.email ||
     resolved?.originalApprover?.email ||
     '-'
@@ -98,12 +184,71 @@ function getCurrentApprover(record: ApprovalWorkflowRecord) {
 
 function getHistory(record: ApprovalWorkflowRecord) {
   const payload = getPayload(record);
-  return Array.isArray(payload.history) ? payload.history : [];
+
+  if (Array.isArray(payload.history) && payload.history.length) {
+    return payload.history;
+  }
+
+  if (Array.isArray((record as any).decisions)) {
+    return (record as any).decisions
+      .filter((item: any) => normalise(item.status) !== 'PENDING')
+      .map((item: any) => ({
+        stepSequence: item.sequence,
+        action: item.status,
+        actionedBy: item.approverName,
+        actionedByEmail: item.approverEmail,
+        comments: item.comments,
+        actionedAt: item.decidedAt || item.updatedAt,
+      }));
+  }
+
+  return [];
+}
+
+function roleMatchesApprovalStep(userRole: string, approvalRole: string) {
+  const role = normalise(userRole);
+  const stepRole = normalise(approvalRole);
+
+  if (!role || !stepRole) return false;
+  if (role === 'ADMIN') return true;
+  if (role === stepRole) return true;
+
+  const aliases: Record<string, string[]> = {
+    DIRECTOR: ['DIRECTOR', 'DIRECTOR_FINANCE', 'DIRECTOR_OPERATIONS'],
+    FINANCE_MANAGER: ['FINANCE_MANAGER', 'DIRECTOR_FINANCE'],
+    HR_MANAGER: ['HR_MANAGER'],
+    PROCUREMENT_OFFICER: ['PROCUREMENT_OFFICER'],
+    STORES_OFFICER: ['STORES_OFFICER'],
+    ASSET_MANAGER: ['ASSET_MANAGER'],
+    FLEET_MANAGER: ['FLEET_MANAGER', 'WORKSHOP_MANAGER'],
+    FLEET_DISPATCH_OFFICER: ['FLEET_DISPATCH_OFFICER'],
+    LINE_MANAGER: ['LINE_MANAGER', 'SUPERVISOR', 'HOD', 'SITE_MANAGER', 'FOREMAN', 'BRANCH_MANAGER'],
+    SUPERVISOR: ['SUPERVISOR', 'LINE_MANAGER', 'FOREMAN'],
+    PAYROLL_OFFICER: ['PAYROLL_OFFICER'],
+    AUDITOR: ['AUDITOR'],
+  };
+
+  return aliases[role]?.includes(stepRole) ?? false;
+}
+
+function isTerminalStatus(record: ApprovalWorkflowRecord) {
+  const status = normalise(record.status);
+  return ['APPROVED', 'REJECTED', 'CANCELLED', 'CLOSED'].includes(status);
+}
+
+function normaliseRecords(data: any): ApprovalWorkflowRecord[] {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.workflows)) return data.workflows;
+  if (Array.isArray(data?.requests)) return data.requests;
+  return [];
 }
 
 export default function ApprovalInboxPage() {
+  const { data: session, status: sessionStatus } = useSession();
+
   const [records, setRecords] = useState<ApprovalWorkflowRecord[]>([]);
-  const [approverEmail, setApproverEmail] = useState('');
   const [selected, setSelected] = useState<ApprovalWorkflowRecord | null>(null);
   const [comments, setComments] = useState('');
   const [actioning, setActioning] = useState(false);
@@ -111,39 +256,62 @@ export default function ApprovalInboxPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  async function loadData(email = approverEmail) {
+  const signedInEmail = session?.user?.email ?? '';
+  const signedInName = session?.user?.name ?? session?.user?.email ?? '';
+  const signedInEntraId = (session?.user as any)?.entraObjectId ?? '';
+  const signedInRole = (session?.user as any)?.staffRole ?? '';
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
 
     try {
-      const data = await getApprovalInbox(email.trim() || undefined);
-      setRecords(data || []);
+      if (sessionStatus !== 'authenticated' || !signedInEmail) {
+        setRecords([]);
+        setError('You must sign in with your Southin Microsoft 365 account to view approvals.');
+        return;
+      }
+
+      if (!signedInRole) {
+        setRecords([]);
+        setError('Your account is signed in, but it has not been assigned to a Southin Hub approval role.');
+        return;
+      }
+
+      const data = await getApprovalInbox({
+        email: signedInEmail,
+        role: signedInRole,
+      });
+
+      setRecords(normaliseRecords(data));
     } catch (err: any) {
       setError(err?.message || 'Unable to load approval inbox.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [sessionStatus, signedInEmail, signedInRole]);
 
   useEffect(() => {
-    loadData('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (sessionStatus !== 'loading') {
+      loadData();
+    }
+  }, [sessionStatus, loadData]);
 
   const stats = useMemo(() => {
     return {
       total: records.length,
-      inReview: records.filter((item) => item.status === 'IN_REVIEW').length,
-      submitted: records.filter((item) => item.status === 'SUBMITTED').length,
-      approved: records.filter((item) => item.status === 'APPROVED').length,
-      rejected: records.filter((item) => item.status === 'REJECTED').length,
+      inReview: records.filter((item) => normalise(item.status) === 'IN_REVIEW').length,
+      submitted: records.filter((item) => normalise(item.status) === 'SUBMITTED').length,
+      approved: records.filter((item) => normalise(item.status) === 'APPROVED').length,
+      rejected: records.filter((item) => normalise(item.status) === 'REJECTED').length,
     };
   }, [records]);
 
-  async function handleFilter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await loadData();
-  }
+  const selectedCurrentRole = selected ? getCurrentRole(selected) : '';
+  const selectedCanAction =
+    !!selected &&
+    !isTerminalStatus(selected) &&
+    roleMatchesApprovalStep(signedInRole, selectedCurrentRole);
 
   async function handleApprove(record: ApprovalWorkflowRecord) {
     setActioning(true);
@@ -151,16 +319,33 @@ export default function ApprovalInboxPage() {
     setError('');
 
     try {
-      const email = approverEmail.trim() || getCurrentApprover(record);
+      if (sessionStatus !== 'authenticated' || !signedInEmail || !signedInRole) {
+        setError('You must be signed in with an approved Southin Hub role before approving.');
+        return;
+      }
+
+      const currentRole = getCurrentRole(record);
+
+      if (!roleMatchesApprovalStep(signedInRole, currentRole)) {
+        setError(`Your role ${signedInRole || 'UNKNOWN'} cannot approve the current step ${currentRole || 'UNKNOWN'}.`);
+        return;
+      }
+
       const result = await approveApprovalWorkflow(record.id, {
-        approvedBy: email,
-        approvedByEmail: email,
-        actionedBy: email,
-        actionedByEmail: email,
-        comments: comments || 'Approved from approval inbox.',
+        approvedBy: signedInName,
+        approvedByEmail: signedInEmail,
+        approvedByEntraObjectId: signedInEntraId,
+        approvedByRole: signedInRole,
+
+        actionedBy: signedInName,
+        actionedByEmail: signedInEmail,
+        actionedByEntraObjectId: signedInEntraId,
+        actionedByRole: signedInRole,
+
+        comments: comments || 'Approved from Southin Hub approval inbox.',
       });
 
-      setMessage(`Approval action completed. Status: ${result.status}`);
+      setMessage(`Approval action completed. Status: ${result?.status || 'Updated'}`);
       setComments('');
       setSelected(null);
       await loadData();
@@ -177,17 +362,34 @@ export default function ApprovalInboxPage() {
     setError('');
 
     try {
-      const email = approverEmail.trim() || getCurrentApprover(record);
+      if (sessionStatus !== 'authenticated' || !signedInEmail || !signedInRole) {
+        setError('You must be signed in with an approved Southin Hub role before rejecting.');
+        return;
+      }
+
+      const currentRole = getCurrentRole(record);
+
+      if (!roleMatchesApprovalStep(signedInRole, currentRole)) {
+        setError(`Your role ${signedInRole || 'UNKNOWN'} cannot reject the current step ${currentRole || 'UNKNOWN'}.`);
+        return;
+      }
+
       const result = await rejectApprovalWorkflow(record.id, {
-        rejectedBy: email,
-        rejectedByEmail: email,
-        actionedBy: email,
-        actionedByEmail: email,
-        comments: comments || 'Rejected from approval inbox.',
-        rejectionReason: comments || 'Rejected from approval inbox.',
+        rejectedBy: signedInName,
+        rejectedByEmail: signedInEmail,
+        rejectedByEntraObjectId: signedInEntraId,
+        rejectedByRole: signedInRole,
+
+        actionedBy: signedInName,
+        actionedByEmail: signedInEmail,
+        actionedByEntraObjectId: signedInEntraId,
+        actionedByRole: signedInRole,
+
+        comments: comments || 'Rejected from Southin Hub approval inbox.',
+        rejectionReason: comments || 'Rejected from Southin Hub approval inbox.',
       });
 
-      setMessage(`Request rejected. Status: ${result.status}`);
+      setMessage(`Request rejected. Status: ${result?.status || 'Updated'}`);
       setComments('');
       setSelected(null);
       await loadData();
@@ -200,31 +402,19 @@ export default function ApprovalInboxPage() {
 
   return (
     <AppShell>
-      <RequireStaffRole
-        allowedRoles={[
-          'ADMIN',
-          'DIRECTOR',
-          'FINANCE_MANAGER',
-          'HR_MANAGER',
-          'LINE_MANAGER',
-          'SUPERVISOR',
-          'ASSET_MANAGER',
-          'FLEET_MANAGER',
-          'FLEET_DISPATCH_OFFICER',
-        ]}
-      >
+      <RequireStaffRole allowedRoles={ALLOWED_APPROVAL_ROLES}>
         <section className="finance-page">
           <div className="finance-card finance-hero-card">
             <div>
               <p className="eyebrow">Approval Workflow</p>
               <h1>Approval Inbox</h1>
               <p className="muted">
-                Review pending approvals for Stores, Assets, Fleet, Finance, Procurement and HR workflows.
+                Review approval requests assigned to your Microsoft 365 identity and Southin Hub role.
               </p>
             </div>
 
             <div className="action-row">
-              <button className="btn-secondary" type="button" onClick={() => loadData()}>
+              <button className="btn-secondary" type="button" onClick={loadData}>
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
@@ -233,7 +423,7 @@ export default function ApprovalInboxPage() {
           {message ? <div className="alert success">{message}</div> : null}
           {error ? <div className="alert error">{error}</div> : null}
 
-          <div className="summary-grid">
+          <div className="finance-summary-grid">
             <div className="finance-summary-card">
               <span>Total</span>
               <strong>{stats.total}</strong>
@@ -256,38 +446,31 @@ export default function ApprovalInboxPage() {
             </div>
           </div>
 
-          <div className="finance-card">
-            <h2>Filter Inbox</h2>
+          <div className="finance-summary-card">
+            <p className="eyebrow">Signed-in Approver</p>
+            <h2>{signedInName || 'Not signed in'}</h2>
 
-            <form className="form-grid" onSubmit={handleFilter}>
-              <label>
-                Approver Email
-                <input
-                  value={approverEmail}
-                  onChange={(event) => setApproverEmail(event.target.value)}
-                  placeholder="site.manager@southincon.com"
-                />
-              </label>
-
-              <div className="form-actions">
-                <button className="btn" type="submit">
-                  Load Inbox
-                </button>
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => {
-                    setApproverEmail('');
-                    loadData('');
-                  }}
-                >
-                  Show All
-                </button>
+            <div className="mini-detail-grid">
+              <div>
+                <span>Email</span>
+                <strong>{signedInEmail || '-'}</strong>
               </div>
-            </form>
+              <div>
+                <span>Southin Hub Role</span>
+                <strong>{signedInRole || 'Not mapped yet'}</strong>
+              </div>
+              <div>
+                <span>Entra Object ID</span>
+                <strong>{signedInEntraId || '-'}</strong>
+              </div>
+            </div>
+
+            <p className="muted" style={{ marginTop: '1rem' }}>
+              The inbox is filtered by your signed-in Microsoft 365 account and role. Manual approver email entry has been removed for audit control.
+            </p>
           </div>
 
-          <div className="finance-card">
+          <div className="finance-summary-card">
             <h2>Pending / Recent Requests</h2>
 
             <div className="employee-table-wrap">
@@ -308,68 +491,71 @@ export default function ApprovalInboxPage() {
                 <tbody>
                   {!records.length ? (
                     <tr>
-                      <td colSpan={8}>No approval requests found.</td>
+                      <td colSpan={8}>{loading ? 'Loading approval requests...' : 'No approval requests found.'}</td>
                     </tr>
                   ) : (
-                    records.map((record) => (
-                      <tr key={record.id}>
-                        <td>
-                          <strong>{record.requestReference || record.id.slice(0, 8)}</strong>
-                          <br />
-                          <span className="muted">{formatDate(record.submittedAt || record.createdAt)}</span>
-                        </td>
+                    records.map((record) => {
+                      const currentRole = getCurrentRole(record);
+                      const canReview =
+                        !isTerminalStatus(record) &&
+                        roleMatchesApprovalStep(signedInRole, currentRole);
 
-                        <td>
-                          <strong>{record.module}</strong>
-                          <br />
-                          <span className="muted">{record.workflowType}</span>
-                        </td>
+                      return (
+                        <tr key={record.id}>
+                          <td>
+                            <strong>{record.requestReference || record.id.slice(0, 8)}</strong>
+                            <br />
+                            <span className="muted">{formatDate(record.submittedAt || record.createdAt)}</span>
+                          </td>
 
-                        <td>
-                          <strong>{record.requesterName || '-'}</strong>
-                          <br />
-                          <span className="muted">{record.requesterDepartment || record.requesterSite || '-'}</span>
-                        </td>
+                          <td>
+                            <strong>{record.module}</strong>
+                            <br />
+                            <span className="muted">{record.workflowType}</span>
+                          </td>
 
-                        <td>
-                          <strong>{getCurrentStepLabel(record)}</strong>
-                          <br />
-                          <span className="muted">{getCurrentRole(record)}</span>
-                        </td>
+                          <td>
+                            <strong>{record.requesterName || '-'}</strong>
+                            <br />
+                            <span className="muted">
+                              {record.requesterDepartment || record.requesterSite || record.requesterRole || '-'}
+                            </span>
+                          </td>
 
-                        <td>{getCurrentApprover(record)}</td>
-                        <td>{formatAmount(record.amount)}</td>
+                          <td>
+                            <strong>{getCurrentStepLabel(record)}</strong>
+                            <br />
+                            <span className="muted">{currentRole}</span>
+                          </td>
 
-                        <td>
-                          <span
-                            className={
-                              record.status === 'APPROVED'
-                                ? 'status-pill success'
-                                : record.status === 'REJECTED'
-                                  ? 'status-pill danger'
-                                  : 'status-pill warning'
-                            }
-                          >
-                            {getWorkflowStatus(record)}
-                          </span>
-                        </td>
+                          <td>{getCurrentApprover(record)}</td>
+                          <td>{formatAmount(record.amount)}</td>
 
-                        <td>
-                          <div className="action-row">
-                            <button
-                              className="btn-secondary"
-                              type="button"
-                              onClick={() => {
-                                setSelected(record);
-                                setComments('');
-                              }}
-                            >
-                              Review
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          <td>
+                            <span className={statusClass(String(getWorkflowStatus(record)))}>
+                              {cleanStatus(String(getWorkflowStatus(record)))}
+                            </span>
+                          </td>
+
+                          <td>
+                            <div className="action-row">
+                              <button
+                                className={canReview ? 'btn-secondary' : 'btn-ghost'}
+                                type="button"
+                                onClick={() => {
+                                  setSelected(record);
+                                  setComments('');
+                                  setError('');
+                                  setMessage('');
+                                }}
+                              >
+                                {canReview ? 'Review' : 'View'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -377,8 +563,18 @@ export default function ApprovalInboxPage() {
           </div>
 
           {selected ? (
-            <div className="finance-card">
-              <h2>Review Request</h2>
+            <div className="finance-summary-card">
+              <div className="section-heading-row">
+                <div>
+                  <p className="eyebrow">Request Review</p>
+                  <h2>{selected.requestTitle || selected.requestReference || 'Approval Request'}</h2>
+                  <p className="muted">{selected.requestDescription || 'No request description provided.'}</p>
+                </div>
+
+                <button className="btn-secondary" type="button" onClick={() => setSelected(null)}>
+                  Close
+                </button>
+              </div>
 
               <div className="mini-detail-grid">
                 <div>
@@ -386,18 +582,50 @@ export default function ApprovalInboxPage() {
                   <strong>{selected.requestReference || selected.id}</strong>
                 </div>
                 <div>
-                  <span>Title</span>
-                  <strong>{selected.requestTitle}</strong>
+                  <span>Module</span>
+                  <strong>{selected.module}</strong>
+                </div>
+                <div>
+                  <span>Workflow</span>
+                  <strong>{selected.workflowType}</strong>
+                </div>
+                <div>
+                  <span>Requester</span>
+                  <strong>{selected.requesterName || '-'}</strong>
                 </div>
                 <div>
                   <span>Current Step</span>
                   <strong>{getCurrentStepLabel(selected)}</strong>
                 </div>
                 <div>
-                  <span>Current Approver</span>
-                  <strong>{getCurrentApprover(selected)}</strong>
+                  <span>Required Role</span>
+                  <strong>{selectedCurrentRole || '-'}</strong>
+                </div>
+                <div>
+                  <span>Detected Role</span>
+                  <strong>{signedInRole || '-'}</strong>
+                </div>
+                <div>
+                  <span>Amount</span>
+                  <strong>{formatAmount(selected.amount)}</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>{cleanStatus(String(getWorkflowStatus(selected)))}</strong>
                 </div>
               </div>
+
+              {!selectedCanAction && !isTerminalStatus(selected) ? (
+                <div className="alert warning" style={{ marginTop: '1rem' }}>
+                  You can view this request, but your detected role cannot action the current approval step.
+                </div>
+              ) : null}
+
+              {isTerminalStatus(selected) ? (
+                <div className="alert success" style={{ marginTop: '1rem' }}>
+                  This request is already closed and cannot be changed.
+                </div>
+              ) : null}
 
               <label style={{ display: 'block', marginTop: '1rem' }}>
                 Comments
@@ -405,18 +633,24 @@ export default function ApprovalInboxPage() {
                   value={comments}
                   onChange={(event) => setComments(event.target.value)}
                   placeholder="Add approval or rejection comments."
+                  disabled={!selectedCanAction || actioning}
                 />
               </label>
 
               <div className="action-row" style={{ marginTop: '1rem' }}>
-                <button className="btn" type="button" disabled={actioning} onClick={() => handleApprove(selected)}>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={!selectedCanAction || actioning}
+                  onClick={() => handleApprove(selected)}
+                >
                   {actioning ? 'Processing...' : 'Approve'}
                 </button>
 
                 <button
                   className="btn-secondary"
                   type="button"
-                  disabled={actioning}
+                  disabled={!selectedCanAction || actioning}
                   onClick={() => handleReject(selected)}
                 >
                   Reject
@@ -443,18 +677,19 @@ export default function ApprovalInboxPage() {
                         <th>Date</th>
                       </tr>
                     </thead>
+
                     <tbody>
                       {getHistory(selected).map((item: any, index: number) => (
-                        <tr key={`${item.actionedAt}-${index}`}>
-                          <td>{item.stepSequence}</td>
-                          <td>{item.action}</td>
+                        <tr key={`${item.actionedAt || item.decidedAt || index}-${index}`}>
+                          <td>{item.stepSequence || item.sequence || '-'}</td>
+                          <td>{cleanStatus(item.action || item.status)}</td>
                           <td>
-                            <strong>{item.actionedBy}</strong>
+                            <strong>{item.actionedBy || item.approverName || '-'}</strong>
                             <br />
-                            <span className="muted">{item.actionedByEmail}</span>
+                            <span className="muted">{item.actionedByEmail || item.approverEmail || '-'}</span>
                           </td>
                           <td>{item.comments || '-'}</td>
-                          <td>{formatDate(item.actionedAt)}</td>
+                          <td>{formatDate(item.actionedAt || item.decidedAt || item.updatedAt)}</td>
                         </tr>
                       ))}
                     </tbody>

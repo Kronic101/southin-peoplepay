@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ApprovalRequestStatus,
+  ApprovalWorkflowType,
   FinanceEvidenceStatus,
   FinanceExpenseStatus,
   HubDocumentConfidentiality,
@@ -202,7 +203,7 @@ export class FinanceService {
 
     const approvalRequest = await this.approvalsService.createApprovalRequest({
       module: OperationsModule.FINANCE,
-      workflowType: 'EXPENSE_REQUEST',
+      workflowType: ApprovalWorkflowType.EXPENSE_REQUEST,
       requestTitle: `Finance expense approval - ${expense.expenseNo}`,
       requestReference: expense.expenseNo,
       requestDescription: expense.description,
@@ -414,6 +415,9 @@ export class FinanceService {
         department: body.department,
         site: body.site || null,
         requestedBy: body.requestedBy || 'procurement-demo-user',
+        requestedByEmail: body.requestedByEmail || null,
+        requestedByEntraId: body.requestedByEntraId || null,
+        requestedByRole: body.requestedByRole || null,
         supplierName: body.supplierName || body.supplier || null,
         description: body.description,
         amount: new Prisma.Decimal(amount),
@@ -432,12 +436,14 @@ export class FinanceService {
 
     const approvalRequest = await this.approvalsService.createApprovalRequest({
       module: OperationsModule.PROCUREMENT,
-      workflowType: 'PROCUREMENT_REQUEST',
+      workflowType: ApprovalWorkflowType.PROCUREMENT_REQUEST,
       requestTitle: `Procurement payment approval - ${record.requisitionNo}`,
       requestReference: record.requisitionNo,
       requestDescription: record.description,
       requesterName: record.requestedBy || undefined,
-      requesterRole: 'PROCUREMENT_REQUESTER',
+      requesterEmail: record.requestedByEmail || undefined,
+      requesterEntraId: record.requestedByEntraId || undefined,
+      requesterRole: record.requestedByRole || 'PROCUREMENT_REQUESTER',
       requesterDepartment: record.department,
       requesterSite: record.site || undefined,
       amount,
@@ -448,6 +454,12 @@ export class FinanceService {
         supplierName: record.supplierName,
         invoiceStatus: record.invoiceStatus,
         paymentStatus: record.paymentStatus,
+        requesterAudit: {
+          requestedBy: record.requestedBy,
+          requestedByEmail: record.requestedByEmail,
+          requestedByEntraId: record.requestedByEntraId,
+          requestedByRole: record.requestedByRole,
+        },
       },
     });
 

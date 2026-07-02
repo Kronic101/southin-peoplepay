@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApprovalWorkflowType, OperationsModule } from '@prisma/client';
 import { ApprovalsService } from './approvals.service';
+import { ApprovalNotificationsService } from './approval-notifications.service';
+import { ApprovalWorkflowService } from './approval-workflow.service';
 
 /**
  * ApprovalsController
@@ -18,7 +20,11 @@ import { ApprovalsService } from './approvals.service';
  */
 @Controller('approvals')
 export class ApprovalsController {
-  constructor(private readonly approvalsService: ApprovalsService) {}
+  constructor(
+    private readonly approvalsService: ApprovalsService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+    private readonly approvalNotificationsService: ApprovalNotificationsService,
+  ) {}
 
   @Get('matrix')
   getApprovalMatrix() {
@@ -60,6 +66,8 @@ export class ApprovalsController {
       requesterRole?: string;
       requesterDepartment?: string;
       requesterSite?: string;
+      requesterEmail?: string;
+      requesterEntraId?: string;
       amount?: number;
       sourceEntityType?: string;
       sourceEntityId?: string;
@@ -92,6 +100,12 @@ export class ApprovalsController {
       approverEmployeeId?: string;
       approverName?: string;
       approverEmail?: string;
+      approverEntraObjectId?: string;
+      approverRole?: string;
+      actionedBy?: string;
+      actionedByEmail?: string;
+      actionedByEntraId?: string;
+      actionedByRole?: string;
       comments?: string;
     },
   ) {
@@ -101,5 +115,15 @@ export class ApprovalsController {
   @Post('seed-default-rules')
   seedDefaultRules() {
     return this.approvalsService.seedDefaultApprovalRules();
+  }
+
+  @Get('notifications/queue')
+  getNotificationQueue(@Query('status') status?: string) {
+    return this.approvalNotificationsService.getQueue(status);
+  }
+
+  @Post('notifications/process')
+  processNotificationQueue(@Body() body: { limit?: number }) {
+    return this.approvalNotificationsService.processPending(body?.limit || 10);
   }
 }

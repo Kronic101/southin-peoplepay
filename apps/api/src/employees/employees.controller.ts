@@ -27,6 +27,11 @@ export class EmployeesController {
     return this.employeesService.getEmployeeBankAuditHistory(id);
   }
 
+  @Get('lookups/setup')
+  getSetupLookups() {
+    return this.employeesService.getSetupLookups();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.employeesService.findOne(id);
@@ -38,7 +43,10 @@ export class EmployeesController {
   }
 
   @Post(':id/portal-account')
-  createPortalAccount(@Param('id') id: string, @Body() body: any) {
+  createPortalAccount(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.employeesService.createPortalAccount(id, body);
   }
 
@@ -61,5 +69,13 @@ export class EmployeesController {
   @RequireRoles('FINANCE_MANAGER', 'ADMIN')
   validateBankDetails(@Param('id') id: string, @Body() body: any) {
     return this.employeesService.validateBankDetails(id, body);
+  }
+
+  @Patch(':id/portal-account')
+  updatePortalAccount(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.employeesService.updatePortalAccount(id, body);
   }
 }

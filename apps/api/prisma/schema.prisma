@@ -137,6 +137,8 @@ model EmployeePortalAccount {
   pinHash        String
   mustChangePin  Boolean   @default(true)
   isActive       Boolean   @default(true)
+  accessProfile  String    @default("EMPLOYEE")
+  allowedModules Json?
   lastLoginAt    DateTime?
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
@@ -144,7 +146,6 @@ model EmployeePortalAccount {
   updatedAt      DateTime  @updatedAt
   employee       Employee  @relation(fields: [employeeId], references: [id])
 }
-
 model EmployeeStatutoryDetails {
   id              String   @id @default(uuid())
   employeeId      String   @unique
@@ -697,6 +698,8 @@ model ApprovalRequest {
 
   requesterEmployeeId String?
   requesterName       String?
+  requesterEmail      String?
+  requesterEntraId    String?
   requesterRole       String?
   requesterDepartment String?
   requesterSite       String?
@@ -810,9 +813,16 @@ model ApprovalDecision {
   sequence Int
   role     ApprovalStepRole
 
-  approverEmployeeId String?
-  approverName       String?
-  approverEmail      String?
+  approverEmployeeId     String?
+  approverName           String?
+  approverEmail          String?
+  approverEntraObjectId  String?
+  approverRole           String?
+
+  actionedBy        String?
+  actionedByEmail   String?
+  actionedByEntraId String?
+  actionedByRole    String?
 
   status   ApprovalDecisionStatus @default(PENDING)
   comments String?
@@ -824,6 +834,41 @@ model ApprovalDecision {
 
   @@index([approvalRequestId])
   @@map("approval_decisions")
+}
+
+model ApprovalNotificationQueue {
+  id String @id @default(uuid())
+
+  approvalRequestId String?
+  approvalDecisionId String?
+
+  module       String?
+  workflowType String?
+  approvalRole String?
+
+  toEmail String
+  toName  String?
+
+  subject    String
+  bodyText   String
+  actionUrl  String?
+
+  status     String @default("PENDING")
+  attempts   Int    @default(0)
+  lastError  String?
+
+  queuedAt DateTime @default(now())
+  sentAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([approvalRequestId])
+  @@index([approvalDecisionId])
+  @@index([toEmail])
+  @@index([status])
+  @@index([queuedAt])
+  @@map("approval_notification_queue")
 }
 
 model FinanceReportExportLog {
@@ -947,7 +992,12 @@ model ProcurementRequest {
 
   department   String
   site         String?
-  requestedBy  String?
+
+  requestedBy        String?
+  requestedByEmail   String?
+  requestedByEntraId String?
+  requestedByRole    String?
+
   supplierName String?
   supplierId   String?
   description  String

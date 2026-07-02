@@ -10,6 +10,9 @@ import {
   createPortalAccount,
   updateEmployee,
   updateEmployeeStatutoryDetails,
+  EMPLOYEE_PORTAL_MODULES_BY_PROFILE,
+  EmployeePortalAccessProfile,
+  updatePortalAccount,
 } from '@/lib/api';
 
 type Props = {
@@ -21,6 +24,9 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
   const [activeTab, setActiveTab] = useState('profile');
   const [message, setMessage] = useState('');
   const [portalResult, setPortalResult] = useState<any>(null);
+  const [portalProfile, setPortalProfile] = useState<EmployeePortalAccessProfile>(
+    employee.portalAccount?.accessProfile || 'EMPLOYEE',
+  );
 
   async function handleApproveBankAccount(bankAccountId: string) {
       setMessage('');
@@ -136,9 +142,30 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
 
   async function handleCreatePortalAccount() {
     setMessage('');
-    const result = await createPortalAccount(employee.id);
+
+    const allowedModules = EMPLOYEE_PORTAL_MODULES_BY_PROFILE[portalProfile];
+
+    const result = await createPortalAccount(employee.id, {
+      accessProfile: portalProfile,
+      allowedModules,
+    });
+
     setPortalResult(result);
     setMessage(result.message);
+  }
+
+  async function handleUpdatePortalAccess() {
+    setMessage('');
+
+    const allowedModules = EMPLOYEE_PORTAL_MODULES_BY_PROFILE[portalProfile];
+
+    await updatePortalAccount(employee.id, {
+      accessProfile: portalProfile,
+      allowedModules,
+      isActive: true,
+    });
+
+    setMessage('Portal access profile updated. Refresh the profile to view the latest access settings.');
   }
 
   const tabs = [
@@ -546,8 +573,34 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
         <div>
           <h2>Employee Portal Access</h2>
           <p className="muted">
-            Enable Employee Number + PIN login for this employee. The temporary PIN is shown once and must be handed to the employee securely.
+            Enable Employee Number + PIN login for this employee. HR must choose the access profile before creating the portal account.
           </p>
+
+          <div className="form-grid">
+            <label>
+              Access Profile
+              <select
+                value={portalProfile}
+                onChange={(event) => setPortalProfile(event.target.value as EmployeePortalAccessProfile)}
+              >
+                <option value="EMPLOYEE">Employee - own profile, requests and payslips</option>
+                <option value="DRIVER">Driver - fleet checklist, trips and defects</option>
+                <option value="STORES">Stores - requisitions and stock updates</option>
+                <option value="ASSETS">Assets - asset movements and status updates</option>
+                <option value="SAFETY">Safety - observations and incidents</option>
+                <option value="QAQC">QAQC - quality records and status updates</option>
+              </select>
+            </label>
+
+            <div>
+              <strong>Allowed Modules</strong>
+              <ul>
+                {EMPLOYEE_PORTAL_MODULES_BY_PROFILE[portalProfile].map((module) => (
+                  <li key={module}>{module}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
 
           <div className="table-wrap">
             <table>
@@ -555,6 +608,18 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
                 <tr>
                   <th>Portal Status</th>
                   <td>{employee.portalAccount ? 'Enabled' : 'Not enabled'}</td>
+                </tr>
+                <tr>
+                  <th>Access Profile</th>
+                  <td>{employee.portalAccount?.accessProfile || portalProfile}</td>
+                </tr>
+                <tr>
+                  <th>Allowed Modules</th>
+                  <td>
+                    {Array.isArray(employee.portalAccount?.allowedModules)
+                      ? employee.portalAccount.allowedModules.join(', ')
+                      : EMPLOYEE_PORTAL_MODULES_BY_PROFILE[portalProfile].join(', ')}
+                  </td>
                 </tr>
                 <tr>
                   <th>Must Change PIN</th>
@@ -568,9 +633,13 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
             </table>
           </div>
 
-          {!employee.portalAccount && (
+          {!employee.portalAccount ? (
             <button className="btn" onClick={handleCreatePortalAccount} type="button">
               Create Portal Account
+            </button>
+          ) : (
+            <button className="btn" onClick={handleUpdatePortalAccess} type="button">
+              Update Portal Access
             </button>
           )}
         </div>

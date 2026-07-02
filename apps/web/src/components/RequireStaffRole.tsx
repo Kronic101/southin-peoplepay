@@ -1,14 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-
+import { useSession } from 'next-auth/react';
 import { isDemoEnabledForBrowser } from '@/lib/demo';
 
 type StaffRole =
   | 'PAYROLL_OFFICER'
   | 'HR_MANAGER'
+  | 'HR_OFFICER'
   | 'FINANCE_MANAGER'
+  | 'FINANCE_OFFICER'
   | 'DIRECTOR'
   | 'ADMIN'
   | 'LINE_MANAGER'
@@ -18,21 +19,8 @@ type StaffRole =
   | 'STORES_OFFICER'
   | 'PROCUREMENT_OFFICER'
   | 'FLEET_MANAGER'
-  | 'FLEET_DISPATCH_OFFICER';
-
-const ROLE_KEYS = [
-  'southin-dev-role',
-  'southinDevRole',
-  'southin_dev_role',
-  'southinRole',
-  'southin-role',
-  'peoplepay-dev-role',
-  'peoplepayDevRole',
-  'selectedDevRole',
-  'devRole',
-  'role',
-  'x-user-role',
-];
+  | 'FLEET_DISPATCH_OFFICER'
+  | 'AUDITOR';
 
 function normaliseRole(value: unknown): StaffRole | '' {
   const role = String(value || '')
@@ -41,11 +29,13 @@ function normaliseRole(value: unknown): StaffRole | '' {
     .replaceAll(' ', '_')
     .replaceAll('-', '_');
 
+  if (role === 'ADMIN' || role === 'SYSTEM_ADMIN' || role === 'SYSTEM_ADMINISTRATOR') return 'ADMIN';
+  if (role === 'DIRECTOR' || role === 'EXECUTIVE') return 'DIRECTOR';
   if (role === 'HR' || role === 'HR_MANAGER' || role === 'HUMAN_RESOURCES') return 'HR_MANAGER';
+  if (role === 'HR_OFFICER') return 'HR_OFFICER';
   if (role === 'PAYROLL' || role === 'PAYROLL_OFFICER') return 'PAYROLL_OFFICER';
   if (role === 'FINANCE' || role === 'FINANCE_MANAGER') return 'FINANCE_MANAGER';
-  if (role === 'DIRECTOR' || role === 'EXECUTIVE') return 'DIRECTOR';
-  if (role === 'ADMIN' || role === 'SYSTEM_ADMIN' || role === 'SYSTEM_ADMINISTRATOR') return 'ADMIN';
+  if (role === 'FINANCE_OFFICER') return 'FINANCE_OFFICER';
   if (role === 'LINE_MANAGER') return 'LINE_MANAGER';
   if (role === 'SUPERVISOR') return 'SUPERVISOR';
   if (role === 'ASSET_MANAGER' || role === 'ASSET_CONTROLLER') return 'ASSET_MANAGER';
@@ -56,18 +46,29 @@ function normaliseRole(value: unknown): StaffRole | '' {
   if (role === 'FLEET_DISPATCH' || role === 'FLEET_DISPATCH_OFFICER' || role === 'DISPATCH_OFFICER') {
     return 'FLEET_DISPATCH_OFFICER';
   }
+  if (role === 'AUDITOR') return 'AUDITOR';
 
   return '';
 }
 
-function getRoleFromLocalStorage(demoVisible: boolean) {
+function getDemoRole(): StaffRole | '' {
   if (typeof window === 'undefined') return '';
 
-  if (!demoVisible) {
-    return 'ADMIN';
-  }
+  const roleKeys = [
+    'southin-dev-role',
+    'southinDevRole',
+    'southin_dev_role',
+    'southinRole',
+    'southin-role',
+    'peoplepay-dev-role',
+    'peoplepayDevRole',
+    'selectedDevRole',
+    'devRole',
+    'role',
+    'x-user-role',
+  ];
 
-  for (const key of ROLE_KEYS) {
+  for (const key of roleKeys) {
     const value = normaliseRole(localStorage.getItem(key));
     if (value) return value;
   }
@@ -86,132 +87,74 @@ export function RequireStaffRole({
   title?: string;
   message?: string;
 }) {
-  const [demoVisible, setDemoVisible] = useState(false);
-  const [role, setRole] = useState<StaffRole | ''>('');
+  const { data: session, status } = useSession();
 
-  useEffect(() => {
-    const enabled = isDemoEnabledForBrowser();
-    setDemoVisible(enabled);
+  const demoVisible = typeof window !== 'undefined' && isDemoEnabledForBrowser();
 
-    function refreshRole() {
-      setRole(getRoleFromLocalStorage(enabled));
-    }
+  const sessionRole = normaliseRole((session?.user as any)?.staffRole);
+  const demoRole = demoVisible ? getDemoRole() : '';
 
-    refreshRole();
+  const role = sessionRole || demoRole;
 
-    if (!enabled) {
-      return;
-    }
+  const allowed =
+    role === 'ADMIN' ||
+    (!!role && allowedRoles.includes(role));
 
-    const interval = window.setInterval(refreshRole, 500);
+  if (status === 'loading') {
+    return (
+      <main className="login-shell">
+        <section className="login-card">
+          <p className="eyebrow">Southin Hub Access Control</p>
+          <h1>Checking Access</h1>
+          <p className="muted">Please wait while we verify your Microsoft 365 session.</p>
+        </section>
+      </main>
+    );
+  }
 
-    window.addEventListener('storage', refreshRole);
-    window.addEventListener('focus', refreshRole);
-    window.addEventListener('click', refreshRole);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('storage', refreshRole);
-      window.removeEventListener('focus', refreshRole);
-      window.removeEventListener('click', refreshRole);
-    };
-  }, []);
-
-  const allowed = useMemo(() => {
-    if (role === 'ADMIN') return true;
-    if (!role) return false;
-    return allowedRoles.includes(role);
-  }, [allowedRoles, role]);
+  if (!session?.user?.email && !demoVisible) {
+    return (
+      <main className="login-shell">
+        <section className="login-card">
+          <p className="eyebrow">Southin Hub Access Control</p>
+          <h1>Login Required</h1>
+          <p className="muted">Please sign in using your Southin Microsoft 365 account.</p>
+          <Link className="btn" href="/api/auth/signin">
+            Sign in
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   if (!allowed) {
     return (
-      <main className="employee-portal-page">
-        <section className="employee-portal-shell">
-          <nav className="employee-portal-nav">
+      <main className="login-shell">
+        <section className="login-card">
+          <p className="eyebrow">Southin Hub Access Control</p>
+          <h1>{title}</h1>
+          <p className="muted">{message}</p>
+
+          <div className="info-grid" style={{ marginTop: '1rem' }}>
             <div>
-              <strong>Southin PeoplePay</strong>
-              <span>Access Control</span>
+              <span className="muted">Signed in as</span>
+              <strong>{session?.user?.email || 'Demo user'}</strong>
             </div>
-
-            <div className="employee-portal-nav-links">
-              <Link href="/">Login</Link>
-
-              {demoVisible ? (
-                <>
-                  <Link href="/workbench">Workbench</Link>
-                  <Link href="/demo">Demo Guide</Link>
-                </>
-              ) : null}
-            </div>
-          </nav>
-
-          <section className="employee-hero-card">
             <div>
-              <div className="hero-kicker">Access Restricted</div>
-              <h1>{title}</h1>
-              <p>{message}</p>
+              <span className="muted">Detected role</span>
+              <strong>{role || 'No staff role detected'}</strong>
             </div>
+            <div>
+              <span className="muted">Allowed roles</span>
+              <strong>{allowedRoles.join(', ')}</strong>
+            </div>
+          </div>
 
+          <div className="action-row" style={{ marginTop: '1rem' }}>
             <Link className="btn-secondary" href="/">
               Return to Login
             </Link>
-          </section>
-
-          <section className="employee-panel">
-            <h2>Current Access</h2>
-
-            <div className="mini-detail-grid">
-              <div>
-                <span>Detected Role</span>
-                <strong>{role || 'No staff role detected'}</strong>
-              </div>
-
-              <div>
-                <span>Allowed Roles</span>
-                <strong>{allowedRoles.join(', ')}</strong>
-              </div>
-            </div>
-
-            {demoVisible ? (
-              <>
-                <div className="notice" style={{ marginTop: '1rem' }}>
-                  Local demo mode is enabled. Use the floating Dev Role selector or choose a quick
-                  demo role below.
-                </div>
-
-                <div className="action-row" style={{ marginTop: '1rem' }}>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => {
-                      localStorage.setItem('southinDevRole', 'HR_MANAGER');
-                      localStorage.setItem('devRole', 'HR_MANAGER');
-                      window.location.reload();
-                    }}
-                  >
-                    Use HR Manager Demo Role
-                  </button>
-
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={() => {
-                      localStorage.setItem('southinDevRole', 'ADMIN');
-                      localStorage.setItem('devRole', 'ADMIN');
-                      window.location.reload();
-                    }}
-                  >
-                    Use Admin Demo Role
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="notice" style={{ marginTop: '1rem' }}>
-                Please sign in using your Microsoft 365 account, or use Employee / Field Login if
-                you do not have a Microsoft 365 account.
-              </div>
-            )}
-          </section>
+          </div>
         </section>
       </main>
     );

@@ -177,6 +177,9 @@ export default function ProcurementTrackerPage() {
     const requestedByEntraId =
       (session.user as any)?.entraObjectId ??
       '';
+    const requestedByRole = 
+      (session.user as any)?.staffRole ?? 
+      '';
 
     try {
       await createProcurementPayment({
@@ -188,6 +191,7 @@ export default function ProcurementTrackerPage() {
         requestedBy,
         requestedByEmail,
         requestedByEntraId,
+        requestedByRole,
       });
 
       event.currentTarget.reset();

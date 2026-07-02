@@ -20,11 +20,66 @@ export type Employee = {
   employmentType?: { name: string } | null;
   portalAccount?: {
     id: string;
+    employeeNumber?: string | null;
     isActive: boolean;
     mustChangePin: boolean;
+    accessProfile?: EmployeePortalAccessProfile | string | null;
+    allowedModules?: string[] | null;
     lastLoginAt?: string | null;
+    failedAttempts?: number | null;
+    lockedUntil?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
   } | null;
 };
+
+export type EmployeePortalAccessProfile =
+  | 'DRIVER'
+  | 'STORES'
+  | 'ASSETS'
+  | 'SAFETY'
+  | 'QAQC'
+  | 'EMPLOYEE';
+
+export const EMPLOYEE_PORTAL_MODULES_BY_PROFILE: Record<EmployeePortalAccessProfile, string[]> = {
+  DRIVER: ['FLEET_CHECKLIST', 'FLEET_TRIPS', 'FLEET_DEFECTS'],
+  STORES: ['STORES_REQUISITIONS', 'STOCK_UPDATES'],
+  ASSETS: ['ASSET_MOVEMENTS', 'ASSET_STATUS_UPDATES'],
+  SAFETY: ['SAFETY_OBSERVATIONS', 'SAFETY_INCIDENTS'],
+  QAQC: ['QAQC_RECORDS', 'QAQC_STATUS_UPDATES'],
+  EMPLOYEE: ['EMPLOYEE_PROFILE', 'EMPLOYEE_REQUESTS', 'EMPLOYEE_PAYSLIPS'],
+};
+
+export async function createPortalAccount(
+  employeeId: string,
+  payload?: {
+    accessProfile?: EmployeePortalAccessProfile;
+    allowedModules?: string[];
+  },
+) {
+  return apiPost(
+    `/employees/${employeeId}/portal-account`,
+    payload || {},
+    'Failed to create portal account',
+    true,
+  );
+}
+
+export async function updatePortalAccount(
+  employeeId: string,
+  payload: {
+    accessProfile?: EmployeePortalAccessProfile;
+    allowedModules?: string[];
+    isActive?: boolean;
+  },
+) {
+  return apiPatch(
+    `/employees/${employeeId}/portal-account`,
+    payload,
+    'Failed to update portal account',
+    true,
+  );
+}
 
 type JsonBody = Record<string, unknown> | any;
 
@@ -170,15 +225,6 @@ export async function updateEmployee(id: string, payload: Record<string, unknown
 
 export async function getEmployeeSetupLookups() {
   return apiGet('/employees/lookups/setup', 'Failed to load setup lookups', true);
-}
-
-export async function createPortalAccount(employeeId: string) {
-  return apiPost(
-    `/employees/${employeeId}/portal-account`,
-    {},
-    'Failed to create portal account',
-    true,
-  );
 }
 
 export async function updateEmployeeStatutoryDetails(
@@ -1181,22 +1227,30 @@ export type ProcurementPaymentRecord = {
   requisitionNo: string;
   department: string;
   site?: string | null;
+
   requestedBy?: string | null;
+  requestedByEmail?: string | null;
+  requestedByEntraId?: string | null;
+  requestedByRole?: string | null;
+
   supplierName?: string | null;
   description: string;
   amount: string | number;
+
   procurementStage: string;
   financeStage: string;
   status: string;
   invoiceStatus: string;
   paymentStatus: string;
   proofOfPaymentStatus: string;
+
   purchaseOrderNo?: string | null;
   invoiceNo?: string | null;
   goodsReceivedNote?: string | null;
+  approvalRequestId?: string | null;
+
   createdAt: string;
   updatedAt: string;
-  requestedByEntraId?: string | null;
 };
 
 export type ProcurementPaymentsResponse = {
@@ -1227,6 +1281,7 @@ export async function createProcurementPayment(payload: {
   requestedBy?: string;
   requestedByEmail?: string;
   requestedByEntraId?: string;
+  requestedByRole?: string;
 }) {
   return apiPost<{ message: string; record: ProcurementPaymentRecord }>(
     '/finance/procurement-payments',

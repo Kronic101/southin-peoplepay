@@ -1,32 +1,38 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApprovalWorkflowService } from './approval-workflow.service';
 
-@Controller('approvals')
+@Controller('approvals/workflows')
 export class ApprovalWorkflowController {
-  constructor(private readonly approvalWorkflowService: ApprovalWorkflowService) {}
+  constructor(
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
-  @Post('workflows/start')
-  startWorkflow(@Body() body: any) {
-    return this.approvalWorkflowService.startWorkflow(body);
-  }
-
-  @Get('workflows')
+  @Get()
   getWorkflows() {
     return this.approvalWorkflowService.getWorkflows();
   }
 
-  @Get('workflows/inbox')
-  getInbox(@Query('email') email?: string) {
-    return this.approvalWorkflowService.getInbox(email);
+  @Get('inbox')
+  getInbox(
+    @Query('email') email?: string,
+    @Query('role') role?: string,
+  ) {
+    return this.approvalWorkflowService.getInbox(email, role);
   }
 
-  @Patch('workflows/:id/approve')
-  approveWorkflow(@Param('id') id: string, @Body() body: any) {
+  @Patch(':id/approve')
+  approveWorkflow(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.approvalWorkflowService.approveWorkflow(id, body);
   }
 
-  @Patch('workflows/:id/reject')
-  rejectWorkflow(@Param('id') id: string, @Body() body: any) {
+  @Patch(':id/reject')
+  rejectWorkflow(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.approvalWorkflowService.rejectWorkflow(id, body);
   }
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -99,7 +100,11 @@ export class AuthService {
 
     const token = this.signEmployeeToken({
       type: 'EMPLOYEE',
-      role: 'EMPLOYEE',
+      role: portalAccount.accessProfile || 'EMPLOYEE',
+      accessProfile: portalAccount.accessProfile || 'EMPLOYEE',
+      allowedModules: Array.isArray(portalAccount.allowedModules)
+        ? portalAccount.allowedModules
+        : [],
       sub: portalAccount.employeeId,
       employeeId: portalAccount.employeeId,
       employeeNumber: portalAccount.employeeNumber,
@@ -109,6 +114,10 @@ export class AuthService {
       message: 'Login successful',
       token,
       mustChangePin: portalAccount.mustChangePin,
+      accessProfile: portalAccount.accessProfile || 'EMPLOYEE',
+      allowedModules: Array.isArray(portalAccount.allowedModules)
+        ? portalAccount.allowedModules
+        : [],
       employee: this.formatEmployeeSummary(portalAccount.employee),
     };
   }
@@ -173,7 +182,11 @@ export class AuthService {
 
     const token = this.signEmployeeToken({
       type: 'EMPLOYEE',
-      role: 'EMPLOYEE',
+      role: portalAccount.accessProfile || 'EMPLOYEE',
+      accessProfile: portalAccount.accessProfile || 'EMPLOYEE',
+      allowedModules: Array.isArray(portalAccount.allowedModules)
+        ? portalAccount.allowedModules
+        : [],
       sub: portalAccount.employeeId,
       employeeId: portalAccount.employeeId,
       employeeNumber: portalAccount.employeeNumber,
@@ -215,6 +228,8 @@ export class AuthService {
             employeeNumber: true,
             mustChangePin: true,
             isActive: true,
+            accessProfile: true,
+            allowedModules: true,
             lastLoginAt: true,
           },
         },
@@ -574,5 +589,19 @@ export class AuthService {
 
   private isFemale(value?: string | null) {
     return String(value || '').toLowerCase().startsWith('f');
+  }
+
+  private assertPortalModuleAccess(account: any, moduleCode: string) {
+    if (!account?.isActive) {
+      throw new ForbiddenException('Portal account is inactive.');
+    }
+
+    const allowedModules = Array.isArray(account.allowedModules)
+      ? account.allowedModules
+      : [];
+
+    if (!allowedModules.includes(moduleCode)) {
+      throw new ForbiddenException(`Your portal account does not have access to ${moduleCode}.`);
+    }
   }
 }

@@ -1,5 +1,3 @@
-// apps/web/src/auth.ts
-
 import type { NextAuthOptions } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 
@@ -20,6 +18,22 @@ type StaffRole =
   | "PROCUREMENT_OFFICER"
   | "STORES_OFFICER"
   | "AUDITOR";
+
+function decodeJwtPayload(jwt?: string | null): any {
+  if (!jwt) return null;
+
+  try {
+    const payload = jwt.split(".")[1];
+    if (!payload) return null;
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = Buffer.from(normalized, "base64").toString("utf8");
+
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
 
 const groupRoleMap: Record<string, StaffRole> = {
   [process.env.ENTRA_GROUP_ADMIN_ID ?? ""]: "ADMIN",
@@ -74,27 +88,44 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, profile }) {
-      const entraProfile = profile as any;
+    async jwt({ token, profile, account }) {
+      const profileClaims = profile as any;
+      const idTokenClaims = decodeJwtPayload(account?.id_token);
 
-      const groups = Array.isArray(entraProfile?.groups)
-        ? entraProfile.groups
-        : [];
+      const claims = {
+        ...profileClaims,
+        ...idTokenClaims,
+      };
 
-      token.entraObjectId = entraProfile?.oid ?? token.sub ?? null;
+      const groups = Array.isArray(claims?.groups) ? claims.groups : [];
+
+      token.entraObjectId = claims?.oid ?? profileClaims?.oid ?? token.sub ?? null;
       token.entraGroups = groups;
-      token.staffRole = getRoleFromGroups(groups);
-
-      token.email =
+      const email =
         token.email ??
-        entraProfile?.preferred_username ??
-        entraProfile?.email ??
-        entraProfile?.upn ??
+        claims?.preferred_username ??
+        claims?.email ??
+        claims?.upn ??
         null;
+
+      const roleFromGroups = getRoleFromGroups(groups);
+
+      const bootstrapAdmins = String(process.env.SOUTHIN_BOOTSTRAP_ADMIN_EMAILS || '')
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+
+      const roleFromBootstrap =
+        email && bootstrapAdmins.includes(String(email).toLowerCase())
+          ? 'ADMIN'
+          : null;
+
+      token.email = email;
+      token.staffRole = roleFromGroups ?? roleFromBootstrap;
 
       token.name =
         token.name ??
-        entraProfile?.name ??
+        claims?.name ??
         null;
 
       return token;
