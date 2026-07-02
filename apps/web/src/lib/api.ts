@@ -1196,6 +1196,7 @@ export type ProcurementPaymentRecord = {
   goodsReceivedNote?: string | null;
   createdAt: string;
   updatedAt: string;
+  requestedByEntraId?: string | null;
 };
 
 export type ProcurementPaymentsResponse = {
@@ -1224,6 +1225,8 @@ export async function createProcurementPayment(payload: {
   description: string;
   amount: number;
   requestedBy?: string;
+  requestedByEmail?: string;
+  requestedByEntraId?: string;
 }) {
   return apiPost<{ message: string; record: ProcurementPaymentRecord }>(
     '/finance/procurement-payments',

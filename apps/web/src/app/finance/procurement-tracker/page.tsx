@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSession } from "next-auth/react";
 
 import AppShell from '@/components/AppShell';
 import {
@@ -100,6 +101,24 @@ export default function ProcurementTrackerPage() {
   const [actionId, setActionId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const { data: session, status } = useSession();
+
+  const signedInName =
+    session?.user?.name ??
+    session?.user?.email ??
+    '';
+
+  const signedInEmail =
+    session?.user?.email ??
+    '';
+
+  const signedInEntraId =
+    (session?.user as any)?.entraObjectId ??
+    '';
+
+  const signedInRole =
+    (session?.user as any)?.staffRole ??
+    '';
 
   async function loadRecords() {
     setLoading(true);
@@ -138,7 +157,26 @@ export default function ProcurementTrackerPage() {
     setMessage('');
     setError('');
 
+    if (status !== 'authenticated' || !session?.user?.email) {
+      setSaving(false);
+      setError('You must sign in with your Southin Microsoft 365 account before submitting a procurement request.');
+      return;
+    }
+
     const formData = new FormData(event.currentTarget);
+
+    const requestedBy =
+      session.user.name ??
+      session.user.email ??
+      'Unknown User';
+
+    const requestedByEmail =
+      session.user.email ??
+      '';
+
+    const requestedByEntraId =
+      (session.user as any)?.entraObjectId ??
+      '';
 
     try {
       await createProcurementPayment({
@@ -147,8 +185,9 @@ export default function ProcurementTrackerPage() {
         supplierName: String(formData.get('supplierName') || ''),
         description: String(formData.get('description') || ''),
         amount: Number(formData.get('amount') || 0),
-        requestedBy: String(formData.get('requestedBy') || 'Procurement Officer'),
-        requestedByEmail: String(formData.get('requestedByEmail') || 'procurement@southincon.com'),
+        requestedBy,
+        requestedByEmail,
+        requestedByEntraId,
       });
 
       event.currentTarget.reset();
@@ -230,9 +269,32 @@ export default function ProcurementTrackerPage() {
             <label>Supplier<input name="supplierName" placeholder="Supplier name" required /></label>
             <label>Description<input name="description" placeholder="Goods / services requested" required /></label>
             <label>Amount<input name="amount" type="number" min="0" step="0.01" required /></label>
-            <label>Requested By<input name="requestedBy" defaultValue="Procurement Officer" /></label>
-            <label>Requester Email<input name="requestedByEmail" defaultValue="procurement@southincon.com" /></label>
-            <div className="form-actions full-span"><button className="btn" type="submit" disabled={saving}>{saving ? 'Submitting...' : 'Submit for Approval'}</button></div>
+            <div className="full-span">
+              <div className="finance-card" style={{ margin: 0 }}>
+                <p className="eyebrow">Requester Identity</p>
+                {status === 'authenticated' ? (
+                  <>
+                    <p>
+                      <strong>{signedInName || 'Signed-in user'}</strong>
+                      <br />
+                      <span className="muted">{signedInEmail}</span>
+                      <br />
+                      <span className="muted">Role: {signedInRole || 'Not mapped yet'}</span>
+                    </p>
+                  </>
+                ) : (
+                  <p className="muted">
+                    Sign in with your Southin Microsoft 365 account before submitting procurement requests.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="form-actions full-span">
+              <button className="btn" type="submit" disabled={saving || status !== 'authenticated'}>
+                {saving ? 'Submitting...' : 'Submit for Approval'}
+              </button>
+            </div>
           </form>
         </div>
 

@@ -234,6 +234,9 @@ export type StockMovementRecord = {
   financeExpense?: any | null;
   lines?: StockMovementLineRecord[];
   ledgerEntries?: StockLedgerRecord[];
+  approvalRequestId?: string | null;
+  approvalWorkflowId?: string | null;
+  approvalStatus?: string | null;
 };
 
 export type StockMovementLineRecord = {

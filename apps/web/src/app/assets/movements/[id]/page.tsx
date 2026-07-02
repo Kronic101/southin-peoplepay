@@ -131,9 +131,14 @@ export default function AssetMovementDetailPage() {
       const found = (Array.isArray(movements) ? movements : []).find((item: any) => item.id === movementId) || null;
       setMovement(found);
 
-      if (found?.approvalRequestId) {
+      const approvalRequestId =
+        found?.approvalRequestId ??
+        found?.approvalWorkflowId ??
+        null;
+
+      if (approvalRequestId) {
         const workflows = await getApprovalWorkflows();
-        setApproval(workflows.find((item: any) => item.id === found.approvalRequestId) || null);
+        setApproval(workflows.find((item: any) => item.id === approvalRequestId) || null);
       } else {
         setApproval(null);
       }

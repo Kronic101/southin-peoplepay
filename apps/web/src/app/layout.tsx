@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import FloatingDevRoleSelector from '@/components/FloatingDevRoleSelector';
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: 'Southin PeoplePay',
@@ -9,14 +10,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body>
-        {children}
-        <FloatingDevRoleSelector />
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
