@@ -49,6 +49,10 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
     setMessage('');
 
     const formData = new FormData(event.currentTarget);
+    const selectedSiteId = String(formData.get('siteId') || '');
+    const selectedSite = Array.isArray(lookups.sites)
+      ? lookups.sites.find((site: any) => site.id === selectedSiteId)
+      : null;
 
     await updateEmployee(employee.id, {
       firstName: String(formData.get('firstName') || ''),
@@ -59,7 +63,13 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
       nrcNumber: String(formData.get('nrcNumber') || ''),
       departmentId: String(formData.get('departmentId') || '') || null,
       jobTitleId: String(formData.get('jobTitleId') || '') || null,
-      siteId: String(formData.get('siteId') || '') || null,
+      siteId: selectedSiteId || null,
+      siteName: selectedSite?.name || '',
+      payBasis: String(formData.get('payBasis') || ''),
+      hourlyRate: String(formData.get('hourlyRate') || ''),
+      dailyRate: String(formData.get('dailyRate') || ''),
+      monthlyRate: String(formData.get('monthlyRate') || ''),
+      rateEffectiveFrom: String(formData.get('rateEffectiveFrom') || ''),
       employmentTypeId: String(formData.get('employmentTypeId') || '') || null,
       status: String(formData.get('status') || employee.status),
     });
@@ -273,15 +283,68 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
           </label>
 
           <label>
-            Site
+            Site / Location
             <select name="siteId" defaultValue={employee.siteId || ''}>
               <option value="">Select site</option>
-              {lookups.sites.map((item: any) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
+              {Array.isArray(lookups.sites) &&
+                lookups.sites.map((site: any) => (
+                  <option key={site.id} value={site.id}>
+                    {site.code} - {site.name}
+                  </option>
+                ))}
             </select>
+          </label>
+
+          <label>
+            Pay Basis
+            <select name="payBasis" defaultValue={employee.payBasis || ''}>
+              <option value="">Select pay basis</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="DAILY">Daily</option>
+              <option value="HOURLY">Hourly</option>
+            </select>
+          </label>
+
+          <label>
+            Hourly Rate
+            <input
+              name="hourlyRate"
+              type="number"
+              step="0.01"
+              defaultValue={employee.hourlyRate ?? ''}
+              placeholder="For casual hourly workers"
+            />
+          </label>
+
+          <label>
+            Daily Rate
+            <input
+              name="dailyRate"
+              type="number"
+              step="0.01"
+              defaultValue={employee.dailyRate ?? ''}
+              placeholder="Optional daily rate"
+            />
+          </label>
+
+          <label>
+            Monthly Rate
+            <input
+              name="monthlyRate"
+              type="number"
+              step="0.01"
+              defaultValue={employee.monthlyRate ?? ''}
+              placeholder="Monthly salary/rate"
+            />
+          </label>
+
+          <label>
+            Rate Effective From
+            <input
+              name="rateEffectiveFrom"
+              type="date"
+              defaultValue={employee.rateEffectiveFrom ? employee.rateEffectiveFrom.slice(0, 10) : ''}
+            />
           </label>
 
           <label>

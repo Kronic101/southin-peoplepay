@@ -61,12 +61,13 @@ model JobTitle {
 }
 
 model Site {
-  id          String     @id @default(uuid())
-  name        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  employees   Employee[]
+  id                 String                  @id @default(uuid())
+  name               String                  @unique
+  description        String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  employees          Employee[]
+  managerAssignments SiteManagerAssignment[]
 }
 
 model EmploymentType {
@@ -93,6 +94,7 @@ model Employee {
   departmentId     String?
   jobTitleId       String?
   siteId           String?
+  siteName         String?
   employmentTypeId String?
   supervisorId     String?
   startDate        DateTime?
@@ -118,6 +120,12 @@ model Employee {
   bankDetailsReviewedBy String?
   bankDetailsReviewedAt DateTime?
   bankDetailsNotes      String?
+
+  payBasis          PayBasis?
+  hourlyRate        Decimal?  @db.Decimal(18, 2)
+  dailyRate         Decimal?  @db.Decimal(18, 2)
+  monthlyRate       Decimal?  @db.Decimal(18, 2)
+  rateEffectiveFrom DateTime?
 
   contracts         EmployeeContract[]
   portalAccount     EmployeePortalAccount?
@@ -146,6 +154,7 @@ model EmployeePortalAccount {
   updatedAt      DateTime  @updatedAt
   employee       Employee  @relation(fields: [employeeId], references: [id])
 }
+
 model EmployeeStatutoryDetails {
   id              String   @id @default(uuid())
   employeeId      String   @unique
@@ -813,11 +822,11 @@ model ApprovalDecision {
   sequence Int
   role     ApprovalStepRole
 
-  approverEmployeeId     String?
-  approverName           String?
-  approverEmail          String?
-  approverEntraObjectId  String?
-  approverRole           String?
+  approverEmployeeId    String?
+  approverName          String?
+  approverEmail         String?
+  approverEntraObjectId String?
+  approverRole          String?
 
   actionedBy        String?
   actionedByEmail   String?
@@ -839,7 +848,7 @@ model ApprovalDecision {
 model ApprovalNotificationQueue {
   id String @id @default(uuid())
 
-  approvalRequestId String?
+  approvalRequestId  String?
   approvalDecisionId String?
 
   module       String?
@@ -849,15 +858,15 @@ model ApprovalNotificationQueue {
   toEmail String
   toName  String?
 
-  subject    String
-  bodyText   String
-  actionUrl  String?
+  subject   String
+  bodyText  String
+  actionUrl String?
 
-  status     String @default("PENDING")
-  attempts   Int    @default(0)
-  lastError  String?
+  status    String  @default("PENDING")
+  attempts  Int     @default(0)
+  lastError String?
 
-  queuedAt DateTime @default(now())
+  queuedAt DateTime  @default(now())
   sentAt   DateTime?
 
   createdAt DateTime @default(now())
@@ -990,8 +999,8 @@ model ProcurementRequest {
   id            String @id @default(uuid())
   requisitionNo String @unique
 
-  department   String
-  site         String?
+  department String
+  site       String?
 
   requestedBy        String?
   requestedByEmail   String?
@@ -2267,42 +2276,42 @@ model AssetImportLine {
 }
 
 model StoresRequisition {
-  id                String   @id @default(uuid())
-  requisitionNo     String   @unique
+  id            String @id @default(uuid())
+  requisitionNo String @unique
 
-  title             String?
-  description       String?
-  reason            String?
+  title       String?
+  description String?
+  reason      String?
 
-  requestedBy       String?
-  requestedByEmail  String?
-  requesterRole     String?
+  requestedBy      String?
+  requestedByEmail String?
+  requesterRole    String?
 
-  department        String?
-  departmentId      String?
-  site              String?
-  branch            String?
-  projectCode       String?
+  department   String?
+  departmentId String?
+  site         String?
+  branch       String?
+  projectCode  String?
 
-  status            String   @default("SUBMITTED")
+  status            String  @default("SUBMITTED")
   approvalRequestId String?
 
-  totalValue        Decimal  @default(0)
-  currency          String   @default("ZMW")
+  totalValue Decimal @default(0)
+  currency   String  @default("ZMW")
 
-  submittedAt       DateTime @default(now())
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  rejectionReason   String?
+  submittedAt     DateTime  @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
 
-  payload           Json?
+  payload Json?
 
-  lines             StoresRequisitionLine[]
+  lines StoresRequisitionLine[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([requisitionNo])
   @@index([status])
@@ -2313,28 +2322,74 @@ model StoresRequisition {
 }
 
 model StoresRequisitionLine {
-  id             String   @id @default(uuid())
-  requisitionId  String
-  requisition    StoresRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  id            String            @id @default(uuid())
+  requisitionId String
+  requisition   StoresRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
 
-  stockItemId    String?
-  itemCode       String?
-  itemName       String
-  description    String?
-  unitOfMeasure  String   @default("EA")
+  stockItemId   String?
+  itemCode      String?
+  itemName      String
+  description   String?
+  unitOfMeasure String  @default("EA")
 
-  quantity       Decimal  @default(1)
-  unitCost       Decimal  @default(0)
-  totalCost      Decimal  @default(0)
+  quantity  Decimal @default(1)
+  unitCost  Decimal @default(0)
+  totalCost Decimal @default(0)
 
-  notes          String?
+  notes String?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([requisitionId])
   @@index([stockItemId])
   @@index([itemCode])
+}
+
+model OperationalSite {
+  id String @id @default(uuid())
+
+  code        String  @unique
+  name        String
+  location    String?
+  description String?
+  isActive    Boolean @default(true)
+
+  siteManagers SiteManagerAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("operational_sites")
+}
+
+model SiteManagerAssignment {
+  id String @id @default(uuid())
+
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id])
+
+  managerName  String
+  managerEmail String
+  managerRole  String? @default("SITE_MANAGER")
+
+  isPrimary Boolean @default(true)
+  isActive  Boolean @default(true)
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  OperationalSite   OperationalSite? @relation(fields: [operationalSiteId], references: [id])
+  operationalSiteId String?
+
+  @@index([siteId])
+  @@index([managerEmail])
+  @@map("site_manager_assignments")
+}
+
+enum PayBasis {
+  MONTHLY
+  DAILY
+  HOURLY
 }
 
 enum FleetVehicleStatus {

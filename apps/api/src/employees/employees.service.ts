@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { PayBasis } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,7 +10,11 @@ export class EmployeesService {
 
   async findAll() {
     return this.prisma.employee.findMany({
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: [
+        {
+          createdAt: 'desc',
+        },
+      ],
       include: this.employeeInclude(),
     });
   }
@@ -41,6 +46,8 @@ export class EmployeesService {
       throw new BadRequestException('Employee number already exists');
     }
 
+    const resolvedSite = await this.resolveEmployeeSite(input);
+
     const employee = await this.prisma.employee.create({
       data: {
         employeeNumber,
@@ -55,7 +62,16 @@ export class EmployeesService {
 
         departmentId: this.cleanNullableString(input.departmentId),
         jobTitleId: this.cleanNullableString(input.jobTitleId),
-        siteId: this.cleanNullableString(input.siteId),
+
+        siteId: resolvedSite.siteId,
+        siteName: resolvedSite.siteName,
+
+        payBasis: this.normalizePayBasis(input.payBasis),
+        hourlyRate: this.parseOptionalMoney(input.hourlyRate) ?? null,
+        dailyRate: this.parseOptionalMoney(input.dailyRate) ?? null,
+        monthlyRate: this.parseOptionalMoney(input.monthlyRate) ?? null,
+        rateEffectiveFrom: this.parseOptionalDate(input.rateEffectiveFrom),
+
         employmentTypeId: this.cleanNullableString(input.employmentTypeId),
         supervisorId: this.cleanNullableString(input.supervisorId),
 
@@ -107,6 +123,11 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
+    const resolvedSite =
+      input.siteId !== undefined || input.siteName !== undefined
+        ? await this.resolveEmployeeSite(input)
+        : null;
+
     const bankFieldsChanged =
       input.bankName !== undefined ||
       input.bankBranch !== undefined ||
@@ -134,7 +155,22 @@ export class EmployeesService {
           input.departmentId !== undefined ? this.cleanNullableString(input.departmentId) : undefined,
         jobTitleId:
           input.jobTitleId !== undefined ? this.cleanNullableString(input.jobTitleId) : undefined,
-        siteId: input.siteId !== undefined ? this.cleanNullableString(input.siteId) : undefined,
+
+        siteId: resolvedSite ? resolvedSite.siteId : undefined,
+        siteName: resolvedSite ? resolvedSite.siteName : undefined,
+
+        payBasis:
+          input.payBasis === undefined ? undefined : this.normalizePayBasis(input.payBasis, true),
+        hourlyRate: this.parseOptionalMoney(input.hourlyRate),
+        dailyRate: this.parseOptionalMoney(input.dailyRate),
+        monthlyRate: this.parseOptionalMoney(input.monthlyRate),
+        rateEffectiveFrom:
+          input.rateEffectiveFrom === undefined
+            ? undefined
+            : input.rateEffectiveFrom
+              ? this.parseOptionalDate(input.rateEffectiveFrom)
+              : null,
+
         employmentTypeId:
           input.employmentTypeId !== undefined
             ? this.cleanNullableString(input.employmentTypeId)
@@ -574,7 +610,7 @@ export class EmployeesService {
     };
   }
 
-    async getPayrollReadiness() {
+  async getPayrollReadiness() {
     const employees = await this.prisma.employee.findMany({
       orderBy: [{ employeeNumber: 'asc' }],
       include: {
@@ -640,7 +676,7 @@ export class EmployeesService {
         name: `${employee.firstName} ${employee.lastName}`.trim(),
         department: employee.department?.name || '-',
         jobTitle: employee.jobTitle?.name || '-',
-        site: employee.site?.name || '-',
+        site: employee.site?.name || employee.siteName || '-',
         employmentType: employee.employmentType?.name || '-',
         status: employee.status,
         bankDetailsStatus: employee.bankDetailsStatus || 'PENDING_VALIDATION',
@@ -737,13 +773,21 @@ export class EmployeesService {
       supervisor: true,
       directReports: true,
       statutoryDetails: true,
+
       bankAccounts: {
-        orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'desc' as const }],
+        orderBy: [
+          { isPrimary: 'desc' as const },
+          { createdAt: 'desc' as const },
+        ],
       },
+
       bankAuditLogs: {
-        orderBy: { createdAt: 'desc' as const },
+        orderBy: {
+          createdAt: 'desc' as const,
+        },
         take: 10,
       },
+
       portalAccount: {
         select: {
           id: true,
@@ -759,6 +803,7 @@ export class EmployeesService {
           updatedAt: true,
         },
       },
+
       contracts: true,
       serviceConditions: true,
     };
@@ -846,7 +891,7 @@ export class EmployeesService {
         name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
         department: employee.department?.name || null,
         jobTitle: employee.jobTitle?.name || null,
-        site: employee.site?.name || null,
+        site: employee.site?.name || employee.siteName || null,
         employmentType: employee.employmentType?.name || null,
         bankDetailsStatus: employee.bankDetailsStatus || 'PENDING_VALIDATION',
         bankName: employee.bankName || null,
@@ -923,6 +968,69 @@ export class EmployeesService {
     };
   }
 
+  private async resolveEmployeeSite(input: any) {
+    const siteId = this.cleanNullableString(input?.siteId);
+
+    if (!siteId) {
+      return {
+        siteId: null,
+        siteName: this.cleanNullableString(input?.siteName),
+      };
+    }
+
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!site) {
+      throw new BadRequestException('Selected site was not found.');
+    }
+
+    return {
+      siteId: site.id,
+      siteName: site.name,
+    };
+  }
+
+  private normalizePayBasis(value: any, forUpdate = false): PayBasis | null | undefined {
+    if (value === undefined) {
+      return forUpdate ? undefined : null;
+    }
+
+    if (value === null || value === '') {
+      return null;
+    }
+
+    const cleaned = String(value).trim().toUpperCase();
+
+    if (!['MONTHLY', 'DAILY', 'HOURLY'].includes(cleaned)) {
+      throw new BadRequestException('Invalid pay basis. Use MONTHLY, DAILY, or HOURLY.');
+    }
+
+    return cleaned as PayBasis;
+  }
+
+  private parseOptionalMoney(value: any) {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      throw new BadRequestException('Invalid rate amount supplied.');
+    }
+
+    if (parsed < 0) {
+      throw new BadRequestException('Rate amount cannot be negative.');
+    }
+
+    return parsed;
+  }
+
   private cleanString(value: any) {
     if (value === undefined || value === null) return '';
     return String(value).trim();
@@ -930,6 +1038,10 @@ export class EmployeesService {
 
   private cleanNullableString(value: any) {
     if (value === undefined || value === null) return null;
+
+    if (typeof value === 'object') {
+      return null;
+    }
 
     const cleaned = String(value).trim();
     return cleaned.length > 0 ? cleaned : null;
@@ -946,5 +1058,4 @@ export class EmployeesService {
 
     return date;
   }
-
 }

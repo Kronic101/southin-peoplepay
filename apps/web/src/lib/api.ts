@@ -16,7 +16,13 @@ export type Employee = {
   createdAt: string;
   department?: { name: string } | null;
   jobTitle?: { name: string } | null;
-  site?: { name: string } | null;
+  siteId?: string | null;
+  siteName?: string | null;
+  payBasis?: 'MONTHLY' | 'DAILY' | 'HOURLY' | string | null;
+  hourlyRate?: string | number | null;
+  dailyRate?: string | number | null;
+  monthlyRate?: string | number | null;
+  rateEffectiveFrom?: string | null;
   employmentType?: { name: string } | null;
   portalAccount?: {
     id: string;
@@ -32,6 +38,24 @@ export type Employee = {
     updatedAt?: string | null;
   } | null;
 };
+
+export type OperationalSite = {
+  id: string;
+  code: string;
+  name: string;
+  location?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  siteManagers?: {
+    id: string;
+    managerName: string;
+    managerEmail: string;
+    managerRole?: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+  }[];
+};
+
 
 export type EmployeePortalAccessProfile =
   | 'DRIVER'
@@ -2037,4 +2061,216 @@ export async function returnAssetCustodyAssignment(id: string, payload: any) {
     'Failed to return custody assignment',
     true,
   );
+}
+
+export async function getOperationalSites() {
+  return apiGet<OperationalSite[]>('/sites', 'Failed to load sites', true);
+}
+
+export async function createOperationalSite(payload: {
+  code: string;
+  name: string;
+  location?: string;
+  description?: string;
+}) {
+  return apiPost<OperationalSite>('/sites', payload, 'Failed to create site', true);
+}
+
+export async function addSiteManager(
+  siteId: string,
+  payload: {
+    managerName: string;
+    managerEmail: string;
+    managerRole?: string;
+    isPrimary?: boolean;
+  },
+) {
+  return apiPost(
+    `/sites/${siteId}/managers`,
+    payload,
+    'Failed to add site manager',
+    true,
+  );
+}
+
+export type HrDashboardResponse = {
+  summary: {
+    totalEmployees: number;
+    activeEmployees: number;
+    draftEmployees: number;
+    portalEnabled: number;
+    casualWorkers: number;
+    payrollReadyEmployees: number;
+  };
+  recentEmployees: any[];
+  employeesBySite: any[];
+  pendingActions: any[];
+};
+
+export async function getHrDashboard(): Promise<HrDashboardResponse> {
+  try {
+    return await apiGet<HrDashboardResponse>('/hr/dashboard', 'Failed to load HR dashboard', true);
+  } catch {
+    return {
+      summary: {
+        totalEmployees: 0,
+        activeEmployees: 0,
+        draftEmployees: 0,
+        portalEnabled: 0,
+        casualWorkers: 0,
+        payrollReadyEmployees: 0,
+      },
+      recentEmployees: [],
+      employeesBySite: [],
+      pendingActions: [],
+    };
+  }
+}
+
+export type AttendanceDashboardResponse = {
+  summary: {
+    todayRecords: number;
+    presentToday: number;
+    absentToday: number;
+    lateToday: number;
+  };
+  recentRecords: any[];
+};
+
+export async function getAttendanceDashboard(): Promise<AttendanceDashboardResponse> {
+  try {
+    return await apiGet<AttendanceDashboardResponse>(
+      '/attendance/dashboard',
+      'Failed to load attendance dashboard',
+      true,
+    );
+  } catch {
+    return {
+      summary: {
+        todayRecords: 0,
+        presentToday: 0,
+        absentToday: 0,
+        lateToday: 0,
+      },
+      recentRecords: [],
+    };
+  }
+}
+
+export type LeaveDashboardResponse = {
+  summary: {
+    pendingRequests: number;
+    approvedThisMonth: number;
+    onLeaveToday: number;
+    rejectedThisMonth: number;
+  };
+  recentRequests: any[];
+};
+
+export async function getLeaveDashboard(): Promise<LeaveDashboardResponse> {
+  try {
+    return await apiGet<LeaveDashboardResponse>(
+      '/leave/dashboard',
+      'Failed to load leave dashboard',
+      true,
+    );
+  } catch {
+    return {
+      summary: {
+        pendingRequests: 0,
+        approvedThisMonth: 0,
+        onLeaveToday: 0,
+        rejectedThisMonth: 0,
+      },
+      recentRequests: [],
+    };
+  }
+}
+
+export type OvertimeDashboardResponse = {
+  summary: {
+    pendingRequests: number;
+    approvedRequests: number;
+    approvedHours: number;
+    estimatedCost: number;
+  };
+  recentRequests: any[];
+};
+
+export async function getOvertimeDashboard(): Promise<OvertimeDashboardResponse> {
+  try {
+    return await apiGet<OvertimeDashboardResponse>(
+      '/overtime/dashboard',
+      'Failed to load overtime dashboard',
+      true,
+    );
+  } catch {
+    return {
+      summary: {
+        pendingRequests: 0,
+        approvedRequests: 0,
+        approvedHours: 0,
+        estimatedCost: 0,
+      },
+      recentRequests: [],
+    };
+  }
+}
+
+export type TimesheetDashboardResponse = {
+  summary: {
+    openTimesheets: number;
+    submittedTimesheets: number;
+    approvedTimesheets: number;
+    exceptionCount: number;
+  };
+  recentTimesheets: any[];
+};
+
+export async function getTimesheetDashboard(): Promise<TimesheetDashboardResponse> {
+  try {
+    return await apiGet<TimesheetDashboardResponse>(
+      '/timesheets/dashboard',
+      'Failed to load timesheet dashboard',
+      true,
+    );
+  } catch {
+    return {
+      summary: {
+        openTimesheets: 0,
+        submittedTimesheets: 0,
+        approvedTimesheets: 0,
+        exceptionCount: 0,
+      },
+      recentTimesheets: [],
+    };
+  }
+}
+
+export type PeopleOpsContext = {
+  generatedAt: string;
+  sites: any[];
+  selectedSite: any | null;
+  siteManagers: any[];
+  employees: any[];
+};
+
+export async function getPeopleOpsContext(siteId?: string): Promise<PeopleOpsContext> {
+  const query = siteId ? `?siteId=${encodeURIComponent(siteId)}` : '';
+
+  try {
+    return await apiGet<PeopleOpsContext>(
+      `/people-ops/context${query}`,
+      'Failed to load people operations context',
+      true,
+    );
+  } catch {
+    return {
+      generatedAt: new Date().toISOString(),
+      sites: [],
+      selectedSite: null,
+      siteManagers: [],
+      employees: [],
+    };
+  }
 }
