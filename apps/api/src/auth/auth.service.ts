@@ -218,33 +218,48 @@ export class AuthService {
     }
 
     const employee = await this.prisma.employee.findUnique({
-      where: {
-        id: employeeId,
-      },
+      where: { id: employeeId },
       include: {
-        statutoryDetails: true,
-        portalAccount: {
-          select: {
-            employeeNumber: true,
-            mustChangePin: true,
-            isActive: true,
-            accessProfile: true,
-            allowedModules: true,
-            lastLoginAt: true,
-          },
-        },
         department: true,
         jobTitle: true,
-        site: true,
+        site: {
+          include: {
+            managerAssignments: {
+              where: {
+                isActive: true,
+              },
+              orderBy: [
+                { isPrimary: 'desc' },
+                { createdAt: 'asc' },
+              ],
+              take: 1,
+            },
+            initiatorAssignments: {
+              where: {
+                isActive: true,
+              },
+              orderBy: [
+                { isPrimary: 'desc' },
+                { createdAt: 'asc' },
+              ],
+            },
+          },
+        },
         employmentType: true,
+        statutoryDetails: true,
+        portalAccount: true,
         bankAccounts: {
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          orderBy: [
+            { isPrimary: 'desc' },
+            { createdAt: 'desc' },
+          ],
+          take: 1,
         },
         payslips: {
           orderBy: {
             generatedAt: 'desc',
           },
-          take: 5,
+          take: 1,
           include: {
             payrollPeriod: true,
           },
@@ -260,50 +275,90 @@ export class AuthService {
       throw new UnauthorizedException('Employee portal account is not active.');
     }
 
+    const siteManager = employee.site?.managerAssignments?.[0] || null;
+
     return {
-      id: employee.id,
-      employeeNumber: employee.employeeNumber,
-      firstName: employee.firstName,
-      middleName: employee.middleName,
-      lastName: employee.lastName,
-      gender: employee.gender,
-      status: employee.status,
-      phone: employee.phone,
-      email: employee.email,
+      employee: {
+        id: employee.id,
+        employeeNumber: employee.employeeNumber,
+        firstName: employee.firstName,
+        middleName: employee.middleName,
+        lastName: employee.lastName,
+        gender: employee.gender,
+        status: employee.status,
+        phone: employee.phone,
+        email: employee.email,
 
-      department: employee.department,
-      jobTitle: employee.jobTitle,
-      site: employee.site,
-      employmentType: employee.employmentType,
-      statutoryDetails: employee.statutoryDetails,
+        department: employee.department,
+        jobTitle: employee.jobTitle,
 
-      bankDetailsStatus: employee.bankDetailsStatus,
-      bankName: employee.bankName,
-      bankBranch: employee.bankBranch,
-      bankAccountName: employee.bankAccountName,
-      bankAccountNumberMasked: this.maskAccountNumber(employee.bankAccountNumber),
+        siteId: employee.siteId,
+        siteName: employee.site?.name || employee.siteName || null,
+        site: employee.site
+          ? {
+              id: employee.site.id,
+              name: employee.site.name,
+              code: (employee.site as any).code || null,
+            }
+          : null,
 
-      bankAccounts: employee.bankAccounts.map((account) => ({
-        id: account.id,
-        bankName: account.bankName,
-        branchName: account.branchName,
-        accountName: account.accountName,
-        accountNumberMasked: this.maskAccountNumber(account.accountNumber),
-        isPrimary: account.isPrimary,
-        approvalStatus: account.approvalStatus,
-        effectiveFrom: account.effectiveFrom,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
-      })),
+        siteManager: siteManager
+          ? {
+              id: siteManager.id,
+              managerName: siteManager.managerName,
+              managerEmail: siteManager.managerEmail,
+              managerRole: siteManager.managerRole,
+              isPrimary: siteManager.isPrimary,
+            }
+          : null,
 
-      portalAccount: employee.portalAccount,
-      payslipCount: employee.payslips.length,
-      latestPayslip: employee.payslips[0] || null,
+        employmentType: employee.employmentType,
+        payBasis: employee.payBasis,
+        hourlyRate: employee.hourlyRate,
+        dailyRate: employee.dailyRate,
+        monthlyRate: employee.monthlyRate,
 
-      leaveSummary: {
-        monthlyLeaveDays: 2,
-        mothersDayDays: this.isFemale(employee.gender) ? 1 : 0,
-        totalAvailableThisMonth: 2 + (this.isFemale(employee.gender) ? 1 : 0),
+        statutoryDetails: employee.statutoryDetails,
+
+        bankDetailsStatus: employee.bankDetailsStatus,
+        bankName: employee.bankName,
+        bankBranch: employee.bankBranch,
+        bankAccountName: employee.bankAccountName,
+        bankAccountNumberMasked: this.maskAccountNumber(
+          employee.bankAccounts?.[0]?.accountNumber || employee.bankAccountNumber,
+        ),
+
+        bankAccounts: employee.bankAccounts.map((account) => ({
+          id: account.id,
+          bankName: account.bankName,
+          branchName: account.branchName,
+          accountName: account.accountName,
+          accountNumberMasked: this.maskAccountNumber(account.accountNumber),
+          isPrimary: account.isPrimary,
+          approvalStatus: account.approvalStatus,
+          effectiveFrom: account.effectiveFrom,
+          createdAt: account.createdAt,
+          updatedAt: account.updatedAt,
+        })),
+
+        portalAccount: {
+          id: employee.portalAccount.id,
+          employeeNumber: employee.portalAccount.employeeNumber,
+          accessProfile: employee.portalAccount.accessProfile,
+          allowedModules: employee.portalAccount.allowedModules,
+          isActive: employee.portalAccount.isActive,
+          mustChangePin: employee.portalAccount.mustChangePin,
+          lastLoginAt: employee.portalAccount.lastLoginAt,
+        },
+
+        payslipCount: employee.payslips.length,
+        latestPayslip: employee.payslips[0] || null,
+
+        leaveSummary: {
+          monthlyLeaveDays: 2,
+          mothersDayDays: this.isFemale(employee.gender) ? 1 : 0,
+          totalAvailableThisMonth: 2 + (this.isFemale(employee.gender) ? 1 : 0),
+        },
       },
     };
   }
@@ -603,5 +658,60 @@ export class AuthService {
     if (!allowedModules.includes(moduleCode)) {
       throw new ForbiddenException(`Your portal account does not have access to ${moduleCode}.`);
     }
+  }
+
+  async employeeTimeSummary(req: any) {
+    const token = this.getBearerToken(req);
+
+    if (!token) {
+      throw new UnauthorizedException('Missing employee token.');
+    }
+
+    const payload = this.verifyEmployeeToken(token);
+
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id: payload.employeeId,
+      },
+      include: {
+        site: true,
+        leaveRequests: {
+          orderBy: {
+            submittedAt: 'desc',
+          },
+          take: 10,
+        },
+      },
+    });
+
+    if (!employee) {
+      throw new UnauthorizedException('Employee profile not found.');
+    }
+
+    const leaveRequests = employee.leaveRequests || [];
+
+    const pendingLeave = leaveRequests.filter((item) =>
+      ['PENDING_SUPERVISOR', 'PENDING_APPROVAL', 'SUBMITTED', 'IN_REVIEW'].includes(
+        String(item.status || '').toUpperCase(),
+      ),
+    ).length;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      summary: {
+        attendanceCount: 0,
+        timesheetCount: 0,
+        overtimeCount: 0,
+        leaveCount: leaveRequests.length,
+        approvedHours: 0,
+        approvedOvertimeHours: 0,
+        pendingItems: pendingLeave,
+        exceptions: 0,
+      },
+      attendance: [],
+      timesheets: [],
+      overtime: [],
+      leave: leaveRequests,
+    };
   }
 }

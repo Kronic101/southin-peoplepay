@@ -21,6 +21,7 @@ import { ApprovalMatrixModule } from './approvals/approval-matrix.module';
 import { StoresModule } from './stores/stores.module';
 import { SitesModule } from './sites/sites.module';
 import { PeopleOpsModule } from './people-ops/people-ops.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PeopleOpsModule } from './people-ops/people-ops.module';
     StoresModule,
     SitesModule,
     PeopleOpsModule,
+    OperationsModule,
   ],
   controllers: [
     HealthController,

@@ -55,23 +55,24 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
       : null;
 
     await updateEmployee(employee.id, {
-      firstName: String(formData.get('firstName') || ''),
-      middleName: String(formData.get('middleName') || ''),
-      lastName: String(formData.get('lastName') || ''),
-      phone: String(formData.get('phone') || ''),
-      email: String(formData.get('email') || ''),
-      nrcNumber: String(formData.get('nrcNumber') || ''),
-      departmentId: String(formData.get('departmentId') || '') || null,
-      jobTitleId: String(formData.get('jobTitleId') || '') || null,
-      siteId: selectedSiteId || null,
-      siteName: selectedSite?.name || '',
-      payBasis: String(formData.get('payBasis') || ''),
-      hourlyRate: String(formData.get('hourlyRate') || ''),
-      dailyRate: String(formData.get('dailyRate') || ''),
-      monthlyRate: String(formData.get('monthlyRate') || ''),
-      rateEffectiveFrom: String(formData.get('rateEffectiveFrom') || ''),
-      employmentTypeId: String(formData.get('employmentTypeId') || '') || null,
-      status: String(formData.get('status') || employee.status),
+        firstName: String(formData.get('firstName') || ''),
+        middleName: String(formData.get('middleName') || ''),
+        lastName: String(formData.get('lastName') || ''),
+        nrcNumber: String(formData.get('nrcNumber') || ''),
+        phone: String(formData.get('phone') || ''),
+        email: String(formData.get('email') || ''),
+
+        departmentId: String(formData.get('departmentId') || '') || null,
+        jobTitleId: String(formData.get('jobTitleId') || '') || null,
+        siteId: String(formData.get('siteId') || '') || null,
+        employmentTypeId: String(formData.get('employmentTypeId') || '') || null,
+
+        payBasis: String(formData.get('payBasis') || '') || null,
+        hourlyRate: String(formData.get('hourlyRate') || '') || null,
+        dailyRate: String(formData.get('dailyRate') || '') || null,
+        monthlyRate: String(formData.get('monthlyRate') || '') || null,
+        rateEffectiveFrom: String(formData.get('rateEffectiveFrom') || '') || null,
+        status: String(formData.get('status') || employee.status),
     });
 
     setMessage('Employee profile updated. Refresh to view latest relational labels.');
@@ -188,31 +189,34 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
   ];
 
   return (
-    <section className="card">
-      <div className="page-header">
+    <section className="employee-profile-card">
+      <div className="employee-profile-title-row">
         <div>
-          <h1>
+           <h1>
             {employee.firstName} {employee.lastName}
           </h1>
-          <p className="muted">
-            {employee.employeeNumber} · {employee.status}
+          <p className="employee-profile-subtitle">
+            {employee.employeeNumber} · {employee.status || 'DRAFT'}
           </p>
         </div>
       </div>
 
-      <div className="tabs">
-        {tabs.map(([key, label]) => (
+      <div className="profile-tabs" role="tablist" aria-label="Employee profile sections">
+        {[
+          { key: 'profile', label: 'Profile' },
+          { key: 'statutory', label: 'Statutory' },
+          { key: 'bank', label: 'Bank Details' },
+          { key: 'contract', label: 'Contract' },
+          { key: 'conditions', label: 'Conditions of Service' },
+          { key: 'portal', label: 'Portal Access' },
+        ].map((tab) => (
           <button
-            className={activeTab === key ? 'tab active-tab' : 'tab'}
-            key={key}
-            onClick={() => {
-              setActiveTab(key);
-              setMessage('');
-              setPortalResult(null);
-            }}
+            key={tab.key}
             type="button"
+            className={`profile-tab ${activeTab === tab.key ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {label}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -284,14 +288,17 @@ export function EmployeeProfileTabs({ employee, lookups }: Props) {
 
           <label>
             Site / Location
-            <select name="siteId" defaultValue={employee.siteId || ''}>
+            <select
+              name="siteId"
+              defaultValue={employee?.siteId || employee?.site?.id || ''}
+            >
               <option value="">Select site</option>
-              {Array.isArray(lookups.sites) &&
-                lookups.sites.map((site: any) => (
-                  <option key={site.id} value={site.id}>
-                    {site.code} - {site.name}
-                  </option>
-                ))}
+
+              {(lookups?.sites || []).map((site: any) => (
+                <option key={site.id} value={site.id}>
+                  {site.code ? `${site.code} - ${site.name}` : site.name}
+                </option>
+              ))}
             </select>
           </label>
 

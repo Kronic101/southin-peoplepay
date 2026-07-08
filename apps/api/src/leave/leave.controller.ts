@@ -11,13 +11,13 @@ export class LeaveController {
 
   @Post('employee/request')
   async createEmployeeLeaveRequest(@Req() req: any, @Body() body: any) {
-    const employee = await this.authService.employeeMe(req);
+    const { employee } = await this.authService.employeeMe(req);
     return this.leaveService.createEmployeeLeaveRequest(employee.id, body);
   }
 
   @Get('employee/requests')
   async getMyLeaveRequests(@Req() req: any) {
-    const employee = await this.authService.employeeMe(req);
+    const { employee } = await this.authService.employeeMe(req);
     return this.leaveService.getEmployeeLeaveRequests(employee.id);
   }
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { getLeaveDashboard, getPeopleOpsContext } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -11,16 +12,6 @@ type PageProps = {
   }>;
 };
 
-function formatDate(value?: string | null) {
-  if (!value) return '-';
-
-  try {
-    return new Date(value).toISOString().slice(0, 10);
-  } catch {
-    return '-';
-  }
-}
-
 function displayValue(value: any, fallback = '-') {
   if (value === null || value === undefined || value === '') return fallback;
   if (typeof value === 'string' || typeof value === 'number') return String(value);
@@ -28,18 +19,27 @@ function displayValue(value: any, fallback = '-') {
   return fallback;
 }
 
-function statusClass(status?: string | null) {
-  const value = String(status || '').toUpperCase();
+function formatDate(value?: string | null) {
+  if (!value) return '-';
 
-  if (['APPROVED', 'VALIDATED', 'COMPLETED'].includes(value)) {
-    return 'status-pill success';
+  try {
+    return new Date(value).toLocaleDateString('en-ZM', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return '-';
   }
+}
 
-  if (['REJECTED', 'DECLINED', 'CANCELLED'].includes(value)) {
-    return 'status-pill danger';
-  }
-
-  return 'status-pill warning';
+function formatName(record: any) {
+  return (
+    record?.employee?.name ||
+    record?.employeeName ||
+    `${record?.employee?.firstName || ''} ${record?.employee?.lastName || ''}`.trim() ||
+    '-'
+  );
 }
 
 export default async function LeavePage({ searchParams }: PageProps) {
@@ -51,9 +51,13 @@ export default async function LeavePage({ searchParams }: PageProps) {
     getPeopleOpsContext(siteId),
   ]);
 
-  const requests = data?.recentRequests || [];
   const employees = context?.employees || [];
   const siteManagers = context?.siteManagers || [];
+  const sites = context?.sites || [];
+  const dashboard = data as any;
+  const records = dashboard?.records || [];
+
+  const summary = dashboard?.summary || {};
 
   return (
     <AppShell>
@@ -68,7 +72,7 @@ export default async function LeavePage({ searchParams }: PageProps) {
           </div>
 
           <div className="action-row">
-            <Link className="btn-secondary" href="/leave-approvals">
+            <Link className="btn-secondary" href="/hr/leave-approvals">
               Leave Approvals
             </Link>
 
@@ -81,22 +85,22 @@ export default async function LeavePage({ searchParams }: PageProps) {
         <div className="finance-summary-grid">
           <div className="finance-summary-card">
             <span>Pending Requests</span>
-            <strong>{data?.summary?.pendingRequests ?? 0}</strong>
+            <strong>{summary.pendingRequests ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>Approved This Month</span>
-            <strong>{data?.summary?.approvedThisMonth ?? 0}</strong>
+            <strong>{summary.approvedThisMonth ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>On Leave Today</span>
-            <strong>{data?.summary?.onLeaveToday ?? 0}</strong>
+            <strong>{summary.onLeaveToday ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>Rejected This Month</span>
-            <strong>{data?.summary?.rejectedThisMonth ?? 0}</strong>
+            <strong>{summary.rejectedThisMonth ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
@@ -125,12 +129,12 @@ export default async function LeavePage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <form className="finance-form-grid" method="get">
+          <form className="form-grid" method="get">
             <label>
               Site / Location
               <select name="siteId" defaultValue={siteId}>
                 <option value="">All sites</option>
-                {context.sites.map((site: any) => (
+                {sites.map((site: any) => (
                   <option key={site.id} value={site.id}>
                     {site.code ? `${site.code} - ` : ''}
                     {site.name}
@@ -139,14 +143,16 @@ export default async function LeavePage({ searchParams }: PageProps) {
               </select>
             </label>
 
-            <div className="form-actions">
+            <div className="action-row form-action-row">
               <button className="btn" type="submit">
                 Load Site
               </button>
 
-              <Link className="btn-secondary" href="/leave">
-                Clear
-              </Link>
+              {siteId ? (
+                <Link className="btn-secondary" href="/leave">
+                  Clear
+                </Link>
+              ) : null}
             </div>
           </form>
         </div>
@@ -180,8 +186,8 @@ export default async function LeavePage({ searchParams }: PageProps) {
                 ) : (
                   siteManagers.map((manager: any) => (
                     <tr key={manager.id}>
-                      <td>{manager.managerName}</td>
-                      <td>{manager.managerEmail}</td>
+                      <td>{manager.managerName || '-'}</td>
+                      <td>{manager.managerEmail || '-'}</td>
                       <td>{manager.managerRole || 'SITE_MANAGER'}</td>
                       <td>{manager.isPrimary ? 'Yes' : 'No'}</td>
                     </tr>
@@ -227,7 +233,9 @@ export default async function LeavePage({ searchParams }: PageProps) {
                       <td>{employee.employeeNumber}</td>
                       <td>
                         <Link className="employee-link" href={`/employees/${employee.id}`}>
-                          {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim()}
+                          {employee.name ||
+                            `${employee.firstName || ''} ${employee.lastName || ''}`.trim() ||
+                            '-'}
                         </Link>
                       </td>
                       <td>{displayValue(employee.department)}</td>
@@ -235,7 +243,7 @@ export default async function LeavePage({ searchParams }: PageProps) {
                       <td>{displayValue(employee.employmentType)}</td>
                       <td>{displayValue(employee.payBasis)}</td>
                       <td>
-                        <span className={statusClass(employee.status)}>{displayValue(employee.status, 'DRAFT')}</span>
+                        <StatusPill status={displayValue(employee.status, 'DRAFT')} />
                       </td>
                     </tr>
                   ))
@@ -250,7 +258,7 @@ export default async function LeavePage({ searchParams }: PageProps) {
             <div>
               <h2>Recent Leave Requests</h2>
               <p className="muted">
-                Approved and unpaid leave will later feed payroll calculations by employee, site, and pay period.
+                Approved leave must be included in payroll period validation before payroll is locked.
               </p>
             </div>
           </div>
@@ -259,45 +267,41 @@ export default async function LeavePage({ searchParams }: PageProps) {
             <table>
               <thead>
                 <tr>
-                  <th>Reference</th>
                   <th>Employee</th>
                   <th>Site</th>
                   <th>Leave Type</th>
-                  <th>Start</th>
-                  <th>End</th>
+                  <th>Dates</th>
                   <th>Days</th>
+                  <th>Manager</th>
                   <th>Status</th>
+                  <th>Submitted</th>
                 </tr>
               </thead>
 
               <tbody>
-                {requests.length === 0 ? (
+                {records.length === 0 ? (
                   <tr>
                     <td colSpan={8}>No leave requests found.</td>
                   </tr>
                 ) : (
-                  requests.map((request: any, index: number) => (
-                    <tr key={request.id || index}>
-                      <td>{request.reference || request.requestNo || '-'}</td>
+                  records.map((record: any) => (
+                    <tr key={record.id}>
+                      <td>{formatName(record)}</td>
+                      <td>{record.siteName || record.site?.name || '-'}</td>
+                      <td>{record.leaveType || record.type || '-'}</td>
                       <td>
-                        {request.employeeId ? (
-                          <Link className="employee-link" href={`/employees/${request.employeeId}`}>
-                            {displayValue(request.employeeName || request.employee)}
-                          </Link>
-                        ) : (
-                          displayValue(request.employeeName || request.employee)
-                        )}
+                        {formatDate(record.startDate)} - {formatDate(record.endDate)}
                       </td>
-                      <td>{displayValue(request.siteName || request.site)}</td>
-                      <td>{displayValue(request.leaveType)}</td>
-                      <td>{formatDate(request.startDate)}</td>
-                      <td>{formatDate(request.endDate)}</td>
-                      <td>{request.days ?? '-'}</td>
+                      <td>{record.requestedDays ?? record.days ?? '-'}</td>
                       <td>
-                        <span className={statusClass(request.status)}>
-                          {displayValue(request.status, 'SUBMITTED')}
-                        </span>
+                        <strong>{record.managerName || record.approverName || '-'}</strong>
+                        <br />
+                        <span className="muted">{record.managerEmail || record.approverEmail || '-'}</span>
                       </td>
+                      <td>
+                        <StatusPill status={record.status || 'PENDING'} />
+                      </td>
+                      <td>{formatDate(record.createdAt || record.submittedAt)}</td>
                     </tr>
                   ))
                 )}

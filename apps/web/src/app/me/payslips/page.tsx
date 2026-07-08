@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EmployeePortalShell } from '@/components/EmployeePortalShell';
+import { EmployeePortalShell } from '../../employees/[id]/components/EmployeePortalShell';
 import { employeeAuthHeaders, getEmployeePortalToken } from '@/lib/employee-auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';

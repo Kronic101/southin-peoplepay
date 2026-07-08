@@ -2274,3 +2274,78 @@ export async function getPeopleOpsContext(siteId?: string): Promise<PeopleOpsCon
     };
   }
 }
+
+export type OperationsSite = {
+  id: string;
+  code?: string | null;
+  name: string;
+  description?: string | null;
+  manager?: {
+    id: string;
+    name: string;
+    email?: string | null;
+    role?: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+  } | null;
+  managers: Array<{
+    id: string;
+    name: string;
+    email?: string | null;
+    role?: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+  }>;
+  initiators: Array<{
+    id: string;
+    name: string;
+    email?: string | null;
+    role?: string | null;
+    moduleScope?: any;
+    isPrimary: boolean;
+    isActive: boolean;
+  }>;
+};
+
+export type OperationsStockLocation = {
+  id: string;
+  locationCode: string;
+  locationName: string;
+  locationType: string;
+  site?: string | null;
+  branch?: string | null;
+  department?: string | null;
+  isActive: boolean;
+};
+
+export type OperationsMasterData = {
+  generatedAt: string;
+  sites: OperationsSite[];
+  siteManagers: any[];
+  siteInitiators: any[];
+  stockLocations: OperationsStockLocation[];
+  warehouseLocations: OperationsStockLocation[];
+  siteStockLocations: OperationsStockLocation[];
+  containerLocations: OperationsStockLocation[];
+  yardLocations: OperationsStockLocation[];
+  quarantineLocations: OperationsStockLocation[];
+  summary: {
+    sites: number;
+    siteManagers: number;
+    siteInitiators: number;
+    stockLocations: number;
+    warehouses: number;
+    siteStores: number;
+    containers: number;
+    yards: number;
+    quarantineLocations: number;
+  };
+};
+
+export async function getOperationsMasterData(): Promise<OperationsMasterData> {
+  return apiGet<OperationsMasterData>(
+    '/operations/master-data',
+    'Failed to load operations master data.',
+    true,
+  );
+}

@@ -9,6 +9,11 @@ function clean(value: unknown) {
   return String(value).trim();
 }
 
+function cleanOrNull(value: unknown) {
+  const valueClean = clean(value);
+  return valueClean ? valueClean : null;
+}
+
 function asNumber(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -27,7 +32,148 @@ export class StoresService {
 
   private async nextRequisitionNo() {
     const count = await this.db().storesRequisition.count();
+
     return `STR-REQ-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+  }
+
+  private async resolveSiteFromBody(body: any) {
+    const siteId = clean(body.siteId);
+    const locationCode = clean(body.locationCode || body.stockLocationCode);
+    const submittedSite = clean(body.site);
+    const submittedBranch = clean(body.branch);
+
+    if (siteId) {
+      const site = await this.db().site.findUnique({
+        where: { id: siteId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          description: true,
+        },
+      });
+
+      if (!site) {
+        throw new BadRequestException('Selected site does not exist.');
+      }
+
+      return {
+        siteId: site.id,
+        site: site.name,
+        siteCode: site.code,
+        branch: submittedBranch || null,
+        locationCode: locationCode || null,
+      };
+    }
+
+    if (locationCode) {
+      const location = await this.db().stockLocation.findFirst({
+        where: {
+          locationCode: {
+            equals: locationCode,
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          locationCode: true,
+          locationName: true,
+          locationType: true,
+          site: true,
+          branch: true,
+          department: true,
+          isActive: true,
+        },
+      });
+
+      if (!location) {
+        throw new BadRequestException(`Stock location ${locationCode} does not exist.`);
+      }
+
+      if (!location.isActive) {
+        throw new BadRequestException(`Stock location ${locationCode} is not active.`);
+      }
+
+      return {
+        siteId: null,
+        site: location.site,
+        siteCode: null,
+        branch: location.branch || submittedBranch || null,
+        locationCode: location.locationCode,
+        stockLocationId: location.id,
+        stockLocationName: location.locationName,
+      };
+    }
+
+    if (!submittedSite) {
+      throw new BadRequestException('Site is required.');
+    }
+
+    return {
+      siteId: null,
+      site: submittedSite,
+      siteCode: null,
+      branch: submittedBranch || null,
+      locationCode: null,
+    };
+  }
+
+  private async resolveStockItem(line: any) {
+    const stockItemId = clean(line.stockItemId);
+    const itemCode = clean(line.itemCode);
+
+    if (stockItemId) {
+      const item = await this.db().stockItem.findUnique({
+        where: { id: stockItemId },
+        select: {
+          id: true,
+          itemCode: true,
+          itemName: true,
+          unitOfMeasure: true,
+          isActive: true,
+        },
+      });
+
+      if (!item) {
+        throw new BadRequestException(`Selected stock item does not exist.`);
+      }
+
+      if (!item.isActive) {
+        throw new BadRequestException(`Stock item ${item.itemCode} is not active.`);
+      }
+
+      return item;
+    }
+
+    if (itemCode) {
+      const item = await this.db().stockItem.findFirst({
+        where: {
+          itemCode: {
+            equals: itemCode,
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          itemCode: true,
+          itemName: true,
+          unitOfMeasure: true,
+          isActive: true,
+        },
+      });
+
+      if (!item) {
+        throw new BadRequestException(`Stock item code ${itemCode} does not exist.`);
+      }
+
+      if (!item.isActive) {
+        throw new BadRequestException(`Stock item ${item.itemCode} is not active.`);
+      }
+
+      return item;
+    }
+
+    return null;
   }
 
   async getRequisitions() {
@@ -61,33 +207,47 @@ export class StoresService {
       throw new BadRequestException('At least one requisition line is required.');
     }
 
+    const siteContext = await this.resolveSiteFromBody(body);
+
     const requestedBy = clean(body.requestedBy) || 'Requester';
-    const requestedByEmail = clean(body.requestedByEmail) || null;
-    const site = clean(body.site);
-    const branch = clean(body.branch);
+    const requestedByEmail = cleanOrNull(body.requestedByEmail);
+    const requesterRole = clean(body.requesterRole) || 'REQUESTER';
     const department = clean(body.department) || 'Operations';
 
-    if (!site) {
-      throw new BadRequestException('Site is required.');
-    }
+    const preparedLines = [];
 
-    const preparedLines = lines.map((line: any) => {
-      const quantity = new Prisma.Decimal(asNumber(line.quantity || 1));
+    for (const line of lines) {
+      const item = await this.resolveStockItem(line);
+
+      const quantityNumber = asNumber(line.quantity || 1);
+
+      if (quantityNumber <= 0) {
+        throw new BadRequestException('Requisition line quantity must be greater than zero.');
+      }
+
+      const quantity = new Prisma.Decimal(quantityNumber);
       const unitCost = new Prisma.Decimal(asNumber(line.unitCost || 0));
       const totalCost = quantity.mul(unitCost);
 
-      return {
-        stockItemId: clean(line.stockItemId) || null,
-        itemCode: clean(line.itemCode) || null,
-        itemName: clean(line.itemName || line.description),
-        description: clean(line.description) || null,
-        unitOfMeasure: clean(line.unitOfMeasure) || 'EA',
+      const itemCode = clean(line.itemCode) || item?.itemCode || null;
+      const itemName = clean(line.itemName || line.description) || item?.itemName || '';
+
+      if (!itemName) {
+        throw new BadRequestException('Each requisition line must have an item name or stock item.');
+      }
+
+      preparedLines.push({
+        stockItemId: item?.id || cleanOrNull(line.stockItemId),
+        itemCode,
+        itemName,
+        description: cleanOrNull(line.description),
+        unitOfMeasure: clean(line.unitOfMeasure) || item?.unitOfMeasure || 'EA',
         quantity,
         unitCost,
         totalCost,
-        notes: clean(line.notes) || null,
-      };
-    });
+        notes: cleanOrNull(line.notes),
+      });
+    }
 
     const totalValue = preparedLines.reduce((sum: Prisma.Decimal, line: any) => {
       return sum.plus(line.totalCost);
@@ -95,24 +255,38 @@ export class StoresService {
 
     const requisitionNo = clean(body.requisitionNo) || (await this.nextRequisitionNo());
 
+    const payload = {
+      ...body,
+      siteContext,
+      lines: preparedLines.map((line) => ({
+        stockItemId: line.stockItemId,
+        itemCode: line.itemCode,
+        itemName: line.itemName,
+        quantity: line.quantity.toString(),
+        unitOfMeasure: line.unitOfMeasure,
+        unitCost: line.unitCost.toString(),
+        totalCost: line.totalCost.toString(),
+      })),
+    };
+
     const created = await this.db().storesRequisition.create({
       data: {
         requisitionNo,
         title: clean(body.title) || `Stores requisition ${requisitionNo}`,
         description: clean(body.description) || clean(body.reason) || null,
-        reason: clean(body.reason) || null,
+        reason: cleanOrNull(body.reason),
         requestedBy,
         requestedByEmail,
-        requesterRole: clean(body.requesterRole) || 'REQUESTER',
+        requesterRole,
         department,
-        departmentId: clean(body.departmentId) || null,
-        site,
-        branch: branch || null,
-        projectCode: clean(body.projectCode) || null,
+        departmentId: cleanOrNull(body.departmentId),
+        site: siteContext.site,
+        branch: siteContext.branch,
+        projectCode: cleanOrNull(body.projectCode),
         status: 'SUBMITTED',
         totalValue,
         currency: clean(body.currency) || 'ZMW',
-        payload: body.payload || body,
+        payload,
         lines: {
           create: preparedLines,
         },
@@ -185,9 +359,15 @@ export class StoresService {
       where: { id },
       data: {
         status,
-        approvedBy: status === 'APPROVED' ? clean(body.approvedBy) || 'Approver' : record.approvedBy,
+        approvedBy:
+          status === 'APPROVED'
+            ? clean(body.approvedBy) || 'Approver'
+            : record.approvedBy,
         approvedAt: status === 'APPROVED' ? new Date() : record.approvedAt,
-        rejectedBy: status === 'REJECTED' ? clean(body.rejectedBy) || 'Approver' : record.rejectedBy,
+        rejectedBy:
+          status === 'REJECTED'
+            ? clean(body.rejectedBy) || 'Approver'
+            : record.rejectedBy,
         rejectedAt: status === 'REJECTED' ? new Date() : record.rejectedAt,
         rejectionReason:
           status === 'REJECTED'

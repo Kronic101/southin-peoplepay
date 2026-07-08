@@ -34,4 +34,9 @@ export class AuthController {
   employeePayslip(@Param('id') id: string, @Req() req: any) {
     return this.authService.getEmployeePayslip(id, req);
   }
+
+  @Get('employee/time-summary')
+  employeeTimeSummary(@Req() req: any) {
+    return this.authService.employeeTimeSummary(req);
+  }
 }

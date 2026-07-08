@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { EmployeePortalShell } from '@/components/EmployeePortalShell';
+import { EmployeePortalShell } from '../../employees/[id]/components/EmployeePortalShell';
 import {
   clearEmployeePortalToken,
   employeeAuthHeaders,

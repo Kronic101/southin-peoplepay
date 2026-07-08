@@ -61,13 +61,37 @@ model JobTitle {
 }
 
 model Site {
-  id                 String                  @id @default(uuid())
-  name               String                  @unique
-  description        String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  employees          Employee[]
-  managerAssignments SiteManagerAssignment[]
+  id                   String                    @id @default(uuid())
+  name                 String                    @unique
+  code                 String?                   @unique
+  description          String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  employees            Employee[]
+  managerAssignments   SiteManagerAssignment[]
+  initiatorAssignments SiteInitiatorAssignment[]
+}
+
+model SiteInitiatorAssignment {
+  id String @id @default(uuid())
+
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  initiatorName  String
+  initiatorEmail String?
+  initiatorRole  String  @default("SITE_INITIATOR")
+  moduleScope    Json    @default("[\"STORES\", \"PROCUREMENT\", \"ASSETS\"]")
+
+  isPrimary Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([initiatorEmail])
+  @@map("site_initiator_assignments")
 }
 
 model EmploymentType {
@@ -582,8 +606,16 @@ model LeaveRequest {
   totalDays Int
   reason    String?
 
+  siteId   String?
+  siteName String?
+
+  siteManagerName  String?
+  siteManagerEmail String?
+
   supervisorName  String?
   supervisorEmail String
+
+  approvalRequestId String?
 
   status LeaveRequestStatus @default(PENDING_SUPERVISOR)
 
@@ -598,6 +630,10 @@ model LeaveRequest {
   @@index([employeeId])
   @@index([status])
   @@index([supervisorEmail])
+  @@index([siteId])
+  @@index([siteName])
+  @@index([siteManagerEmail])
+  @@index([approvalRequestId])
 }
 
 model OrgDepartment {

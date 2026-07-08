@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { EmployeePortalShell } from '@/components/EmployeePortalShell';
+import { EmployeePortalShell } from '../../employees/[id]/components/EmployeePortalShell';
 import {
   clearEmployeePortalToken,
   employeeAuthHeaders,
@@ -286,6 +286,7 @@ function RecordTable({
   emptyText: string;
 }) {
   return (
+    
     <section className="employee-panel" style={{ marginTop: '1rem' }}>
       <h2>{title}</h2>
 
@@ -315,5 +316,6 @@ function RecordTable({
         </div>
       )}
     </section>
+    
   );
 }

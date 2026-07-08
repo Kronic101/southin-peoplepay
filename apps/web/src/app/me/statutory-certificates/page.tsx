@@ -7,6 +7,7 @@ import {
   employeeAuthHeaders,
   getEmployeePortalToken,
 } from '@/lib/employee-auth';
+import { EmployeePortalShell } from '@/app/employees/[id]/components/EmployeePortalShell';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
@@ -74,9 +75,7 @@ export default function EmployeeStatutoryCertificatesPage() {
   }, []);
 
   return (
-    <main className="employee-portal-page">
-      <section className="employee-portal-shell">
-        <EmployeePortalNav />
+    <EmployeePortalShell>
 
         <section className="employee-hero-card">
           <div>
@@ -197,8 +196,7 @@ export default function EmployeeStatutoryCertificatesPage() {
             </section>
           </>
         )}
-      </section>
-    </main>
+    </EmployeePortalShell>
   );
 }
 

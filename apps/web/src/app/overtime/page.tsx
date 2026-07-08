@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { getOvertimeDashboard, getPeopleOpsContext } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -18,31 +19,34 @@ function displayValue(value: any, fallback = '-') {
   return fallback;
 }
 
-function formatMoney(value: any) {
-  const amount = Number(value || 0);
-
-  if (!Number.isFinite(amount)) {
-    return 'K 0.00';
-  }
-
-  return `K ${amount.toLocaleString('en-ZM', {
+function money(value: unknown) {
+  return `K ${Number(value || 0).toLocaleString('en-ZM', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
-function statusClass(status?: string | null) {
-  const value = String(status || '').toUpperCase();
+function formatDate(value?: string | null) {
+  if (!value) return '-';
 
-  if (['APPROVED', 'VALIDATED', 'COMPLETED', 'PAID'].includes(value)) {
-    return 'status-pill success';
+  try {
+    return new Date(value).toLocaleDateString('en-ZM', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return '-';
   }
+}
 
-  if (['REJECTED', 'DECLINED', 'CANCELLED'].includes(value)) {
-    return 'status-pill danger';
-  }
-
-  return 'status-pill warning';
+function formatName(record: any) {
+  return (
+    record?.employee?.name ||
+    record?.employeeName ||
+    `${record?.employee?.firstName || ''} ${record?.employee?.lastName || ''}`.trim() ||
+    '-'
+  );
 }
 
 export default async function OvertimePage({ searchParams }: PageProps) {
@@ -54,9 +58,12 @@ export default async function OvertimePage({ searchParams }: PageProps) {
     getPeopleOpsContext(siteId),
   ]);
 
-  const requests = data?.recentRequests || [];
   const employees = context?.employees || [];
   const siteManagers = context?.siteManagers || [];
+  const sites = context?.sites || [];
+  const records = (data as any)?.overtimeRequests || (data as any)?.requests || (data as any)?.records || [];
+
+  const summary = data?.summary || {};
 
   return (
     <AppShell>
@@ -84,22 +91,22 @@ export default async function OvertimePage({ searchParams }: PageProps) {
         <div className="finance-summary-grid">
           <div className="finance-summary-card">
             <span>Pending Requests</span>
-            <strong>{data?.summary?.pendingRequests ?? 0}</strong>
+            <strong>{summary.pendingRequests ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>Approved Requests</span>
-            <strong>{data?.summary?.approvedRequests ?? 0}</strong>
+            <strong>{summary.approvedRequests ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>Approved Hours</span>
-            <strong>{data?.summary?.approvedHours ?? 0}</strong>
+            <strong>{summary.approvedHours ?? 0}</strong>
           </div>
 
           <div className="finance-summary-card">
             <span>Estimated Cost</span>
-            <strong>{formatMoney(data?.summary?.estimatedCost ?? 0)}</strong>
+            <strong>{money(summary.estimatedCost ?? 0)}</strong>
           </div>
 
           <div className="finance-summary-card">
@@ -115,7 +122,7 @@ export default async function OvertimePage({ searchParams }: PageProps) {
 
         <div className="finance-notice warning">
           Overtime must be approved against the employee’s site before payroll. This prevents unapproved
-          extra hours from being paid and keeps each site manager accountable for the overtime cost.
+          extra hours from being paid and keeps each site manager accountable for overtime cost.
         </div>
 
         <div className="finance-card">
@@ -128,12 +135,12 @@ export default async function OvertimePage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <form className="finance-form-grid" method="get">
+          <form className="form-grid" method="get">
             <label>
               Site / Location
               <select name="siteId" defaultValue={siteId}>
                 <option value="">All sites</option>
-                {context.sites.map((site: any) => (
+                {sites.map((site: any) => (
                   <option key={site.id} value={site.id}>
                     {site.code ? `${site.code} - ` : ''}
                     {site.name}
@@ -142,14 +149,16 @@ export default async function OvertimePage({ searchParams }: PageProps) {
               </select>
             </label>
 
-            <div className="form-actions">
+            <div className="action-row form-action-row">
               <button className="btn" type="submit">
                 Load Site
               </button>
 
-              <Link className="btn-secondary" href="/overtime">
-                Clear
-              </Link>
+              {siteId ? (
+                <Link className="btn-secondary" href="/overtime">
+                  Clear
+                </Link>
+              ) : null}
             </div>
           </form>
         </div>
@@ -183,8 +192,8 @@ export default async function OvertimePage({ searchParams }: PageProps) {
                 ) : (
                   siteManagers.map((manager: any) => (
                     <tr key={manager.id}>
-                      <td>{manager.managerName}</td>
-                      <td>{manager.managerEmail}</td>
+                      <td>{manager.managerName || '-'}</td>
+                      <td>{manager.managerEmail || '-'}</td>
                       <td>{manager.managerRole || 'SITE_MANAGER'}</td>
                       <td>{manager.isPrimary ? 'Yes' : 'No'}</td>
                     </tr>
@@ -231,16 +240,18 @@ export default async function OvertimePage({ searchParams }: PageProps) {
                       <td>{employee.employeeNumber}</td>
                       <td>
                         <Link className="employee-link" href={`/employees/${employee.id}`}>
-                          {employee.name || `${employee.firstName || ''} ${employee.lastName || ''}`.trim()}
+                          {employee.name ||
+                            `${employee.firstName || ''} ${employee.lastName || ''}`.trim() ||
+                            '-'}
                         </Link>
                       </td>
                       <td>{displayValue(employee.department)}</td>
                       <td>{displayValue(employee.jobTitle)}</td>
                       <td>{displayValue(employee.employmentType)}</td>
                       <td>{displayValue(employee.payBasis)}</td>
-                      <td>{employee.hourlyRate ? formatMoney(employee.hourlyRate) : '-'}</td>
+                      <td>{employee.hourlyRate ? money(employee.hourlyRate) : '-'}</td>
                       <td>
-                        <span className={statusClass(employee.status)}>{displayValue(employee.status, 'DRAFT')}</span>
+                        <StatusPill status={displayValue(employee.status, 'DRAFT')} />
                       </td>
                     </tr>
                   ))
@@ -255,7 +266,7 @@ export default async function OvertimePage({ searchParams }: PageProps) {
             <div>
               <h2>Recent Overtime Requests</h2>
               <p className="muted">
-                Approved overtime hours will later feed payroll calculations by employee, site, and pay period.
+                Approved overtime should feed payroll calculations only after manager approval.
               </p>
             </div>
           </div>
@@ -264,45 +275,46 @@ export default async function OvertimePage({ searchParams }: PageProps) {
             <table>
               <thead>
                 <tr>
-                  <th>Reference</th>
                   <th>Employee</th>
                   <th>Site</th>
+                  <th>Date</th>
                   <th>Hours</th>
-                  <th>Rate Type</th>
+                  <th>Rate</th>
                   <th>Estimated Cost</th>
+                  <th>Manager</th>
                   <th>Status</th>
                 </tr>
               </thead>
 
               <tbody>
-                {requests.length === 0 ? (
+                {records.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>No overtime requests found.</td>
+                    <td colSpan={8}>No overtime requests found.</td>
                   </tr>
                 ) : (
-                  requests.map((request: any, index: number) => (
-                    <tr key={request.id || index}>
-                      <td>{request.reference || request.requestNo || '-'}</td>
-                      <td>
-                        {request.employeeId ? (
-                          <Link className="employee-link" href={`/employees/${request.employeeId}`}>
-                            {displayValue(request.employeeName || request.employee)}
-                          </Link>
-                        ) : (
-                          displayValue(request.employeeName || request.employee)
-                        )}
-                      </td>
-                      <td>{displayValue(request.siteName || request.site)}</td>
-                      <td>{request.hours ?? '-'}</td>
-                      <td>{displayValue(request.rateType || request.overtimeType)}</td>
-                      <td>{formatMoney(request.estimatedCost)}</td>
-                      <td>
-                        <span className={statusClass(request.status)}>
-                          {displayValue(request.status, 'SUBMITTED')}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                  records.map((record: any) => {
+                    const hours = Number(record.approvedHours ?? record.requestedHours ?? record.hours ?? 0);
+                    const rate = Number(record.hourlyRate ?? record.rate ?? 0);
+
+                    return (
+                      <tr key={record.id}>
+                        <td>{formatName(record)}</td>
+                        <td>{record.siteName || record.site?.name || '-'}</td>
+                        <td>{formatDate(record.overtimeDate || record.date || record.createdAt)}</td>
+                        <td>{hours}</td>
+                        <td>{rate ? money(rate) : '-'}</td>
+                        <td>{money(record.estimatedCost ?? hours * rate)}</td>
+                        <td>
+                          <strong>{record.managerName || record.approverName || '-'}</strong>
+                          <br />
+                          <span className="muted">{record.managerEmail || record.approverEmail || '-'}</span>
+                        </td>
+                        <td>
+                          <StatusPill status={record.status || 'PENDING'} />
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -130,7 +130,7 @@ export default function EmployeePayslipDetailPage() {
     0;
 
   return (
-    <EmployeePortalShell>
+    <>
       <section className="employee-payslip-document payslip-print-document payslip-document">
         <div className="payslip-toolbar no-print">
           <Link className="btn-secondary" href="/me/payslips">
@@ -361,6 +361,6 @@ export default function EmployeePayslipDetailPage() {
           </article>
         )}
       </section>
-    </EmployeePortalShell>
+    </>
   );
 }
