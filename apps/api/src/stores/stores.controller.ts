@@ -5,6 +5,11 @@ import { StoresService } from './stores.service';
 export class StoresController {
   constructor(private readonly storesService: StoresService) {}
 
+  @Get('dashboard')
+  getDashboard() {
+    return this.storesService.getDashboard();
+  }
+
   @Get('requisitions')
   getRequisitions() {
     return this.storesService.getRequisitions();

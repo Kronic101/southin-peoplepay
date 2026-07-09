@@ -379,4 +379,147 @@ export class StoresService {
       },
     });
   }
+
+  private numberValue(value: any) {
+  return Number(value ?? 0);
+}
+
+private async rawCount(tableName: string) {
+  const rows = await this.prisma.$queryRawUnsafe<any[]>(
+    `select count(*)::int as count from ${tableName};`,
+  );
+
+  return this.numberValue(rows?.[0]?.count);
+}
+
+async getDashboard() {
+    const [
+      stockItems,
+      stockLocations,
+      stockBalances,
+      scaffoldComponents,
+      hubAssets,
+      totalQuantityRows,
+      stockByLocation,
+      lowStockItems,
+      scaffoldByLocation,
+      assetsBySite,
+      recentRequisitions,
+    ] = await Promise.all([
+      this.rawCount('stock_items'),
+      this.rawCount('stock_locations'),
+      this.rawCount('stock_balances'),
+      this.rawCount('scaffold_components'),
+      this.rawCount('hub_assets'),
+
+      this.prisma.$queryRaw<any[]>`
+        select coalesce(sum("quantityOnHand"), 0)::numeric as total
+        from stock_balances;
+      `,
+
+      this.prisma.$queryRaw<any[]>`
+        select
+          sl."locationCode",
+          sl."locationName",
+          sl."locationType",
+          sl.site,
+          sl.branch,
+          count(sb.id)::int as "balanceLines",
+          coalesce(sum(sb."quantityOnHand"), 0)::numeric as "quantityOnHand"
+        from stock_locations sl
+        left join stock_balances sb
+          on sb."locationId" = sl.id
+        where sl."isActive" = true
+        group by
+          sl."locationCode",
+          sl."locationName",
+          sl."locationType",
+          sl.site,
+          sl.branch
+        order by sl."locationCode";
+      `,
+
+      this.prisma.$queryRaw<any[]>`
+        select
+          si."itemCode",
+          si."itemName",
+          si."itemType"::text as "itemType",
+          si.category,
+          si."unitOfMeasure",
+          sl."locationCode",
+          sl."locationName",
+          sb."quantityOnHand",
+          coalesce(si."minimumLevel", 0) as "minimumLevel",
+          coalesce(si."reorderLevel", 0) as "reorderLevel"
+        from stock_balances sb
+        join stock_items si
+          on si.id = sb."stockItemId"
+        join stock_locations sl
+          on sl.id = sb."locationId"
+        where
+          si."isActive" = true
+          and (
+            sb."quantityOnHand" <= 0
+            or sb."quantityOnHand" <= coalesce(si."minimumLevel", 0)
+            or sb."quantityOnHand" <= coalesce(si."reorderLevel", 0)
+          )
+        order by sb."quantityOnHand" asc, si."itemCode" asc
+        limit 25;
+      `,
+
+      this.prisma.$queryRaw<any[]>`
+        select
+          "currentLocation" as "locationCode",
+          "currentSite" as site,
+          "componentType"::text as "componentType",
+          count(*)::int as components
+        from scaffold_components
+        group by "currentLocation", "currentSite", "componentType"
+        order by "currentLocation", "componentType";
+      `,
+
+      this.prisma.$queryRaw<any[]>`
+        select
+          site,
+          location,
+          category::text as category,
+          status::text as status,
+          count(*)::int as assets
+        from hub_assets
+        group by site, location, category, status
+        order by site, location, category;
+      `,
+
+      this.db().storesRequisition.findMany({
+        orderBy: [{ createdAt: 'desc' }],
+        take: 10,
+        include: {
+          lines: true,
+        },
+      }),
+    ]);
+
+    const totalQuantityOnHand = this.numberValue(totalQuantityRows?.[0]?.total);
+
+    return {
+      generatedAt: new Date().toISOString(),
+
+      summary: {
+        stockItems,
+        stockLocations,
+        stockBalances,
+        totalQuantityOnHand,
+        scaffoldComponents,
+        hubAssets,
+        lowStockItems: lowStockItems.length,
+        recentRequisitions: recentRequisitions.length,
+      },
+
+      stockByLocation,
+      lowStockItems,
+      scaffoldByLocation,
+      assetsBySite,
+      recentRequisitions,
+    };
+  }
 }

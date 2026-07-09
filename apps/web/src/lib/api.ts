@@ -2349,3 +2349,11 @@ export async function getOperationsMasterData(): Promise<OperationsMasterData> {
     true,
   );
 }
+
+export async function getStoresDashboard() {
+  return apiGet<any>(
+    '/stores/dashboard',
+    'Failed to load stores dashboard.',
+    true,
+  );
+}
