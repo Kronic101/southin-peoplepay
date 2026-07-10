@@ -1,6 +1,18 @@
 import { withDevRoleHeaders } from './dev-role';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+function normaliseApiUrl(value: string) {
+  const trimmed = value.trim().replace(/\/+$/, '');
+
+  if (!trimmed) {
+    return 'http://localhost:4000/api';
+  }
+
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
+const API_URL = normaliseApiUrl(RAW_API_URL);
 
 type JsonBody = Record<string, unknown> | any;
 

@@ -26,5 +26,5 @@ Stock quantities must not be treated as automatically consumed until the stock i
 
 Staff portal:
 
-```text
+
 https://hub.southincon.com
