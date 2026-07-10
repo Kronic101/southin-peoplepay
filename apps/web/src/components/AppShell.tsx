@@ -3,6 +3,7 @@
 import { APP_BRAND } from '@/lib/app-branding';
 import { isDemoEnabledForBrowser } from '@/lib/demo';
 import Link from 'next/link';
+import { LogoutButton } from '@/app/auth/LogoutButton';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -171,7 +172,21 @@ const navSections: NavSection[] = [
       {
         label: 'Dashboard',
         href: '/dashboard',
-        roles: ['HR_MANAGER', 'PAYROLL_OFFICER', 'FINANCE_MANAGER', 'DIRECTOR', 'ADMIN'],
+        roles: [
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'FINANCE_MANAGER',
+          'DIRECTOR',
+          'ADMIN',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+          'ASSET_MANAGER',
+          'ASSET_OFFICER',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+          'FLEET_MANAGER',
+          'FLEET_DISPATCH_OFFICER',
+        ],
       },
     ],
   },
@@ -445,7 +460,22 @@ const navSections: NavSection[] = [
   },
   {
     title: 'Stores',
-    items:[
+    items: [
+      {
+        label: 'Stores Dashboard',
+        href: '/stores',
+        roles: [
+          'ADMIN',
+          'DIRECTOR',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+          'ASSET_MANAGER',
+          'ASSET_OFFICER',
+          'FINANCE_MANAGER',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+        ],
+      },
       {
         label: 'Stores Requisitions',
         href: '/stores/requisitions',
@@ -455,6 +485,7 @@ const navSections: NavSection[] = [
           'STORES_OFFICER',
           'PROCUREMENT_OFFICER',
           'ASSET_MANAGER',
+          'ASSET_OFFICER',
           'LINE_MANAGER',
           'SUPERVISOR',
         ],
@@ -468,12 +499,37 @@ const navSections: NavSection[] = [
           'STORES_OFFICER',
           'PROCUREMENT_OFFICER',
           'ASSET_MANAGER',
+          'ASSET_OFFICER',
           'LINE_MANAGER',
           'SUPERVISOR',
         ],
       },
-
-    ]
+    ],
+  },
+  {
+    title: 'Employee Self-Service',
+    items: [
+      {
+        label: 'Employee Login',
+        href: '/employee-login',
+        roles: [
+          '',
+          'ADMIN',
+          'HR_MANAGER',
+          'PAYROLL_OFFICER',
+          'FINANCE_MANAGER',
+          'DIRECTOR',
+          'LINE_MANAGER',
+          'SUPERVISOR',
+          'ASSET_MANAGER',
+          'ASSET_OFFICER',
+          'STORES_OFFICER',
+          'PROCUREMENT_OFFICER',
+          'FLEET_MANAGER',
+          'FLEET_DISPATCH_OFFICER',
+        ],
+      },
+    ],
   },
   {
     title: 'Administration',
@@ -603,18 +659,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-
-        <div className="employee-only-note">
-          <strong>Employee access</strong>
-          <span>Employees use employee login only and do not use the staff ribbon.</span>
-          <Link href="/employee-login">Open Employee Login</Link>
+        
+        <div className="sidebar-footer">
+          <LogoutButton />
         </div>
+
+        
       </aside>
 
       <main className="app-main">
         <div className="app-main-inner">{children}</div>
       </main>
     </div>
+    
   );
 }
 

@@ -2,23 +2,16 @@
 
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { useEffect, useState } from 'react';
-
-import { isDemoEnabledForBrowser } from '@/lib/demo';
+import { useState } from 'react';
 
 export default function StaffLoginPage() {
-  const [demoVisible, setDemoVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setDemoVisible(isDemoEnabledForBrowser());
-  }, []);
 
   async function handleMicrosoftLogin() {
     setLoading(true);
 
     await signIn('azure-ad', {
-      callbackUrl: '/stores',
+      callbackUrl: '/dashboard',
     });
   }
 
@@ -44,26 +37,19 @@ export default function StaffLoginPage() {
           controlled through Microsoft Entra ID.
         </p>
 
-        <div className="auth-form">
+        <div className="auth-action-grid">
           <button className="btn" type="button" onClick={handleMicrosoftLogin} disabled={loading}>
             {loading ? 'Opening Microsoft login...' : 'Continue with Microsoft'}
           </button>
-        </div>
 
-        <div className="auth-footer">
-          <Link href="/">Back home</Link>
-
-          {demoVisible ? (
-            <>
-              <Link href="/workbench">Use demo workbench</Link>
-              <Link href="/demo">Open Demo Guide</Link>
-            </>
-          ) : null}
+          <Link className="btn-secondary" href="/employee-login">
+            Employee Login
+          </Link>
         </div>
 
         <div className="auth-note">
-          Use your Southin Microsoft 365 account. Access after login depends on your Entra group
-          membership.
+          Staff users must use Microsoft 365. Employees without Microsoft 365 accounts must use
+          Employee Login with their employee number and PIN.
         </div>
       </section>
     </main>

@@ -1,18 +1,28 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
+
 import { PeopleOpsService } from './people-ops.service';
 
 @Controller('people-ops')
 export class PeopleOpsController {
-  constructor(private readonly peopleOpsService: PeopleOpsService) {}
+  constructor(private readonly service: PeopleOpsService) {}
 
-  @Get('context')
-  getContext(
-    @Query('siteId') siteId?: string,
-    @Query('managerEmail') managerEmail?: string,
-  ) {
-    return this.peopleOpsService.getContext({
-      siteId,
-      managerEmail,
-    });
+  @Post('attendance')
+  createAttendance(@Body() body: any) {
+    return this.service.createAttendance(body);
+  }
+
+  @Post('timesheets')
+  createTimesheet(@Body() body: any) {
+    return this.service.createTimesheet(body);
+  }
+
+  @Post('leave')
+  createLeaveRequest(@Body() body: any) {
+    return this.service.createLeaveRequest(body);
+  }
+
+  @Post('overtime')
+  createOvertimeRequest(@Body() body: any) {
+    return this.service.createOvertimeRequest(body);
   }
 }

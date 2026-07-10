@@ -2357,3 +2357,39 @@ export async function getStoresDashboard() {
     true,
   );
 }
+
+export async function createAttendanceRecord(payload: Record<string, any>) {
+  return apiPost(
+    '/people-ops/attendance',
+    payload,
+    'Failed to capture attendance record',
+    true,
+  );
+}
+
+export async function createTimesheetRecord(payload: Record<string, any>) {
+  return apiPost(
+    '/people-ops/timesheets',
+    payload,
+    'Failed to create timesheet',
+    true,
+  );
+}
+
+export async function createLeaveRequestRecord(payload: Record<string, any>) {
+  return apiPost(
+    '/people-ops/leave',
+    payload,
+    'Failed to create leave request',
+    true,
+  );
+}
+
+export async function createOvertimeRequestRecord(payload: Record<string, any>) {
+  return apiPost(
+    '/people-ops/overtime',
+    payload,
+    'Failed to create overtime request',
+    true,
+  );
+}

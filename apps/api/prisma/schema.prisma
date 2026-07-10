@@ -306,6 +306,91 @@ model EmployeeServiceCondition {
   template      ServiceConditionTemplate @relation(fields: [templateId], references: [id])
 }
 
+model AttendanceRecord {
+  id               String   @id @default(uuid())
+  attendanceNo     String   @unique
+  employeeId       String
+  employeeNumber   String?
+  employeeName     String?
+  siteId           String?
+  siteName         String?
+  siteManagerName  String?
+  siteManagerEmail String?
+  attendanceDate   DateTime
+  shift            String?
+  status           String   @default("CAPTURED")
+  notes            String?
+  capturedBy       String?
+  capturedByEmail  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([siteId])
+  @@index([siteManagerEmail])
+  @@index([attendanceDate])
+  @@index([status])
+  @@map("attendance_records")
+}
+
+model TimesheetRecord {
+  id               String   @id @default(uuid())
+  timesheetNo      String   @unique
+  employeeId       String
+  employeeNumber   String?
+  employeeName     String?
+  siteId           String?
+  siteName         String?
+  siteManagerName  String?
+  siteManagerEmail String?
+  periodStart      DateTime
+  periodEnd        DateTime
+  normalHours      Decimal  @default(0) @db.Decimal(10, 2)
+  overtimeHours    Decimal  @default(0) @db.Decimal(10, 2)
+  status           String   @default("SUBMITTED")
+  notes            String?
+  submittedBy      String?
+  submittedByEmail String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([siteId])
+  @@index([siteManagerEmail])
+  @@index([status])
+  @@map("timesheet_records")
+}
+
+model OvertimeRequest {
+  id               String   @id @default(uuid())
+  overtimeNo       String   @unique
+  employeeId       String
+  employeeNumber   String?
+  employeeName     String?
+  siteId           String?
+  siteName         String?
+  siteManagerName  String?
+  siteManagerEmail String?
+  overtimeDate     DateTime
+  requestedHours   Decimal  @default(0) @db.Decimal(10, 2)
+  hourlyRate       Decimal  @default(0) @db.Decimal(14, 2)
+  estimatedCost    Decimal  @default(0) @db.Decimal(14, 2)
+  reason           String?
+  status           String   @default("SUBMITTED")
+  submittedBy      String?
+  submittedByEmail String?
+  approvalRequestId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([siteId])
+  @@index([siteManagerEmail])
+  @@index([status])
+  @@index([approvalRequestId])
+  @@map("overtime_requests")
+}
+
 model PayrollPeriod {
   id         String       @id @default(uuid())
   periodName String
