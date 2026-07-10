@@ -21,6 +21,15 @@ export class FleetService {
   }
 
   async getDashboard() {
+    const importedFleetAssets = await this.db().hubAsset.findMany({
+      where: {
+        category: 'VEHICLE',
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      take: 50,
+    });
     const [
       vehicles,
       activeVehicles,
@@ -109,8 +118,15 @@ export class FleetService {
 
     return {
       summary: {
-        vehicles,
-        activeVehicles,
+        vehicles: vehicles + importedFleetAssets.length,
+        activeVehicles:
+          activeVehicles +
+          importedFleetAssets.filter((asset:any) =>
+            ['ACTIVE', 'IN_USE', 'IN_STORE', 'AVAILABLE'].includes(
+              String(asset.status || '').toUpperCase(),
+            ),
+          ).length,
+        importedFleetAssets: importedFleetAssets.length,
         drivers,
         activeAssignments,
         openDueItems,
@@ -124,6 +140,7 @@ export class FleetService {
         openWorkshopJobs,
       },
       recentVehicles,
+      importedFleetAssets,
       recentDueItems,
       recentDefects,
     };

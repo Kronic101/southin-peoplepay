@@ -1,6 +1,9 @@
 import { withDevRoleHeaders } from './dev-role';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.API_URL ||
+  'http://localhost:4000/api';
 
 export type Employee = {
   id: string;
@@ -64,6 +67,37 @@ export type EmployeePortalAccessProfile =
   | 'SAFETY'
   | 'QAQC'
   | 'EMPLOYEE';
+
+export type FleetDashboardResponse = {
+  summary?: {
+    vehicles?: number;
+    activeVehicles?: number;
+    importedFleetAssets?: number;
+    drivers?: number;
+    inspections?: number;
+    openDefects?: number;
+    trips?: number;
+    fuelLogs?: number;
+    workshopJobs?: number;
+    openWorkshop?: number;
+    openDueItems?: number;
+    overdueItems?: number;
+    [key: string]: unknown;
+  };
+  recentVehicles?: any[];
+  importedFleetAssets?: any[];
+  recentDefects?: any[];
+  recentDueItems?: any[];
+  [key: string]: unknown;
+};
+
+export async function getFleetDashboard(): Promise<FleetDashboardResponse> {
+  return apiGet<FleetDashboardResponse>(
+    '/fleet/dashboard',
+    'Failed to load fleet dashboard',
+    true,
+  );
+}
 
 export const EMPLOYEE_PORTAL_MODULES_BY_PROFILE: Record<EmployeePortalAccessProfile, string[]> = {
   DRIVER: ['FLEET_CHECKLIST', 'FLEET_TRIPS', 'FLEET_DEFECTS'],
@@ -165,8 +199,36 @@ function getSelectedDevActorName() {
   return actorByRole[role] || 'system-dev';
 }
 
+async function apiRequest<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    cache: 'no-store',
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(text || `API request failed: ${response.status}`);
+  }
+
+  if (!text) {
+    return null as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
 async function apiGet<T = any>(path: string, fallback: string, protectedRoute = false): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: protectedRoute ? roleHeaders() : undefined,
     cache: 'no-store',
   });
@@ -184,7 +246,7 @@ async function apiPost<T = any>(
   fallback = 'Request failed',
   protectedRoute = true,
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
@@ -203,7 +265,7 @@ async function apiPatch<T = any>(
   fallback = 'Request failed',
   protectedRoute = true,
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
     headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
@@ -390,7 +452,7 @@ export async function requestEmployeePinReset(payload: {
 }
 
 export async function getEmployeeMe(token: string) {
-  const res = await fetch(`${API_URL}/auth/employee/me`, {
+  const res = await fetch(`${API_BASE}/auth/employee/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -405,7 +467,7 @@ export async function getEmployeeMe(token: string) {
 }
 
 export async function getEmployeePayslips(token: string) {
-  const res = await fetch(`${API_URL}/auth/employee/payslips`, {
+  const res = await fetch(`${API_BASE}/auth/employee/payslips`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -420,7 +482,7 @@ export async function getEmployeePayslips(token: string) {
 }
 
 export async function getEmployeePayslip(id: string, token: string) {
-  const res = await fetch(`${API_URL}/auth/employee/payslips/${id}`, {
+  const res = await fetch(`${API_BASE}/auth/employee/payslips/${id}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -800,8 +862,8 @@ export async function getPayrollAudit(runId?: string) {
 
 export function getPayrollAuditCsvUrl(runId?: string) {
   return runId
-    ? `${API_URL}/executive/payroll-audit.csv?runId=${encodeURIComponent(runId)}`
-    : `${API_URL}/executive/payroll-audit.csv`;
+    ? `${API_BASE}/executive/payroll-audit.csv?runId=${encodeURIComponent(runId)}`
+    : `${API_BASE}/executive/payroll-audit.csv`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1020,11 +1082,11 @@ export async function getPaymentBatchEvidence(batchId: string) {
 }
 
 export function getPaymentBatchEvidenceCsvUrl(batchId: string) {
-  return `${API_URL}/payment-batches/${batchId}/evidence.csv`;
+  return `${API_BASE}/payment-batches/${batchId}/evidence.csv`;
 }
 
 export async function downloadPaymentBatchEvidenceCsv(batchId: string) {
-  const res = await fetch(`${API_URL}/payment-batches/${batchId}/evidence.csv`, {
+  const res = await fetch(`${API_BASE}/payment-batches/${batchId}/evidence.csv`, {
     method: 'GET',
     headers: roleHeaders(),
     cache: 'no-store',
@@ -1667,7 +1729,7 @@ export async function getFinanceExportLogs(): Promise<FinanceExportLog[]> {
 }
 
 export function getFinanceExportUrl(path: string) {
-  return `${API_URL}${path}`;
+  return `${API_BASE}${path}`;
 }
 
 export type FinanceCombinedReportsResponse = {
@@ -1894,6 +1956,18 @@ export async function getAssetLocations() {
 
 export async function getAssetBalances(): Promise<StockBalanceRecord[]> {
   return apiGet<StockBalanceRecord[]>('/assets/balances', 'Failed to load stock balances', true);
+}
+
+export async function getStoresStockItems() {
+  return getAssetStockItems();
+}
+
+export async function getStoresLocations() {
+  return getAssetLocations();
+}
+
+export async function getStoresBalances() {
+  return getAssetBalances();
 }
 
 export async function getAssetMovements() {
@@ -2255,26 +2329,6 @@ export type PeopleOpsContext = {
   employees: any[];
 };
 
-export async function getPeopleOpsContext(siteId?: string): Promise<PeopleOpsContext> {
-  const query = siteId ? `?siteId=${encodeURIComponent(siteId)}` : '';
-
-  try {
-    return await apiGet<PeopleOpsContext>(
-      `/people-ops/context${query}`,
-      'Failed to load people operations context',
-      true,
-    );
-  } catch {
-    return {
-      generatedAt: new Date().toISOString(),
-      sites: [],
-      selectedSite: null,
-      siteManagers: [],
-      employees: [],
-    };
-  }
-}
-
 export type OperationsSite = {
   id: string;
   code?: string | null;
@@ -2342,12 +2396,119 @@ export type OperationsMasterData = {
   };
 };
 
-export async function getOperationsMasterData(): Promise<OperationsMasterData> {
-  return apiGet<OperationsMasterData>(
-    '/operations/master-data',
-    'Failed to load operations master data.',
-    true,
-  );
+export async function getOperationsMasterData() {
+  return apiGet('/operations/master-data', 'Failed to load operations master data', true);
+}
+
+function normalisePeopleOpsSite(site: any) {
+  return {
+    id: site.id,
+    code: site.code || site.siteCode || '',
+    name: site.name || site.siteName || '-',
+    description: site.description || null,
+    managerAssignments:
+      site.managerAssignments ||
+      site.managers?.map((manager: any) => ({
+        id: manager.id,
+        managerName: manager.managerName || manager.name,
+        managerEmail: manager.managerEmail || manager.email,
+        managerRole: manager.managerRole || manager.role || 'SITE_MANAGER',
+        isPrimary: Boolean(manager.isPrimary),
+        isActive: manager.isActive !== false,
+      })) ||
+      [],
+  };
+}
+
+function normalisePeopleOpsEmployee(employee: any) {
+  const firstName = employee.firstName || '';
+  const lastName = employee.lastName || '';
+  const fullName =
+    employee.name ||
+    employee.fullName ||
+    `${firstName} ${lastName}`.trim() ||
+    employee.employeeNumber ||
+    '-';
+
+  return {
+    id: employee.id,
+    employeeId: employee.id,
+    employeeNumber: employee.employeeNumber || '',
+    name: fullName,
+    firstName,
+    lastName,
+    email: employee.email || '',
+    phone: employee.phone || '',
+    status: employee.status || 'DRAFT',
+    siteId: employee.siteId || employee.site?.id || null,
+    siteName: employee.siteName || employee.site?.name || null,
+    department: employee.department?.name || employee.department || null,
+    jobTitle: employee.jobTitle?.name || employee.jobTitle || null,
+    employmentType: employee.employmentType?.name || employee.employmentType || null,
+    payBasis: employee.payBasis || null,
+    hourlyRate: employee.hourlyRate || null,
+    dailyRate: employee.dailyRate || null,
+    monthlyRate: employee.monthlyRate || null,
+  };
+}
+
+async function getEmployeesForPeopleOps(siteId?: string) {
+  const response: any = await apiGet('/employees', 'Failed to load employees', true).catch(() => []);
+
+  const rows = Array.isArray(response)
+    ? response
+    : response?.employees || response?.data || response?.items || [];
+
+  return rows
+    .map(normalisePeopleOpsEmployee)
+    .filter((employee: any) => {
+      if (!siteId) return true;
+      return employee.siteId === siteId;
+    });
+}
+
+export async function getPeopleOpsContext(siteId?: string) {
+  const query = siteId ? `?siteId=${encodeURIComponent(siteId)}` : '';
+
+  let context: any = null;
+
+  try {
+    context = await apiGet(
+      `/people-ops/context${query}`,
+      'Failed to load people operations context',
+      true,
+    );
+  } catch {
+    context = null;
+  }
+
+  const masterData = await getOperationsMasterData();
+
+  const sites = Array.isArray(masterData?.sites)
+    ? masterData.sites.map(normalisePeopleOpsSite)
+    : [];
+
+  const selectedSite = siteId
+    ? sites.find((site: any) => site.id === siteId) || null
+    : null;
+
+  const siteManagers =
+    Array.isArray(context?.siteManagers) && context.siteManagers.length > 0
+      ? context.siteManagers
+      : selectedSite?.managerAssignments || [];
+
+  const employees =
+    Array.isArray(context?.employees) && context.employees.length > 0
+      ? context.employees.map(normalisePeopleOpsEmployee)
+      : await getEmployeesForPeopleOps(siteId);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    sites,
+    selectedSite,
+    siteManagers,
+    employees,
+  };
 }
 
 export async function getStoresDashboard() {
@@ -2393,3 +2554,4 @@ export async function createOvertimeRequestRecord(payload: Record<string, any>) 
     true,
   );
 }
+

@@ -625,7 +625,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="app-brand-mark">SP</span>
           <span>
             <strong>{APP_BRAND.platformName}</strong>
-            <span>{APP_BRAND.peoplePayModuleName} · HR & Payroll</span>
           </span>
         </Link>
 
