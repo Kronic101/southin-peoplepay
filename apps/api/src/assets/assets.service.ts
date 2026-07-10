@@ -136,6 +136,20 @@ export class AssetsService {
     private readonly approvalWorkflowService: ApprovalWorkflowService,
   ) {}
 
+  private async rawRows<T = any>(label: string, sql: string, fallback: T[] = []) {
+    try {
+      return await (this.db().$queryRawUnsafe as any)(sql) as T[];
+    } catch (error) {
+      console.error(`[AssetsService] ${label} failed`, error);
+      return fallback;
+    }
+  }
+
+  private toInt(value: unknown) {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   private db() {
     return this.prisma as any;
   }
@@ -278,160 +292,149 @@ export class AssetsService {
   }
 
   async getDashboard() {
-    const db = this.db();
+    const summaryRows = await this.rawRows<any>(
+      'getDashboardSummary',
+      `
+      select
+        (select count(*)::int from hub_assets) as assets,
+        (select count(*)::int from hub_assets where status::text in ('ACTIVE', 'IN_STORE', 'IN_USE')) as "activeAssets",
+        (select count(*)::int from stock_items where coalesce("isActive", true) = true) as "stockItems",
+        (select count(*)::int from stock_locations where coalesce("isActive", true) = true) as locations,
+        (select count(*)::int from scaffold_components) as "scaffoldComponents",
+        (select count(*)::int from scaffold_components where "tagStatus"::text = 'AVAILABLE') as "availableScaffolds",
+        (select count(*)::int from scaffold_components where "tagStatus"::text = 'ISSUED') as "issuedScaffolds",
+        (select count(*)::int from scaffold_components where upper(coalesce("conditionStatus", '')) = 'DAMAGED') as "damagedScaffolds",
+        (select count(*)::int from stock_balances where "quantityOnHand" <= 0) as "lowOrZeroStock",
+        (select coalesce(sum("quantityOnHand"), 0)::numeric from stock_balances) as "quantityOnHand";
+      `,
+      [],
+    );
 
-    const [
-      assets,
-      stockItems,
-      locations,
-      movements,
-      qrTags,
-      scaffolds,
-      balances,
-      ledgerEntries,
-      custodyAssignments,
-      deployments,
-      stockCounts,
-    ] = await Promise.all([
-      db.hubAsset?.findMany ? db.hubAsset.findMany() : Promise.resolve([]),
-      db.stockItem?.findMany ? db.stockItem.findMany() : Promise.resolve([]),
-      db.stockLocation?.findMany ? db.stockLocation.findMany() : Promise.resolve([]),
+    const lowStock = await this.rawRows<any>(
+      'getDashboardLowStock',
+      `
+      select
+        si."itemCode",
+        si."itemName",
+        sl."locationCode",
+        sl."locationName",
+        sb."quantityOnHand",
+        si."minimumLevel",
+        si."reorderLevel"
+      from stock_balances sb
+      join stock_items si
+        on si.id = sb."stockItemId"
+      join stock_locations sl
+        on sl.id = sb."locationId"
+      where sb."quantityOnHand" <= coalesce(si."minimumLevel", 0)
+      order by sl."locationCode", si."itemCode"
+      limit 25;
+      `,
+      [],
+    );
 
-      db.stockMovement?.findMany
-        ? db.stockMovement.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-            include: {
-              fromLocation: true,
-              toLocation: true,
-              financeExpense: true,
-              ledgerEntries: true,
-              lines: {
-                include: {
-                  stockItem: true,
-                  qrTag: true,
-                  ledgerEntries: true,
-                },
-              },
-            },
-          })
-        : Promise.resolve([]),
-
-      db.assetQrTag?.findMany
-        ? db.assetQrTag.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-            include: {
-              stockItem: true,
-              asset: true,
-              scaffoldComponent: true,
-              assignedLocation: true,
-            },
-          })
-        : Promise.resolve([]),
-
-      db.scaffoldComponent?.findMany ? db.scaffoldComponent.findMany() : Promise.resolve([]),
-
-      db.stockBalance?.findMany
-        ? db.stockBalance.findMany({
-            include: {
-              stockItem: true,
-              location: true,
-            },
-          })
-        : Promise.resolve([]),
-
-      db.stockLedger?.findMany ? db.stockLedger.findMany() : Promise.resolve([]),
-
-      db.assetCustodyAssignment?.findMany
-        ? db.assetCustodyAssignment.findMany()
-        : Promise.resolve([]),
-
-      db.scaffoldDeployment?.findMany
-        ? db.scaffoldDeployment.findMany()
-        : Promise.resolve([]),
-
-      db.stockCountSession?.findMany
-        ? db.stockCountSession.findMany()
-        : Promise.resolve([]),
-    ]);
-
-    const lowStock = balances
-      .filter((balance: any) => {
-        const onHand = toNumber(balance.quantityOnHand);
-        const minimumLevel = toNumber(balance.stockItem?.minimumLevel);
-        return balance.stockItem && onHand <= minimumLevel;
-      })
-      .map((balance: any) => ({
-        itemCode: balance.stockItem?.itemCode,
-        itemName: balance.stockItem?.itemName,
-        locationCode: balance.location?.locationCode,
-        locationName: balance.location?.locationName,
-        quantityOnHand: Number(balance.quantityOnHand || 0),
-        minimumLevel: Number(balance.stockItem?.minimumLevel || 0),
-        reorderLevel: Number(balance.stockItem?.reorderLevel || 0),
-      }));
-
-    const postedMovements = movements.filter((movement: any) => movement.status === 'POSTED');
+    const summary = summaryRows[0] || {};
 
     return {
       summary: {
-        assets: assets.length,
-        activeAssets: assets.filter((asset: any) => asset.status === 'ACTIVE').length,
-
-        stockItems: stockItems.length,
-        locations: locations.length,
-
-        movements: movements.length,
-        pendingMovements: movements.filter((movement: any) => movement.status !== 'POSTED').length,
-        postedMovements: postedMovements.length,
-
-        qrTags: qrTags.length,
-        assetQrTags: qrTags.length,
-
-        scaffoldComponents: scaffolds.length,
-        availableScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'AVAILABLE').length,
-        issuedScaffolds: scaffolds.filter((item: any) => item.tagStatus === 'ISSUED').length,
-        damagedScaffolds: scaffolds.filter((item: any) => item.conditionStatus === 'DAMAGED').length,
-
-        ledgerEntries: ledgerEntries.length,
-        financeLinkedMovements: movements.filter((movement: any) => movement.financeExpenseId || movement.financeExpense).length,
-
-        activeCustody: custodyAssignments.filter((item: any) => item.status === 'ACTIVE').length,
-        activeDeployments: deployments.filter((item: any) => item.status === 'ACTIVE').length,
-        openStockCounts: stockCounts.filter((item: any) => item.status === 'DRAFT' || item.status === 'OPEN').length,
+        assets: this.toInt(summary.assets),
+        activeAssets: this.toInt(summary.activeAssets),
+        stockItems: this.toInt(summary.stockItems),
+        locations: this.toInt(summary.locations),
+        movements: 0,
+        pendingMovements: 0,
+        postedMovements: 0,
+        qrTags: 0,
+        assetQrTags: 0,
+        scaffoldComponents: this.toInt(summary.scaffoldComponents),
+        availableScaffolds: this.toInt(summary.availableScaffolds),
+        issuedScaffolds: this.toInt(summary.issuedScaffolds),
+        damagedScaffolds: this.toInt(summary.damagedScaffolds),
+        ledgerEntries: 0,
+        financeLinkedMovements: 0,
+        activeCustody: 0,
+        activeDeployments: 0,
+        openStockCounts: 0,
+        lowOrZeroStock: this.toInt(summary.lowOrZeroStock),
+        quantityOnHand: this.toInt(summary.quantityOnHand),
       },
-
       lowStock,
-
-      recentMovements: movements.map((movement: any) =>
-        typeof this.mapMovementControlStatus === 'function'
-          ? this.mapMovementControlStatus(movement)
-          : movement,
-      ),
-
-      recentQrScans: qrTags,
+      recentMovements: [],
+      recentQrScans: [],
     };
   }
 
   async getStockItems() {
-    return this.db().stockItem.findMany({
-      orderBy: [
-        {
-          itemCode: 'asc',
-        },
-      ],
-      include: {
-        balances: {
-          include: {
-            location: true,
-          },
-        },
-        qrTags: true,
-        scaffoldComponents: true,
-        supplier: true,
-      },
-    });
+    const rows = await this.rawRows<any>(
+      'getStockItems',
+      `
+      select
+        si.id,
+        si."itemCode",
+        si."itemName",
+        si."itemType"::text as "itemType",
+        si.category,
+        si.description,
+        si."unitOfMeasure",
+        si."minimumLevel",
+        si."reorderLevel",
+        si."standardCost",
+        si."supplierId",
+        si."supplierCode",
+        si."supplierName",
+        si."poNumber",
+        si."legacyCode",
+        si."legacySource",
+        si."isSerialized",
+        si."isQrTracked",
+        si."isRfidTracked",
+        si."isActive",
+        si."createdAt",
+        si."updatedAt",
+        coalesce(
+          json_agg(
+            json_build_object(
+              'id', sb.id,
+              'stockItemId', sb."stockItemId",
+              'locationId', sb."locationId",
+              'quantityOnHand', sb."quantityOnHand",
+              'quantityIssued', sb."quantityIssued",
+              'quantityDamaged', sb."quantityDamaged",
+              'quantityLost', sb."quantityLost",
+              'updatedAt', sb."updatedAt",
+              'location', json_build_object(
+                'id', sl.id,
+                'locationCode', sl."locationCode",
+                'locationName', sl."locationName",
+                'locationType', sl."locationType",
+                'site', sl.site,
+                'branch', sl.branch,
+                'department', sl.department,
+                'isActive', sl."isActive"
+              )
+            )
+            order by sl."locationCode"
+          ) filter (where sb.id is not null),
+          '[]'::json
+        ) as balances
+      from stock_items si
+      left join stock_balances sb
+        on sb."stockItemId" = si.id
+      left join stock_locations sl
+        on sl.id = sb."locationId"
+      where coalesce(si."isActive", true) = true
+      group by si.id
+      order by si."itemCode" asc;
+      `,
+    );
+
+    return rows.map((row: any) => ({
+      ...row,
+      balances: Array.isArray(row.balances) ? row.balances : [],
+      qrTags: [],
+      scaffoldComponents: [],
+      supplier: null,
+    }));
   }
 
   async previewStockItemCode(body: any) {
@@ -503,16 +506,59 @@ export class AssetsService {
   }
 
   async getLocations() {
-    return this.db().stockLocation.findMany({
-      orderBy: [{ locationCode: 'asc' }],
-      include: {
-        balances: {
-          include: {
-            stockItem: true,
-          },
-        },
-      },
-    });
+    const rows = await this.rawRows<any>(
+      'getLocations',
+      `
+      select
+        sl.id,
+        sl."locationCode",
+        sl."locationName",
+        sl."locationType",
+        sl.site,
+        sl.branch,
+        sl.department,
+        sl."isActive",
+        sl."createdAt",
+        sl."updatedAt",
+        coalesce(
+          json_agg(
+            json_build_object(
+              'id', sb.id,
+              'stockItemId', sb."stockItemId",
+              'locationId', sb."locationId",
+              'quantityOnHand', sb."quantityOnHand",
+              'quantityIssued', sb."quantityIssued",
+              'quantityDamaged', sb."quantityDamaged",
+              'quantityLost', sb."quantityLost",
+              'updatedAt', sb."updatedAt",
+              'stockItem', json_build_object(
+                'id', si.id,
+                'itemCode', si."itemCode",
+                'itemName', si."itemName",
+                'itemType', si."itemType"::text,
+                'category', si.category,
+                'unitOfMeasure', si."unitOfMeasure"
+              )
+            )
+            order by si."itemCode"
+          ) filter (where sb.id is not null),
+          '[]'::json
+        ) as balances
+      from stock_locations sl
+      left join stock_balances sb
+        on sb."locationId" = sl.id
+      left join stock_items si
+        on si.id = sb."stockItemId"
+      where coalesce(sl."isActive", true) = true
+      group by sl.id
+      order by sl."locationCode" asc;
+      `,
+    );
+
+    return rows.map((row: any) => ({
+      ...row,
+      balances: Array.isArray(row.balances) ? row.balances : [],
+    }));
   }
 
   async createLocation(body: any) {
