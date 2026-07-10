@@ -1,9 +1,6 @@
 import { withDevRoleHeaders } from './dev-role';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.API_URL ||
-  'http://localhost:4000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export type Employee = {
   id: string;
@@ -90,6 +87,60 @@ export type FleetDashboardResponse = {
   recentDueItems?: any[];
   [key: string]: unknown;
 };
+
+export type ApprovalWorkflowRecord = {
+  id: string;
+  module: string;
+  workflowType: string;
+  requestTitle: string;
+  requestReference: string;
+  requestDescription?: string | null;
+  requesterName?: string | null;
+  requesterEmail?: string | null;
+  requesterRole?: string | null;
+  requesterDepartment?: string | null;
+  requesterSite?: string | null;
+  amount?: string | number | null;
+  status: string;
+  currentStep?: number | null;
+  currentStepRole?: string | null;
+  currentApproverEmail?: string | null;
+  payload?: any;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function getApprovalWorkflows(): Promise<ApprovalWorkflowRecord[]> {
+  return apiGet<ApprovalWorkflowRecord[]>(
+    '/approvals/workflows',
+    'Failed to load approval workflows',
+    true,
+  );
+}
+
+export async function approveWorkflow(
+  approvalRequestId: string,
+  payload: { comments?: string } = {},
+) {
+  return apiPost(
+    `/approvals/workflows/${approvalRequestId}/approve`,
+    payload,
+    'Failed to approve workflow',
+    true,
+  );
+}
+
+export async function rejectWorkflow(
+  approvalRequestId: string,
+  payload: { comments?: string } = {},
+) {
+  return apiPost(
+    `/approvals/workflows/${approvalRequestId}/reject`,
+    payload,
+    'Failed to reject workflow',
+    true,
+  );
+}
 
 export async function getFleetDashboard(): Promise<FleetDashboardResponse> {
   return apiGet<FleetDashboardResponse>(
@@ -203,7 +254,7 @@ async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+  const url = `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
   const response = await fetch(url, {
     ...options,
@@ -228,7 +279,7 @@ async function apiRequest<T>(
 }
 
 async function apiGet<T = any>(path: string, fallback: string, protectedRoute = false): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     headers: protectedRoute ? roleHeaders() : undefined,
     cache: 'no-store',
   });
@@ -246,7 +297,7 @@ async function apiPost<T = any>(
   fallback = 'Request failed',
   protectedRoute = true,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
@@ -265,7 +316,7 @@ async function apiPatch<T = any>(
   fallback = 'Request failed',
   protectedRoute = true,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     method: 'PATCH',
     headers: protectedRoute ? jsonHeaders() : { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
@@ -452,7 +503,7 @@ export async function requestEmployeePinReset(payload: {
 }
 
 export async function getEmployeeMe(token: string) {
-  const res = await fetch(`${API_BASE}/auth/employee/me`, {
+  const res = await fetch(`${API_URL}/auth/employee/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -467,7 +518,7 @@ export async function getEmployeeMe(token: string) {
 }
 
 export async function getEmployeePayslips(token: string) {
-  const res = await fetch(`${API_BASE}/auth/employee/payslips`, {
+  const res = await fetch(`${API_URL}/auth/employee/payslips`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -482,7 +533,7 @@ export async function getEmployeePayslips(token: string) {
 }
 
 export async function getEmployeePayslip(id: string, token: string) {
-  const res = await fetch(`${API_BASE}/auth/employee/payslips/${id}`, {
+  const res = await fetch(`${API_URL}/auth/employee/payslips/${id}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -862,8 +913,8 @@ export async function getPayrollAudit(runId?: string) {
 
 export function getPayrollAuditCsvUrl(runId?: string) {
   return runId
-    ? `${API_BASE}/executive/payroll-audit.csv?runId=${encodeURIComponent(runId)}`
-    : `${API_BASE}/executive/payroll-audit.csv`;
+    ? `${API_URL}/executive/payroll-audit.csv?runId=${encodeURIComponent(runId)}`
+    : `${API_URL}/executive/payroll-audit.csv`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1082,11 +1133,11 @@ export async function getPaymentBatchEvidence(batchId: string) {
 }
 
 export function getPaymentBatchEvidenceCsvUrl(batchId: string) {
-  return `${API_BASE}/payment-batches/${batchId}/evidence.csv`;
+  return `${API_URL}/payment-batches/${batchId}/evidence.csv`;
 }
 
 export async function downloadPaymentBatchEvidenceCsv(batchId: string) {
-  const res = await fetch(`${API_BASE}/payment-batches/${batchId}/evidence.csv`, {
+  const res = await fetch(`${API_URL}/payment-batches/${batchId}/evidence.csv`, {
     method: 'GET',
     headers: roleHeaders(),
     cache: 'no-store',
@@ -1729,7 +1780,7 @@ export async function getFinanceExportLogs(): Promise<FinanceExportLog[]> {
 }
 
 export function getFinanceExportUrl(path: string) {
-  return `${API_BASE}${path}`;
+  return `${API_URL}${path}`;
 }
 
 export type FinanceCombinedReportsResponse = {
