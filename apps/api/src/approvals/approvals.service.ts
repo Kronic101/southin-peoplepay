@@ -7,6 +7,7 @@ import {
   OperationsModule,
   Prisma,
 } from '@prisma/client';
+import { buildApprovalNotificationBody } from './approval-notification-details';
 import { PrismaService } from '../prisma/prisma.service';
 
 type ApprovalStep = {
@@ -528,19 +529,20 @@ export class ApprovalsService {
         toEmail: assignment.userEmail,
         toName: assignment.userName || assignment.userEmail,
         subject: `Southin Hub Approval Required - ${request.requestReference || request.requestTitle}`,
-        bodyText: [
-          'Approval required in Southin Hub.',
-          '',
-          `Reference: ${request.requestReference || request.id}`,
-          `Title: ${request.requestTitle}`,
-          `Module: ${request.module}`,
-          `Workflow: ${request.workflowType}`,
-          `Requester: ${request.requesterName || '-'}`,
-          `Requester Email: ${request.requesterEmail || '-'}`,
-          `Amount: ${request.amount ? `K ${Number(request.amount).toLocaleString('en-ZM')}` : '-'}`,
-          '',
-          `Open the approval inbox: ${actionUrl}`,
-        ].join('\n'),
+        bodyText: buildApprovalNotificationBody({
+          id: request.id,
+          module: request.module,
+          workflowType: request.workflowType,
+          requestTitle: request.requestTitle,
+          requestReference: request.requestReference,
+          requestDescription: request.requestDescription,
+          requesterName: request.requesterName,
+          requesterEmail: request.requesterEmail,
+          requesterDepartment: request.requesterDepartment,
+          requesterSite: request.requesterSite,
+          amount: request.amount,
+          payload: request.payload,
+        }),
         actionUrl,
         status: 'PENDING',
       },

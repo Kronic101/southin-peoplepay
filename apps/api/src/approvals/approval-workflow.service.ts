@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalRoutingService } from './approval-routing.service';
+import { buildApprovalNotificationBody } from './approval-notification-details';
 import {
   ApprovalDecisionStatus,
   ApprovalRequestStatus,
@@ -678,34 +679,23 @@ export class ApprovalWorkflowService {
     }
 
     const request = input.approvalRequest;
+
     const reference =
       clean(request.requestReference) ||
       clean(request.requestNo) ||
       clean(request.referenceNo) ||
       request.id;
 
-    const title =
-      clean(request.requestTitle) ||
-      clean(request.title) ||
-      `Approval required - ${reference}`;
-
-    const requester =
-      clean(request.requesterName) ||
-      clean(request.requestedBy) ||
-      'Requester';
-
-    const requesterEmail =
-      clean(request.requesterEmail) ||
-      clean(request.requestedByEmail) ||
-      '-';
-
-    const amount =
-      request.amount !== null && request.amount !== undefined
-        ? `K ${request.amount}`
-        : '-';
-
     const actionUrl = `${this.getHubBaseUrl()}/approvals/inbox?requestId=${request.id}`;
-    const contextLines = this.getApprovalContextLines(request);
+
+    const bodyText = [
+      buildApprovalNotificationBody({
+        ...request,
+        payload: request.payload || request.metadata || {},
+      }),
+      '',
+      `Open the approval inbox: ${actionUrl}`,
+    ].join('\n');
 
     return this.db().approvalNotificationQueue.create({
       data: {
@@ -717,20 +707,7 @@ export class ApprovalWorkflowService {
         toEmail,
         toName: clean(input.toName) || null,
         subject: `Southin Hub Approval Required - ${reference}`,
-        bodyText: [
-          'Approval required in Southin Hub.',
-          '',
-          `Reference: ${reference}`,
-          `Title: ${title}`,
-          `Module: ${clean(request.module) || '-'}`,
-          `Workflow: ${clean(request.workflowType) || '-'}`,
-          `Requester: ${requester}`,
-          `Requester Email: ${requesterEmail}`,
-          `Amount: ${amount}`,
-          ...contextLines,
-          '',
-          `Open the approval inbox: ${actionUrl}`,
-        ].join('\n'),
+        bodyText,
         actionUrl,
         status: 'PENDING',
       },
@@ -1380,4 +1357,137 @@ export class ApprovalWorkflowService {
 
     return map[cleanRole] || [];
   }
+
+  private safeObject(value: any): any {
+    if (!value) return {};
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return {};
+      }
+    }
+    return typeof value === 'object' ? value : {};
+  }
+
+  private valueText(value: any): string {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return '';
+    return String(value).trim();
+  }
+
+  private firstText(...values: any[]): string {
+    for (const value of values) {
+      const text = this.valueText(value);
+      if (text) return text;
+    }
+    return '';
+  }
+
+  private buildApprovalContextLines(request: any): string[] {
+    const requestPayload = this.safeObject(request?.payload);
+    const sourceInput = this.safeObject(requestPayload?.sourceInput);
+    const sourcePayload = this.safeObject(sourceInput?.payload);
+
+    const module = String(request?.module || sourceInput?.module || '').toUpperCase();
+    const workflowType = String(request?.workflowType || sourceInput?.workflowType || '').toUpperCase();
+
+    if (module !== 'ASSET_MANAGEMENT' || workflowType !== 'ASSET_MOVEMENT') {
+      return [];
+    }
+
+    const lines = Array.isArray(sourcePayload?.lines) ? sourcePayload.lines : [];
+    const firstLine = lines[0] || {};
+    const stockItem = this.safeObject(firstLine?.stockItem);
+
+    const movementType = this.firstText(
+      sourcePayload?.movementType,
+      sourceInput?.movementType,
+    );
+
+    const itemCode = this.firstText(
+      stockItem?.itemCode,
+      firstLine?.itemCode,
+      sourcePayload?.itemCode,
+    );
+
+    const itemName = this.firstText(
+      stockItem?.itemName,
+      firstLine?.itemName,
+      sourcePayload?.itemName,
+    );
+
+    const quantity = this.firstText(
+      firstLine?.quantity,
+      sourcePayload?.quantity,
+    );
+
+    const unit = this.firstText(
+      stockItem?.unitOfMeasure,
+      firstLine?.unitOfMeasure,
+    );
+
+    const fromLocation = this.safeObject(sourcePayload?.fromLocation);
+    const toLocation = this.safeObject(sourcePayload?.toLocation);
+
+    const fromLocationText = [
+      this.firstText(fromLocation?.locationCode),
+      this.firstText(fromLocation?.locationName),
+    ].filter(Boolean).join(' - ') || 'None';
+
+    const toLocationText = [
+      this.firstText(toLocation?.locationCode),
+      this.firstText(toLocation?.locationName),
+    ].filter(Boolean).join(' - ') || 'None';
+
+    const reason = this.firstText(
+      sourcePayload?.reason,
+      sourceInput?.description,
+      request?.requestDescription,
+    );
+
+    const requestedBy = this.firstText(
+      sourcePayload?.requestedBy,
+      sourceInput?.requestedBy,
+      request?.requesterName,
+    );
+
+    const requestedByEmail = this.firstText(
+      sourcePayload?.requestedByEmail,
+      sourceInput?.requestedByEmail,
+      request?.requesterEmail,
+    );
+
+    const totalCost = this.firstText(
+      firstLine?.totalCost,
+      sourcePayload?.amount,
+      sourceInput?.amount,
+      request?.amount,
+    );
+
+    const itemLabel = [itemCode, itemName].filter(Boolean).join(' - ') || '-';
+
+    const contextLines = [
+      '',
+      'Movement Details:',
+      `Movement Type: ${movementType || '-'}`,
+      `Item: ${itemLabel}`,
+      `Quantity: ${quantity || '-'}${unit ? ` ${unit}` : ''}`,
+      `From Location: ${fromLocationText}`,
+      `To Location: ${toLocationText}`,
+      `Reason: ${reason || '-'}`,
+      `Requested By: ${requestedBy || '-'}`,
+      `Requester Email: ${requestedByEmail || '-'}`,
+    ];
+
+    if (totalCost) {
+      contextLines.push(`Movement Value: K ${totalCost}`);
+    }
+
+    if (lines.length > 1) {
+      contextLines.push(`Line Count: ${lines.length}`);
+    }
+
+    return contextLines;
+  }  
 }

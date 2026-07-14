@@ -251,8 +251,8 @@ function getApprovalContextRows(request: any) {
   const sourcePayload = sourceInput?.payload || {};
   const details = sourcePayload?.details || sourcePayload?.movement || sourcePayload || {};
 
-  const module = String(request?.module || '').toUpperCase();
-  const workflowType = String(request?.workflowType || '').toUpperCase();
+  const module = String(request?.module || sourceInput?.module || '').toUpperCase();
+  const workflowType = String(request?.workflowType || sourceInput?.workflowType || '').toUpperCase();
 
   const scalar = (value: any) => {
     if (value === undefined || value === null) return '';
@@ -361,7 +361,108 @@ function getApprovalContextRows(request: any) {
     ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
   }
 
+  if (module === 'PROCUREMENT' && workflowType === 'PROCUREMENT_REQUEST') {
+    const lines = Array.isArray(details?.lines)
+      ? details.lines
+      : Array.isArray(sourceInput?.lines)
+        ? sourceInput.lines
+        : [];
+
+    const itemSummary = lines.length
+      ? lines
+          .slice(0, 5)
+          .map((line: any) => {
+            const item =
+              scalar(line.itemName) ||
+              scalar(line.description) ||
+              scalar(line.serviceDescription) ||
+              'Item / Service';
+
+            const qty = scalar(line.quantity) || scalar(line.requestedQuantity) || '1';
+            const unit = scalar(line.unitOfMeasure) || scalar(line.unit);
+
+            return `${item} x ${qty}${unit ? ` ${unit}` : ''}`;
+          })
+          .join('; ')
+      : '';
+
+    return [
+      ['Requisition No', scalar(details.requisitionNo) || scalar(sourceInput.requisitionNo) || scalar(request.requestReference)],
+      ['Supplier', scalar(details.supplierName) || scalar(sourceInput.supplierName) || scalar(details.supplier) || scalar(sourceInput.supplier)],
+      ['Description', scalar(details.description) || scalar(sourceInput.description) || scalar(request.requestDescription)],
+      ['Items / Services', itemSummary],
+      ['Department', scalar(details.department) || scalar(sourceInput.department) || scalar(request.requesterDepartment)],
+      ['Site', scalar(details.site) || scalar(sourceInput.site) || scalar(request.requesterSite)],
+      ['Branch', scalar(details.branch) || scalar(sourceInput.branch)],
+      ['Invoice Status', scalar(details.invoiceStatus) || scalar(sourceInput.invoiceStatus)],
+      ['Payment Status', scalar(details.paymentStatus) || scalar(sourceInput.paymentStatus)],
+      ['Amount', scalar(details.amount) || scalar(sourceInput.amount) || scalar(request.amount)],
+      ['Reason', scalar(details.reason) || scalar(sourceInput.reason) || scalar(sourceInput.description) || scalar(request.requestDescription)],
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
+  }
+
   return [];
+}
+
+function getAssetMovementDetails(request: any) {
+  const payload = getPayload(request);
+  const sourceInput = payload?.sourceInput || {};
+  const sourcePayload = sourceInput?.payload || {};
+
+  const module = String(request?.module || sourceInput?.module || '').toUpperCase();
+  const workflowType = String(request?.workflowType || sourceInput?.workflowType || '').toUpperCase();
+
+  if (module !== 'ASSET_MANAGEMENT' || workflowType !== 'ASSET_MOVEMENT') {
+    return null;
+  }
+
+  const lines = Array.isArray(sourcePayload?.lines) ? sourcePayload.lines : [];
+  const firstLine = lines[0] || {};
+  const stockItem = firstLine?.stockItem || {};
+
+  const fromLocation = sourcePayload?.fromLocation || {};
+  const toLocation = sourcePayload?.toLocation || {};
+
+  const locationLabel = (location: any) => {
+    const code = location?.locationCode || '';
+    const name = location?.locationName || '';
+    return [code, name].filter(Boolean).join(' - ') || 'None';
+  };
+
+  const lineSummary = lines.length
+    ? lines
+        .slice(0, 8)
+        .map((line: any) => {
+          const item = line?.stockItem || {};
+          const code = item?.itemCode || line?.itemCode || line?.stockItemCode || '';
+          const name = item?.itemName || line?.itemName || line?.stockItemName || line?.description || 'Item';
+          const qty = line?.quantity ?? '-';
+          const unit = item?.unitOfMeasure || line?.unitOfMeasure || '';
+
+          return `${[code, name].filter(Boolean).join(' - ')} x ${qty}${unit ? ` ${unit}` : ''}`;
+        })
+        .join('; ')
+    : '';
+
+  return {
+    movementNo: sourcePayload?.movementNo || sourceInput?.requestNo || request?.requestReference || '-',
+    movementType: sourcePayload?.movementType || sourceInput?.movementType || '-',
+    itemSummary:
+      lineSummary ||
+      [stockItem?.itemCode, stockItem?.itemName].filter(Boolean).join(' - ') ||
+      '-',
+    quantity: firstLine?.quantity ?? sourcePayload?.quantity ?? '-',
+    unitOfMeasure: stockItem?.unitOfMeasure || firstLine?.unitOfMeasure || '',
+    fromLocation: locationLabel(fromLocation),
+    toLocation: locationLabel(toLocation),
+    site: sourcePayload?.site || sourceInput?.site || request?.requesterSite || '-',
+    branch: sourcePayload?.branch || sourceInput?.branch || '-',
+    department: sourcePayload?.department || sourceInput?.department || request?.requesterDepartment || '-',
+    reason: sourcePayload?.reason || sourceInput?.description || request?.requestDescription || '-',
+    requestedBy: sourcePayload?.requestedBy || sourceInput?.requestedBy || request?.requesterName || '-',
+    requestedByEmail: sourcePayload?.requestedByEmail || sourceInput?.requestedByEmail || request?.requesterEmail || '-',
+    lineCount: lines.length,
+  };
 }
 
 export default function ApprovalInboxPage() {
@@ -432,6 +533,7 @@ export default function ApprovalInboxPage() {
     !isTerminalStatus(selected) &&
     roleMatchesApprovalStep(signedInRole, selectedCurrentRole);
   const selectedContextRows = selected ? getApprovalContextRows(selected) : [];
+  const selectedAssetMovement = selected ? getAssetMovementDetails(selected) : null;
 
   async function handleApprove(record: ApprovalWorkflowRecord) {
     setActioning(true);
@@ -734,6 +836,80 @@ export default function ApprovalInboxPage() {
                   <strong>{cleanStatus(String(getWorkflowStatus(selected)))}</strong>
                 </div>
               </div>
+
+              {selectedAssetMovement ? (
+                <div style={{ marginTop: '1.25rem' }}>
+                  <h3>Asset Movement Details</h3>
+
+                  <div className="mini-detail-grid">
+                    <div>
+                      <span>Movement Number</span>
+                      <strong>{selectedAssetMovement.movementNo}</strong>
+                    </div>
+
+                    <div>
+                      <span>Movement Type</span>
+                      <strong>{selectedAssetMovement.movementType}</strong>
+                    </div>
+
+                    <div>
+                      <span>Item / Items Being Moved</span>
+                      <strong>{selectedAssetMovement.itemSummary}</strong>
+                    </div>
+
+                    <div>
+                      <span>Quantity</span>
+                      <strong>
+                        {selectedAssetMovement.quantity} {selectedAssetMovement.unitOfMeasure}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>From Location</span>
+                      <strong>{selectedAssetMovement.fromLocation}</strong>
+                    </div>
+
+                    <div>
+                      <span>To Location</span>
+                      <strong>{selectedAssetMovement.toLocation}</strong>
+                    </div>
+
+                    <div>
+                      <span>Site</span>
+                      <strong>{selectedAssetMovement.site}</strong>
+                    </div>
+
+                    <div>
+                      <span>Branch</span>
+                      <strong>{selectedAssetMovement.branch}</strong>
+                    </div>
+
+                    <div>
+                      <span>Department</span>
+                      <strong>{selectedAssetMovement.department}</strong>
+                    </div>
+
+                    <div>
+                      <span>Requested By</span>
+                      <strong>{selectedAssetMovement.requestedBy}</strong>
+                      <br />
+                      <span className="muted">{selectedAssetMovement.requestedByEmail}</span>
+                    </div>
+
+                    <div>
+                      <span>Line Count</span>
+                      <strong>{selectedAssetMovement.lineCount}</strong>
+                    </div>
+                  </div>
+
+                  <div className="mini-detail-grid" style={{ marginTop: '0.75rem' }}>
+                    <div>
+                      <span>Reason</span>
+                      <strong>{selectedAssetMovement.reason}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {selectedContextRows.length ? (
                 <div style={{ marginTop: '1.25rem' }}>
