@@ -515,6 +515,156 @@ export class ApprovalWorkflowService {
     return base.replace(/\/+$/, '');
   }
 
+  private getApprovalContextLines(request: any): string[] {
+    const payload = this.getRequestPayload(request);
+    const sourceInput = payload?.sourceInput || {};
+    const sourcePayload = sourceInput?.payload || {};
+    const details = sourcePayload?.details || sourcePayload?.movement || sourcePayload || {};
+
+    const module = clean(request.module).toUpperCase();
+    const workflowType = clean(request.workflowType).toUpperCase();
+
+    const scalar = (value: any) => {
+      if (value === undefined || value === null) return '';
+      if (typeof value === 'object') return '';
+      return clean(value);
+    };
+
+    if (module === 'ASSET_MANAGEMENT' && workflowType === 'ASSET_MOVEMENT') {
+      const lines = Array.isArray(details?.lines) ? details.lines : [];
+      const firstLine = lines[0] || {};
+      const firstStockItem = firstLine?.stockItem || {};
+
+      const movementType =
+        scalar(details.movementType) ||
+        scalar(sourceInput.movementType) ||
+        '-';
+
+      const itemCode =
+        scalar(details.stockItemCode) ||
+        scalar(details.itemCode) ||
+        scalar(firstLine.stockItemCode) ||
+        scalar(firstLine.itemCode) ||
+        scalar(firstStockItem.itemCode);
+
+      const itemName =
+        scalar(details.stockItemName) ||
+        scalar(details.itemName) ||
+        scalar(firstLine.stockItemName) ||
+        scalar(firstLine.itemName) ||
+        scalar(firstStockItem.itemName);
+
+      const singleItem =
+        [itemCode, itemName].filter(Boolean).join(' - ') ||
+        scalar(details.stockItemId) ||
+        scalar(firstLine.stockItemId) ||
+        '-';
+
+      const itemSummary = lines.length
+        ? lines
+            .slice(0, 5)
+            .map((line: any) => {
+              const stockItem = line?.stockItem || {};
+              const code =
+                scalar(line.stockItemCode) ||
+                scalar(line.itemCode) ||
+                scalar(stockItem.itemCode);
+
+              const name =
+                scalar(line.stockItemName) ||
+                scalar(line.itemName) ||
+                scalar(stockItem.itemName) ||
+                scalar(line.description) ||
+                'Item';
+
+              const qty = scalar(line.quantity) || '0';
+              const unit = scalar(line.unitOfMeasure) || scalar(stockItem.unitOfMeasure);
+
+              return `${[code, name].filter(Boolean).join(' - ')} x ${qty}${unit ? ` ${unit}` : ''}`;
+            })
+            .join('; ')
+        : '';
+
+      const quantity =
+        scalar(details.quantity) ||
+        scalar(firstLine.quantity) ||
+        scalar(sourceInput.quantity) ||
+        '-';
+
+      const fromLocation =
+        scalar(details.fromLocationName) ||
+        scalar(details.fromLocationCode) ||
+        scalar(details.fromLocation?.locationName) ||
+        scalar(details.fromLocation?.locationCode) ||
+        'None';
+
+      const toLocation =
+        scalar(details.toLocationName) ||
+        scalar(details.toLocationCode) ||
+        scalar(details.toLocation?.locationName) ||
+        scalar(details.toLocation?.locationCode) ||
+        'None';
+
+      const unitCost =
+        scalar(details.unitCost) ||
+        scalar(firstLine.unitCost) ||
+        scalar(sourceInput.unitCost);
+
+      const totalValue =
+        scalar(details.totalValue) ||
+        scalar(firstLine.totalCost) ||
+        scalar(sourceInput.amount) ||
+        scalar(request.amount);
+
+      const reason =
+        scalar(details.reason) ||
+        scalar(sourceInput.description) ||
+        scalar(request.requestDescription) ||
+        '-';
+
+      return [
+        '',
+        'Movement Details:',
+        `Movement Type: ${movementType}`,
+        itemSummary ? `Items: ${itemSummary}` : `Item: ${singleItem}`,
+        `Quantity: ${quantity}`,
+        `From Location: ${fromLocation}`,
+        `To Location: ${toLocation}`,
+        `Site: ${scalar(details.site) || scalar(sourceInput.site) || scalar(request.requesterSite) || '-'}`,
+        `Branch: ${scalar(details.branch) || scalar(sourceInput.branch) || scalar(request.branch) || '-'}`,
+        unitCost ? `Unit Cost: K ${unitCost}` : '',
+        totalValue ? `Total Value: K ${totalValue}` : '',
+        `Reason: ${reason}`,
+      ].filter(Boolean);
+    }
+
+    if (module === 'STORES' && workflowType === 'STORES_REQUISITION') {
+      const lines = Array.isArray(details.lines) ? details.lines : [];
+
+      return [
+        '',
+        'Stores Requisition Details:',
+        `Site: ${scalar(sourceInput.site) || scalar(request.requesterSite) || '-'}`,
+        `Branch: ${scalar(sourceInput.branch) || scalar(request.branch) || '-'}`,
+        `Department: ${scalar(sourceInput.department) || scalar(request.requesterDepartment) || '-'}`,
+        `Reason: ${scalar(details.reason) || scalar(sourceInput.description) || '-'}`,
+        lines.length
+          ? `Items: ${lines
+              .slice(0, 5)
+              .map((line: any) => {
+                const item = scalar(line.itemName) || scalar(line.description) || 'Item';
+                const qty = scalar(line.quantity) || '0';
+                const unit = scalar(line.unitOfMeasure) || scalar(line.unit) || '';
+                return `${item} x ${qty} ${unit}`.trim();
+              })
+              .join('; ')}`
+          : '',
+      ].filter(Boolean);
+    }
+
+    return [];
+  }
+
   private async queueApprovalNotification(input: {
     approvalRequest: any;
     decision: any;
@@ -555,6 +705,7 @@ export class ApprovalWorkflowService {
         : '-';
 
     const actionUrl = `${this.getHubBaseUrl()}/approvals/inbox?requestId=${request.id}`;
+    const contextLines = this.getApprovalContextLines(request);
 
     return this.db().approvalNotificationQueue.create({
       data: {
@@ -576,6 +727,7 @@ export class ApprovalWorkflowService {
           `Requester: ${requester}`,
           `Requester Email: ${requesterEmail}`,
           `Amount: ${amount}`,
+          ...contextLines,
           '',
           `Open the approval inbox: ${actionUrl}`,
         ].join('\n'),

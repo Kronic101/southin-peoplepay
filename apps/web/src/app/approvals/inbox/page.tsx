@@ -245,6 +245,125 @@ function normaliseRecords(data: any): ApprovalWorkflowRecord[] {
   return [];
 }
 
+function getApprovalContextRows(request: any) {
+  const payload = getPayload(request);
+  const sourceInput = payload?.sourceInput || {};
+  const sourcePayload = sourceInput?.payload || {};
+  const details = sourcePayload?.details || sourcePayload?.movement || sourcePayload || {};
+
+  const module = String(request?.module || '').toUpperCase();
+  const workflowType = String(request?.workflowType || '').toUpperCase();
+
+  const scalar = (value: any) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return '';
+    return String(value).trim();
+  };
+
+  if (module === 'ASSET_MANAGEMENT' && workflowType === 'ASSET_MOVEMENT') {
+    const lines = Array.isArray(details?.lines) ? details.lines : [];
+    const firstLine = lines[0] || {};
+    const firstStockItem = firstLine?.stockItem || {};
+
+    const itemCode =
+      scalar(details.stockItemCode) ||
+      scalar(details.itemCode) ||
+      scalar(firstLine.stockItemCode) ||
+      scalar(firstLine.itemCode) ||
+      scalar(firstStockItem.itemCode);
+
+    const itemName =
+      scalar(details.stockItemName) ||
+      scalar(details.itemName) ||
+      scalar(firstLine.stockItemName) ||
+      scalar(firstLine.itemName) ||
+      scalar(firstStockItem.itemName);
+
+    const singleItem =
+      [itemCode, itemName].filter(Boolean).join(' - ') ||
+      scalar(details.stockItemId) ||
+      scalar(firstLine.stockItemId);
+
+    const itemSummary = lines.length
+      ? lines
+          .slice(0, 5)
+          .map((line: any) => {
+            const stockItem = line?.stockItem || {};
+            const code =
+              scalar(line.stockItemCode) ||
+              scalar(line.itemCode) ||
+              scalar(stockItem.itemCode);
+
+            const name =
+              scalar(line.stockItemName) ||
+              scalar(line.itemName) ||
+              scalar(stockItem.itemName) ||
+              scalar(line.description) ||
+              'Item';
+
+            const qty = scalar(line.quantity) || '0';
+            const unit = scalar(line.unitOfMeasure) || scalar(stockItem.unitOfMeasure);
+
+            return `${[code, name].filter(Boolean).join(' - ')} x ${qty}${unit ? ` ${unit}` : ''}`;
+          })
+          .join('; ')
+      : '';
+
+    const fromLocation =
+      scalar(details.fromLocationName) ||
+      scalar(details.fromLocationCode) ||
+      scalar(details.fromLocation?.locationName) ||
+      scalar(details.fromLocation?.locationCode) ||
+      'None';
+
+    const toLocation =
+      scalar(details.toLocationName) ||
+      scalar(details.toLocationCode) ||
+      scalar(details.toLocation?.locationName) ||
+      scalar(details.toLocation?.locationCode) ||
+      'None';
+
+    return [
+      ['Movement Type', scalar(details.movementType) || scalar(sourceInput.movementType)],
+      ['Item / Items', itemSummary || singleItem],
+      ['Quantity', scalar(details.quantity) || scalar(firstLine.quantity) || scalar(sourceInput.quantity)],
+      ['From Location', fromLocation],
+      ['To Location', toLocation],
+      ['Site', scalar(details.site) || scalar(sourceInput.site) || scalar(request.requesterSite)],
+      ['Branch', scalar(details.branch) || scalar(sourceInput.branch) || scalar(request.branch)],
+      ['Unit Cost', scalar(details.unitCost) || scalar(firstLine.unitCost)],
+      ['Total Value', scalar(details.totalValue) || scalar(firstLine.totalCost) || scalar(sourceInput.amount) || scalar(request.amount)],
+      ['Reason', scalar(details.reason) || scalar(sourceInput.description) || scalar(request.requestDescription)],
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
+  }
+
+  if (module === 'STORES' && workflowType === 'STORES_REQUISITION') {
+    const lines = Array.isArray(details?.lines) ? details.lines : [];
+
+    const itemSummary = lines.length
+      ? lines
+          .slice(0, 5)
+          .map((line: any) => {
+            const item = scalar(line.itemName) || scalar(line.description) || 'Item';
+            const qty = scalar(line.quantity) || '0';
+            const unit = scalar(line.unitOfMeasure) || scalar(line.unit);
+            return `${item} x ${qty}${unit ? ` ${unit}` : ''}`;
+          })
+          .join('; ')
+      : '';
+
+    return [
+      ['Site', scalar(sourceInput.site) || scalar(request.requesterSite)],
+      ['Branch', scalar(sourceInput.branch) || scalar(request.branch)],
+      ['Department', scalar(sourceInput.department) || scalar(request.requesterDepartment)],
+      ['Items', itemSummary],
+      ['Reason', scalar(details.reason) || scalar(sourceInput.description) || scalar(request.requestDescription)],
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
+  }
+
+  return [];
+}
+
 export default function ApprovalInboxPage() {
   const { data: session, status: sessionStatus } = useSession();
 
@@ -312,6 +431,7 @@ export default function ApprovalInboxPage() {
     !!selected &&
     !isTerminalStatus(selected) &&
     roleMatchesApprovalStep(signedInRole, selectedCurrentRole);
+  const selectedContextRows = selected ? getApprovalContextRows(selected) : [];
 
   async function handleApprove(record: ApprovalWorkflowRecord) {
     setActioning(true);
@@ -614,6 +734,21 @@ export default function ApprovalInboxPage() {
                   <strong>{cleanStatus(String(getWorkflowStatus(selected)))}</strong>
                 </div>
               </div>
+
+              {selectedContextRows.length ? (
+                <div style={{ marginTop: '1.25rem' }}>
+                  <h3>Request Details</h3>
+
+                  <div className="mini-detail-grid">
+                    {selectedContextRows.map(([label, value]) => (
+                      <div key={String(label)}>
+                        <span>{label}</span>
+                        <strong>{String(value)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {!selectedCanAction && !isTerminalStatus(selected) ? (
                 <div className="alert warning" style={{ marginTop: '1rem' }}>
