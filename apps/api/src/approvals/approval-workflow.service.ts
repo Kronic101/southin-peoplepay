@@ -209,6 +209,8 @@ export class ApprovalWorkflowService {
       };
     }
 
+    const steps = this.getOrderedSteps(matrixRule);
+
     const resolvedApprover = await this.approvalRoutingService.resolveApprover({
       module,
       workflowType,
@@ -316,10 +318,42 @@ export class ApprovalWorkflowService {
       },
     });
 
-    try {
+      try {
       const approvalRequest = await this.db().approvalRequest.create({
         data: approvalRequestData,
       });
+
+      const decisions: any[] = [];
+
+      for (const step of steps) {
+        const isFirstStep = Number(step.sequence) === Number(firstStep.sequence);
+
+        const decision = await this.db().approvalDecision.create({
+          data: {
+            approvalRequestId: approvalRequest.id,
+            sequence: Number(step.sequence),
+            role: step.role as ApprovalStepRole,
+            approverEmail: isFirstStep ? approverEmail : null,
+            approverName: isFirstStep ? approverName : null,
+            status: ApprovalDecisionStatus.PENDING,
+          },
+        });
+
+        decisions.push(decision);
+      }
+
+      const firstDecision = decisions.find(
+        (decision) => Number(decision.sequence) === Number(firstStep.sequence),
+      );
+
+      if (firstDecision && this.isResolvedApprover(resolvedApprover)) {
+        await this.queueApprovalNotification({
+          approvalRequest,
+          decision: firstDecision,
+          toEmail: approverEmail,
+          toName: approverName,
+        });
+      }
 
       return {
         status: workflowStatus,
@@ -329,6 +363,7 @@ export class ApprovalWorkflowService {
         firstStep,
         resolvedApprover,
         approvalRequest,
+        decisions,
       };
     } catch (error: any) {
       return {
@@ -433,6 +468,121 @@ export class ApprovalWorkflowService {
       clean(request.recordId) ||
       clean(this.getRequestPayload(request)?.sourceInput?.sourceId)
     );
+  }
+
+    private getOrderedSteps(rule: any) {
+    return this.normaliseSteps(rule?.approvalSteps)
+      .map((step: any, index: number) => ({
+        ...step,
+        sequence: Number(step.sequence || index + 1),
+      }))
+      .filter((step: any) => clean(step.role))
+      .sort((a: any, b: any) => a.sequence - b.sequence);
+  }
+
+  private isResolvedApprover(result: any) {
+    const status = clean(result?.status).toUpperCase();
+
+    return [
+      'APPROVER_RESOLVED',
+      'GROUP_APPROVER_RESOLVED',
+      'DELEGATED_APPROVER_RESOLVED',
+    ].includes(status);
+  }
+
+  private getResolvedApproverEmail(result: any) {
+    return (
+      clean(result?.approver?.email) ||
+      clean(result?.originalApprover?.email) ||
+      null
+    );
+  }
+
+  private getResolvedApproverName(result: any) {
+    return (
+      clean(result?.approver?.name) ||
+      clean(result?.originalApprover?.name) ||
+      null
+    );
+  }
+
+  private getHubBaseUrl() {
+    const base =
+      clean(process.env.APP_BASE_URL) ||
+      clean(process.env.NEXTAUTH_URL) ||
+      'https://hub.southincon.com';
+
+    return base.replace(/\/+$/, '');
+  }
+
+  private async queueApprovalNotification(input: {
+    approvalRequest: any;
+    decision: any;
+    toEmail?: string | null;
+    toName?: string | null;
+  }) {
+    const toEmail = clean(input.toEmail).toLowerCase();
+
+    if (!toEmail) {
+      return null;
+    }
+
+    const request = input.approvalRequest;
+    const reference =
+      clean(request.requestReference) ||
+      clean(request.requestNo) ||
+      clean(request.referenceNo) ||
+      request.id;
+
+    const title =
+      clean(request.requestTitle) ||
+      clean(request.title) ||
+      `Approval required - ${reference}`;
+
+    const requester =
+      clean(request.requesterName) ||
+      clean(request.requestedBy) ||
+      'Requester';
+
+    const requesterEmail =
+      clean(request.requesterEmail) ||
+      clean(request.requestedByEmail) ||
+      '-';
+
+    const amount =
+      request.amount !== null && request.amount !== undefined
+        ? `K ${request.amount}`
+        : '-';
+
+    const actionUrl = `${this.getHubBaseUrl()}/approvals/inbox?requestId=${request.id}`;
+
+    return this.db().approvalNotificationQueue.create({
+      data: {
+        approvalRequestId: request.id,
+        approvalDecisionId: input.decision?.id || null,
+        module: clean(request.module) || null,
+        workflowType: clean(request.workflowType) || null,
+        approvalRole: clean(input.decision?.role) || null,
+        toEmail,
+        toName: clean(input.toName) || null,
+        subject: `Southin Hub Approval Required - ${reference}`,
+        bodyText: [
+          'Approval required in Southin Hub.',
+          '',
+          `Reference: ${reference}`,
+          `Title: ${title}`,
+          `Module: ${clean(request.module) || '-'}`,
+          `Workflow: ${clean(request.workflowType) || '-'}`,
+          `Requester: ${requester}`,
+          `Requester Email: ${requesterEmail}`,
+          `Amount: ${amount}`,
+          '',
+          `Open the approval inbox: ${actionUrl}`,
+        ].join('\n'),
+        actionUrl,
+        status: 'PENDING',
+      },
+    });
   }
 
   private async updateSourceStatus(request: any, status: string, body: any = {}) {
@@ -629,6 +779,11 @@ export class ApprovalWorkflowService {
   async approveWorkflow(id: string, body: any) {
     const request = await this.db().approvalRequest.findUnique({
       where: { id },
+      include: {
+        decisions: {
+          orderBy: { sequence: 'asc' },
+        },
+      },
     });
 
     if (!request) {
@@ -641,15 +796,24 @@ export class ApprovalWorkflowService {
       throw new BadRequestException('Approval matrix rule not found for this request.');
     }
 
-    const steps = this.normaliseSteps(matrixRule.approvalSteps)
-      .map((step: any, index: number) => ({
-        ...step,
-        sequence: Number(step.sequence || index + 1),
-      }))
-      .sort((a: any, b: any) => a.sequence - b.sequence);
-
+    const steps = this.getOrderedSteps(matrixRule);
     const currentSequence = this.getCurrentStepSequence(request);
-    const nextStep = steps.find((step: any) => step.sequence > currentSequence);
+
+    const currentDecision = request.decisions?.find(
+      (decision: any) =>
+        Number(decision.sequence) === Number(currentSequence) &&
+        decision.status === ApprovalDecisionStatus.PENDING,
+    );
+
+    if (!currentDecision) {
+      throw new BadRequestException(
+        `No pending approval decision found for step ${currentSequence}.`,
+      );
+    }
+
+    const nextStep = steps.find(
+      (step: any) => Number(step.sequence) > Number(currentSequence),
+    );
 
     const payload = this.getRequestPayload(request);
     const history = Array.isArray(payload.history) ? payload.history : [];
@@ -666,6 +830,18 @@ export class ApprovalWorkflowService {
       clean(body.userEmail) ||
       null;
 
+    const actionedByRole =
+      clean(body.approverRole) ||
+      clean(body.userRole) ||
+      clean(body.role) ||
+      null;
+
+    const comments =
+      clean(body.comments) ||
+      'Approved from Southin Hub approval inbox.';
+
+    const now = new Date();
+
     const updatedHistory = [
       ...history,
       {
@@ -673,29 +849,47 @@ export class ApprovalWorkflowService {
         stepSequence: currentSequence,
         actionedBy,
         actionedByEmail,
-        comments: clean(body.comments) || null,
-        actionedAt: new Date().toISOString(),
+        actionedByRole,
+        comments,
+        actionedAt: now.toISOString(),
       },
     ];
+
+    await this.db().approvalDecision.update({
+      where: { id: currentDecision.id },
+      data: {
+        status: ApprovalDecisionStatus.APPROVED,
+        approverName: clean(currentDecision.approverName) || actionedBy,
+        approverEmail: clean(currentDecision.approverEmail) || actionedByEmail,
+        actionedBy,
+        actionedByEmail,
+        actionedByRole,
+        comments,
+        decidedAt: now,
+      },
+    });
 
     if (!nextStep) {
       const updatedRequest = await this.db().approvalRequest.update({
         where: { id },
         data: this.pickModelData('ApprovalRequest', {
-          status: 'APPROVED',
+          status: ApprovalRequestStatus.APPROVED,
           approvalStatus: 'APPROVED',
           requestStatus: 'APPROVED',
+          closedAt: now,
           approvedBy: actionedBy,
-          approvedAt: new Date(),
+          approvedAt: now,
           payload: {
             ...payload,
             history: updatedHistory,
-            completedAt: new Date().toISOString(),
+            workflowStatus: 'APPROVED',
+            completedAt: now.toISOString(),
           },
           metadata: {
             ...payload,
             history: updatedHistory,
-            completedAt: new Date().toISOString(),
+            workflowStatus: 'APPROVED',
+            completedAt: now.toISOString(),
           },
         }),
       });
@@ -725,34 +919,52 @@ export class ApprovalWorkflowService {
       requesterEmail: request.requesterEmail || sourceInput.requestedByEmail,
     });
 
-    const nextApproverEmail =
-      resolvedApprover?.approver?.email ||
-      resolvedApprover?.originalApprover?.email ||
-      null;
+    const nextApproverEmail = this.getResolvedApproverEmail(resolvedApprover);
+    const nextApproverName = this.getResolvedApproverName(resolvedApprover);
 
-    const nextApproverName =
-      resolvedApprover?.approver?.name ||
-      resolvedApprover?.originalApprover?.name ||
-      null;
+    const workflowStatus = this.isResolvedApprover(resolvedApprover)
+      ? 'PENDING_APPROVAL'
+      : 'APPROVER_NOT_CONFIGURED';
 
-    const workflowStatus =
-      resolvedApprover.status === 'APPROVER_RESOLVED' ||
-      resolvedApprover.status === 'GROUP_APPROVER_RESOLVED' ||
-      resolvedApprover.status === 'DELEGATED_APPROVER_RESOLVED'
-        ? 'PENDING_APPROVAL'
-        : 'APPROVER_NOT_CONFIGURED';
+    const requestStatus =
+      workflowStatus === 'PENDING_APPROVAL'
+        ? ApprovalRequestStatus.IN_REVIEW
+        : ApprovalRequestStatus.SUBMITTED;
 
-    const requestStatus = workflowStatus === 'PENDING_APPROVAL' ? 'IN_REVIEW' : 'SUBMITTED';
+    let nextDecision = request.decisions?.find(
+      (decision: any) => Number(decision.sequence) === Number(nextStep.sequence),
+    );
+
+    if (!nextDecision) {
+      nextDecision = await this.db().approvalDecision.create({
+        data: {
+          approvalRequestId: request.id,
+          sequence: Number(nextStep.sequence),
+          role: nextStep.role as ApprovalStepRole,
+          approverEmail: nextApproverEmail,
+          approverName: nextApproverName,
+          status: ApprovalDecisionStatus.PENDING,
+        },
+      });
+    } else {
+      nextDecision = await this.db().approvalDecision.update({
+        where: { id: nextDecision.id },
+        data: {
+          approverEmail: nextApproverEmail,
+          approverName: nextApproverName,
+        },
+      });
+    }
 
     const updatedRequest = await this.db().approvalRequest.update({
       where: { id },
       data: this.pickModelData('ApprovalRequest', {
         status: requestStatus,
         approvalStatus: requestStatus,
-        requestStatus: requestStatus,
+        requestStatus,
 
-        currentStep: nextStep.sequence,
-        currentStepSequence: nextStep.sequence,
+        currentStep: Number(nextStep.sequence),
+        currentStepSequence: Number(nextStep.sequence),
         currentStepRole: nextStep.role,
         currentApprovalRole: nextStep.role,
 
@@ -766,35 +978,72 @@ export class ApprovalWorkflowService {
         payload: {
           ...payload,
           history: updatedHistory,
-          nextStep,
+          nextStep: {
+            ...nextStep,
+            approverEmail: nextApproverEmail,
+            approverName: nextApproverName,
+          },
           resolvedApprover,
           workflowStatus,
         },
         metadata: {
           ...payload,
           history: updatedHistory,
-          nextStep,
+          nextStep: {
+            ...nextStep,
+            approverEmail: nextApproverEmail,
+            approverName: nextApproverName,
+          },
           resolvedApprover,
           workflowStatus,
         },
       }),
     });
 
+    if (this.isResolvedApprover(resolvedApprover)) {
+      await this.queueApprovalNotification({
+        approvalRequest: updatedRequest,
+        decision: nextDecision,
+        toEmail: nextApproverEmail,
+        toName: nextApproverName,
+      });
+    }
+
     return {
       status: workflowStatus,
       approvalRequest: updatedRequest,
       nextStep,
       resolvedApprover,
+      nextDecision,
     };
   }
 
   async rejectWorkflow(id: string, body: any) {
     const request = await this.db().approvalRequest.findUnique({
       where: { id },
+      include: {
+        decisions: {
+          orderBy: { sequence: 'asc' },
+        },
+      },
     });
 
     if (!request) {
       throw new BadRequestException('Approval request not found.');
+    }
+
+    const currentSequence = this.getCurrentStepSequence(request);
+
+    const currentDecision = request.decisions?.find(
+      (decision: any) =>
+        Number(decision.sequence) === Number(currentSequence) &&
+        decision.status === ApprovalDecisionStatus.PENDING,
+    );
+
+    if (!currentDecision) {
+      throw new BadRequestException(
+        `No pending approval decision found for step ${currentSequence}.`,
+      );
     }
 
     const payload = this.getRequestPayload(request);
@@ -812,34 +1061,67 @@ export class ApprovalWorkflowService {
       clean(body.userEmail) ||
       null;
 
+    const actionedByRole =
+      clean(body.approverRole) ||
+      clean(body.userRole) ||
+      clean(body.role) ||
+      null;
+
+    const comments =
+      clean(body.comments) ||
+      clean(body.rejectionReason) ||
+      'Rejected from Southin Hub approval inbox.';
+
+    const now = new Date();
+
     const updatedHistory = [
       ...history,
       {
         action: 'REJECTED',
-        stepSequence: this.getCurrentStepSequence(request),
+        stepSequence: currentSequence,
         actionedBy,
         actionedByEmail,
-        comments: clean(body.comments) || clean(body.rejectionReason) || null,
-        actionedAt: new Date().toISOString(),
+        actionedByRole,
+        comments,
+        actionedAt: now.toISOString(),
       },
     ];
+
+    await this.db().approvalDecision.update({
+      where: { id: currentDecision.id },
+      data: {
+        status: ApprovalDecisionStatus.REJECTED,
+        approverName: clean(currentDecision.approverName) || actionedBy,
+        approverEmail: clean(currentDecision.approverEmail) || actionedByEmail,
+        actionedBy,
+        actionedByEmail,
+        actionedByRole,
+        comments,
+        decidedAt: now,
+      },
+    });
 
     const updatedRequest = await this.db().approvalRequest.update({
       where: { id },
       data: this.pickModelData('ApprovalRequest', {
-        status: 'REJECTED',
+        status: ApprovalRequestStatus.REJECTED,
         approvalStatus: 'REJECTED',
         requestStatus: 'REJECTED',
+        closedAt: now,
         rejectedBy: actionedBy,
-        rejectedAt: new Date(),
-        rejectionReason: clean(body.rejectionReason) || clean(body.comments) || 'Rejected.',
+        rejectedAt: now,
+        rejectionReason: comments,
         payload: {
           ...payload,
           history: updatedHistory,
+          workflowStatus: 'REJECTED',
+          rejectedAt: now.toISOString(),
         },
         metadata: {
           ...payload,
           history: updatedHistory,
+          workflowStatus: 'REJECTED',
+          rejectedAt: now.toISOString(),
         },
       }),
     });
@@ -847,6 +1129,7 @@ export class ApprovalWorkflowService {
     const sourceUpdate = await this.updateSourceStatus(request, 'REJECTED', {
       ...body,
       rejectedBy: actionedBy,
+      rejectionReason: comments,
     });
 
     return {
