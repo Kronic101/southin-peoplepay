@@ -221,9 +221,11 @@ export class PeopleOpsService {
       requestedByEmail: timesheet.submittedByEmail || null,
       employee,
       siteName: timesheet.siteName || null,
+      branch,
       amount: 0,
       payload: {
         ...timesheet,
+        branch,
         totalHours,
       },
     });

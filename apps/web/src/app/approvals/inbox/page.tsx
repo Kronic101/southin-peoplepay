@@ -49,20 +49,158 @@ const ALLOWED_APPROVAL_ROLES: StaffRole[] = [
   'AUDITOR',
 ];
 
-function formatDate(value?: string | null) {
-  if (!value) return '-';
+type AnyRecord = Record<string, any>;
+type DetailRow = [string, string];
+
+function compactDetailRows(rows: Array<[string, any]>): DetailRow[] {
+  return rows
+    .map(([label, value]) => [String(label), scalar(value)] as DetailRow)
+    .filter(([, value]) => value.length > 0);
+}
+
+function asObject(value: any): AnyRecord {
+  if (!value) return {};
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+
+  if (typeof value === 'object') return value;
+
+  return {};
+}
+
+function scalar(value: any): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'object') return '';
+  return String(value).trim();
+}
+
+function formatDate(value: any): string {
+  if (!value) return '';
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
+  if (Number.isNaN(date.getTime())) return scalar(value);
 
-  return date.toLocaleString('en-ZM', {
+  return date.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
+
+function money(value: any, currency = 'ZMW'): string {
+  const amount = Number(value ?? 0);
+
+  if (!Number.isFinite(amount)) {
+    return currency === 'ZMW' ? 'K 0' : `${currency} 0`;
+  }
+
+  if (currency === 'ZMW') {
+    return `K ${amount.toLocaleString('en-ZM', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  return `${currency} ${amount.toLocaleString('en-ZM', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function extractApprovalPayload(request: AnyRecord) {
+  const payload = asObject(request?.payload);
+  const sourceInput = asObject(payload.sourceInput || request?.sourceInput);
+  const sourcePayload = asObject(
+    sourceInput.payload ||
+      payload.sourcePayload ||
+      payload.payload ||
+      request?.sourcePayload,
+  );
+
+  return {
+    payload,
+    sourceInput,
+    sourcePayload,
+  };
+}
+
+function buildApprovalRequestDetailRows(request: AnyRecord): DetailRow[] {
+  const { sourceInput, sourcePayload } = extractApprovalPayload(request);
+
+  const module = scalar(request?.module || sourceInput.module).toUpperCase();
+  const workflowType = scalar(request?.workflowType || sourceInput.workflowType).toUpperCase();
+
+  if (module === 'PEOPLE_OPERATIONS' && workflowType === 'LEAVE_REQUEST') {
+    return compactDetailRows([
+      ['Employee', sourcePayload.employeeName || sourceInput.employeeName],
+      ['Employee No', sourcePayload.employeeNumber || sourceInput.employeeNumber],
+      ['Leave Type', sourcePayload.leaveType || sourceInput.leaveType],
+      ['Start Date', formatDate(sourcePayload.startDate || sourceInput.startDate)],
+      ['End Date', formatDate(sourcePayload.endDate || sourceInput.endDate)],
+      ['Total Days', sourcePayload.totalDays || sourceInput.totalDays],
+      ['Site', sourcePayload.siteName || sourcePayload.site || sourceInput.site],
+      ['Responsible Manager', sourcePayload.siteManagerName || sourceInput.siteManagerName],
+      ['Manager Email', sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail],
+      ['Reason', sourcePayload.reason || sourceInput.reason || request?.requestDescription],
+    ]);
+  }
+
+  if (module === 'PEOPLE_OPERATIONS' && workflowType === 'OVERTIME_REQUEST') {
+    return compactDetailRows([
+      ['Employee', sourcePayload.employeeName || sourceInput.employeeName],
+      ['Employee No', sourcePayload.employeeNumber || sourceInput.employeeNumber],
+      ['Overtime Date', formatDate(sourcePayload.overtimeDate || sourceInput.overtimeDate)],
+      ['Requested Hours', sourcePayload.requestedHours || sourceInput.requestedHours],
+      ['Hourly Rate', money(sourcePayload.hourlyRate || sourceInput.hourlyRate || 0)],
+      ['Estimated Cost', money(sourcePayload.estimatedCost || sourceInput.amount || request?.amount || 0)],
+      ['Site', sourcePayload.siteName || sourcePayload.site || sourceInput.site],
+      ['Responsible Manager', sourcePayload.siteManagerName || sourceInput.siteManagerName],
+      ['Manager Email', sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail],
+      ['Reason', sourcePayload.reason || sourceInput.reason || request?.requestDescription],
+    ]);
+  }
+
+  if (module === 'PEOPLE_OPERATIONS' && workflowType === 'TIMESHEET_APPROVAL') {
+    return compactDetailRows([
+      ['Employee', sourcePayload.employeeName || sourceInput.employeeName],
+      ['Employee No', sourcePayload.employeeNumber || sourceInput.employeeNumber],
+      ['Period Start', formatDate(sourcePayload.periodStart || sourceInput.periodStart)],
+      ['Period End', formatDate(sourcePayload.periodEnd || sourceInput.periodEnd)],
+      ['Normal Hours', sourcePayload.normalHours || sourceInput.normalHours],
+      ['Overtime Hours', sourcePayload.overtimeHours || sourceInput.overtimeHours],
+      ['Site', sourcePayload.siteName || sourcePayload.site || sourceInput.site],
+      ['Responsible Manager', sourcePayload.siteManagerName || sourceInput.siteManagerName],
+      ['Manager Email', sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail],
+      ['Notes', sourcePayload.notes || sourceInput.notes || request?.requestDescription],
+    ]);
+  }
+
+  if (module === 'PEOPLE_OPERATIONS' && workflowType === 'PEOPLE_ATTENDANCE_REVIEW') {
+    return compactDetailRows([
+      ['Review Reference', sourceInput.requestNo || request?.requestReference],
+      ['Period', sourcePayload.period || sourceInput.period],
+      ['Site', sourcePayload.siteName || sourcePayload.site || sourceInput.site],
+      ['Department', sourcePayload.department || sourceInput.department || request?.requesterDepartment],
+      ['Captured Records', sourcePayload.recordCount || sourceInput.recordCount],
+      ['Prepared By', sourcePayload.submittedBy || sourceInput.requestedBy || request?.requesterName],
+      ['Notes', sourcePayload.notes || sourceInput.description || request?.requestDescription],
+    ]);
+  }
+
+  return compactDetailRows([
+    ['Description', sourceInput.description || sourcePayload.description || request?.requestDescription],
+    ['Department', sourceInput.department || sourcePayload.department || request?.requesterDepartment],
+    ['Site', sourceInput.site || sourcePayload.site || request?.requesterSite],
+    ['Amount', request?.amount ? money(request.amount) : ''],
+  ]);
+}
+
 
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
@@ -532,7 +670,17 @@ export default function ApprovalInboxPage() {
     !!selected &&
     !isTerminalStatus(selected) &&
     roleMatchesApprovalStep(signedInRole, selectedCurrentRole);
-  const selectedContextRows = selected ? getApprovalContextRows(selected) : [];
+  const selectedContextRows = useMemo<DetailRow[]>(() => {
+  if (!selected) return [];
+
+  const standardRows = buildApprovalRequestDetailRows(selected);
+
+  if (standardRows.length) {
+    return standardRows;
+  }
+
+  return getApprovalContextRows(selected) as DetailRow[];
+}, [selected]);
   const selectedAssetMovement = selected ? getAssetMovementDetails(selected) : null;
 
   async function handleApprove(record: ApprovalWorkflowRecord) {

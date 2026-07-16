@@ -176,92 +176,6 @@ export function buildApprovalDetailRows(input: AnyRecord): Array<[string, string
     return rows.filter(([, value]) => value);
   }
 
-    if (module === 'LEAVE' || workflowType === 'LEAVE_REQUEST') {
-    const rows: Array<[string, string]> = [
-      ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
-      ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
-      ['Leave Type', scalar(sourcePayload.leaveType || sourceInput.leaveType)],
-      ['Start Date', scalar(sourcePayload.startDate || sourceInput.startDate)],
-      ['End Date', scalar(sourcePayload.endDate || sourceInput.endDate)],
-      ['Requested Days', scalar(sourcePayload.requestedDays || sourceInput.requestedDays)],
-      ['Site', scalar(sourcePayload.siteName || sourcePayload.site || sourceInput.site || input.requesterSite)],
-      ['Responsible Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
-      ['Manager Email', scalar(sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail)],
-      ['Reason', scalar(sourcePayload.reason || sourceInput.reason || input.requestDescription)],
-    ];
-
-    return rows.filter(([, value]) => value);
-  }
-
-  if (module === 'OVERTIME' || workflowType === 'OVERTIME_REQUEST') {
-    const rows: Array<[string, string]> = [
-      ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
-      ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
-      ['Overtime Date', scalar(sourcePayload.overtimeDate || sourceInput.overtimeDate)],
-      ['Requested Hours', scalar(sourcePayload.requestedHours || sourceInput.requestedHours)],
-      ['Hourly Rate', money(sourcePayload.hourlyRate || sourceInput.hourlyRate || 0)],
-      ['Estimated Cost', money(sourcePayload.estimatedCost || sourceInput.estimatedCost || input.amount || 0)],
-      ['Site', scalar(sourcePayload.siteName || sourcePayload.site || sourceInput.site || input.requesterSite)],
-      ['Responsible Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
-      ['Manager Email', scalar(sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail)],
-      ['Reason', scalar(sourcePayload.reason || sourceInput.reason || input.requestDescription)],
-    ];
-
-    return rows.filter(([, value]) => value);
-  }
-
-  if (module === 'TIMESHEET' || workflowType === 'TIMESHEET_APPROVAL') {
-    const rows: Array<[string, string]> = [
-      ['Timesheet No', scalar(sourcePayload.timesheetNo || sourceInput.timesheetNo || input.requestReference)],
-      ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
-      ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
-      ['Period', scalar(sourcePayload.periodName || sourceInput.periodName)],
-      ['Start Date', scalar(sourcePayload.startDate || sourceInput.startDate)],
-      ['End Date', scalar(sourcePayload.endDate || sourceInput.endDate)],
-      ['Normal Hours', scalar(sourcePayload.normalHours || sourceInput.normalHours)],
-      ['Overtime Hours', scalar(sourcePayload.overtimeHours || sourceInput.overtimeHours)],
-      ['Site Hours', scalar(sourcePayload.siteHours || sourceInput.siteHours)],
-      ['Casual Hours', scalar(sourcePayload.casualHours || sourceInput.casualHours)],
-      ['Site', scalar(sourcePayload.siteName || sourcePayload.site || sourceInput.site || input.requesterSite)],
-      ['Responsible Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
-      ['Manager Email', scalar(sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail)],
-      ['Notes', scalar(sourcePayload.notes || sourceInput.notes || input.requestDescription)],
-    ];
-
-    return rows.filter(([, value]) => value);
-  }
-
-  if (module === 'ATTENDANCE' || workflowType === 'ATTENDANCE_CONFIRMATION') {
-    const rows: Array<[string, string]> = [
-      ['Attendance No', scalar(sourcePayload.attendanceNo || sourceInput.attendanceNo || input.requestReference)],
-      ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
-      ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
-      ['Attendance Date', scalar(sourcePayload.attendanceDate || sourceInput.attendanceDate)],
-      ['Shift', scalar(sourcePayload.shift || sourceInput.shift)],
-      ['Attendance Status', scalar(sourcePayload.status || sourceInput.status)],
-      ['Site', scalar(sourcePayload.siteName || sourcePayload.site || sourceInput.site || input.requesterSite)],
-      ['Responsible Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
-      ['Manager Email', scalar(sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail)],
-      ['Notes', scalar(sourcePayload.notes || sourceInput.notes || input.requestDescription)],
-    ];
-
-    return rows.filter(([, value]) => value);
-  }
-
-  if (module === 'FINANCE') {
-    const rows: Array<[string, string]> = [
-      ['Reference', scalar(sourceInput.requestNo || input.requestReference)],
-      ['Description', scalar(sourceInput.description || sourcePayload.description || input.requestDescription)],
-      ['Department', scalar(sourceInput.department || sourcePayload.department || input.requesterDepartment)],
-      ['Site', scalar(sourceInput.site || sourcePayload.site || input.requesterSite)],
-      ['Branch', scalar(sourceInput.branch || sourcePayload.branch)],
-      ['Amount', money(sourceInput.amount || sourcePayload.amount || input.amount || 0, scalar(sourceInput.currency) || 'ZMW')],
-      ['Reason', scalar(sourceInput.reason || sourcePayload.reason || input.requestDescription)],
-    ];
-
-    return rows.filter(([, value]) => value);
-  }
-
   if (module === 'PEOPLE_OPERATIONS' && workflowType === 'OVERTIME_REQUEST') {
     const rows: Array<[string, string]> = [
         ['Overtime No', scalar(sourcePayload.overtimeNo || sourceInput.requestNo || input.requestReference)],
@@ -329,16 +243,30 @@ export function buildApprovalDetailRows(input: AnyRecord): Array<[string, string
     return rows.filter(([, value]) => value);
     }
 
-  const rows: Array<[string, string]> = [
-    ['Description', scalar(sourceInput.description || sourcePayload.description || input.requestDescription)],
-    ['Department', scalar(sourceInput.department || sourcePayload.department || input.requesterDepartment)],
-    ['Site', scalar(sourceInput.site || sourcePayload.site || input.requesterSite)],
-    ['Branch', scalar(sourceInput.branch || sourcePayload.branch)],
-    ['Amount', money(sourceInput.amount || sourcePayload.amount || input.amount || 0, scalar(sourceInput.currency) || 'ZMW')],
-  ];
+  if (module === 'FINANCE') {
+    const rows: Array<[string, string]> = [
+      ['Reference', scalar(sourceInput.requestNo || input.requestReference)],
+      ['Description', scalar(sourceInput.description || sourcePayload.description || input.requestDescription)],
+      ['Department', scalar(sourceInput.department || sourcePayload.department || input.requesterDepartment)],
+      ['Site', scalar(sourceInput.site || sourcePayload.site || input.requesterSite)],
+      ['Branch', scalar(sourceInput.branch || sourcePayload.branch)],
+      ['Amount', money(sourceInput.amount || sourcePayload.amount || input.amount || 0, scalar(sourceInput.currency) || 'ZMW')],
+      ['Reason', scalar(sourceInput.reason || sourcePayload.reason || input.requestDescription)],
+    ];
 
-  return rows.filter(([, value]) => value);
-}
+    return rows.filter(([, value]) => value);
+  }
+
+  const rows: Array<[string, string]> = [
+        ['Description', scalar(sourceInput.description || sourcePayload.description || input.requestDescription)],
+        ['Department', scalar(sourceInput.department || sourcePayload.department || input.requesterDepartment)],
+        ['Site', scalar(sourceInput.site || sourcePayload.site || input.requesterSite)],
+        ['Branch', scalar(sourceInput.branch || sourcePayload.branch)],
+        ['Amount', money(sourceInput.amount || sourcePayload.amount || input.amount || 0, scalar(sourceInput.currency) || 'ZMW')],
+    ];
+
+    return rows.filter(([, value]) => value);
+    }
 
 export function buildApprovalNotificationBody(input: AnyRecord) {
   const { sourceInput } = extractSource(input);
