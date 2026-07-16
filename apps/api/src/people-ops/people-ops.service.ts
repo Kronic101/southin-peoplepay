@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ApprovalWorkflowService } from '../approvals/approval-workflow.service'; 
 
 function clean(value: unknown) {
   if (value === undefined || value === null) return '';
@@ -15,15 +16,27 @@ function asNumber(value: unknown) {
 
 function asDate(value: unknown, fieldName: string) {
   const date = new Date(clean(value));
-  if (Number.isNaN(date.getTime())) {
+  if (Number.isNaN(date.getTime())) { 
     throw new BadRequestException(`${fieldName} is required.`);
   }
   return date;
 }
 
+function approvalRequestIdFrom(workflow: any) {
+  return (
+    workflow?.approvalRequest?.id ||
+    workflow?.approvalRequestId ||
+    workflow?.id ||
+    null
+  );
+}
+
 @Injectable()
 export class PeopleOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   private db() {
     return this.prisma as any;
@@ -35,13 +48,20 @@ export class PeopleOpsService {
     return `${prefix}-${year}-${String(count + 1).padStart(5, '0')}`;
   }
 
-  private async getEmployee(employeeId: string) {
-    if (!employeeId) {
+  private async getEmployee(employeeIdentifier: string) {
+    const value = clean(employeeIdentifier);
+
+    if (!value) {
       throw new BadRequestException('Employee is required.');
     }
 
-    const employee = await this.db().employee.findUnique({
-      where: { id: employeeId },
+    const employee = await this.db().employee.findFirst({
+      where: {
+        OR: [
+          { id: value },
+          { employeeNumber: value },
+        ],
+      },
       include: {
         department: true,
         jobTitle: true,
@@ -51,7 +71,9 @@ export class PeopleOpsService {
     });
 
     if (!employee) {
-      throw new BadRequestException('Selected employee does not exist.');
+      throw new BadRequestException(
+        `Selected employee does not exist for identifier: ${value}`,
+      );
     }
 
     return employee;
@@ -64,6 +86,58 @@ export class PeopleOpsService {
       employee.employeeNumber ||
       'Employee'
     );
+  }
+
+  private decimalNumber(value: any) {
+    const parsed = Number(value?.toString?.() ?? value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private async startPeopleOpsApproval(input: {
+    workflowType:
+      | 'LEAVE_REQUEST'
+      | 'OVERTIME_REQUEST'
+      | 'TIMESHEET_APPROVAL'
+      | 'PEOPLE_ATTENDANCE_REVIEW';
+    sourceType: string;
+    sourceId: string;
+    requestNo: string;
+    title: string;
+    description: string;
+    requestedBy: string;
+    requestedByEmail: string | null;
+    employee: any;
+    siteName: string | null;
+    branch?: string | null;
+    amount?: any;
+    payload: any;
+  }) {
+    return this.approvalWorkflowService.startWorkflowSafe({
+      module: 'PEOPLE_OPERATIONS' as any,
+      workflowType: input.workflowType as any,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      requestNo: input.requestNo,
+      title: input.title,
+      description: input.description,
+      requestedBy: input.requestedBy,
+      requestedByEmail: input.requestedByEmail,
+      requesterRole: 'PEOPLE_OPERATIONS_REQUESTER',
+      department: input.employee?.department?.name || null,
+      departmentId: input.employee?.departmentId || null,
+      site: input.siteName || null,
+      branch: input.branch || null,
+      amount: this.decimalNumber(input.amount),
+      currency: 'ZMW',
+      payload: {
+        ...input.payload,
+        employeeNumber: input.employee?.employeeNumber || null,
+        employeeName: this.employeeName(input.employee),
+        department: input.employee?.department?.name || null,
+        jobTitle: input.employee?.jobTitle?.name || null,
+        employmentType: input.employee?.employmentType?.name || null,
+      },
+    });
   }
 
   async createAttendance(body: any) {
@@ -104,7 +178,14 @@ export class PeopleOpsService {
       'timesheetNo',
     );
 
-    return this.db().timesheetRecord.create({
+    const branch =
+    clean(body.branch) ||
+    clean(body.siteBranch) ||
+    clean(employee.branch) ||
+    clean(employee.site?.branch) ||
+    null;
+
+    const timesheet = await this.db().timesheetRecord.create({
       data: {
         timesheetNo,
         employeeId: employee.id,
@@ -124,6 +205,33 @@ export class PeopleOpsService {
         submittedByEmail: clean(body.submittedByEmail) || null,
       },
     });
+
+    const totalHours =
+      this.decimalNumber(timesheet.normalHours) +
+      this.decimalNumber(timesheet.overtimeHours);
+
+    const approvalWorkflow: any = await this.startPeopleOpsApproval({
+      workflowType: 'TIMESHEET_APPROVAL',
+      sourceType: 'TIMESHEET',
+      sourceId: timesheet.id,
+      requestNo: timesheet.timesheetNo,
+      title: `Timesheet approval - ${timesheet.timesheetNo}`,
+      description: `Timesheet for ${timesheet.employeeName}`,
+      requestedBy: timesheet.submittedBy || 'Staff user',
+      requestedByEmail: timesheet.submittedByEmail || null,
+      employee,
+      siteName: timesheet.siteName || null,
+      amount: 0,
+      payload: {
+        ...timesheet,
+        totalHours,
+      },
+    });
+
+    return {
+      ...timesheet,
+      approvalWorkflow,
+    };
   }
 
   async createLeaveRequest(body: any) {
@@ -137,13 +245,23 @@ export class PeopleOpsService {
       );
     }
 
-    return this.db().leaveRequest.create({
+    const branch =
+      clean(body.branch) ||
+      clean(body.siteBranch) ||
+      clean(employee.branch) ||
+      clean(employee.site?.branch) ||
+      null;
+
+    const leave = await this.db().leaveRequest.create({
       data: {
         employeeId: employee.id,
         leaveType: clean(body.leaveType) || 'ANNUAL',
         startDate: asDate(body.startDate, 'Start date'),
         endDate: asDate(body.endDate, 'End date'),
-        totalDays: Math.max(1, Math.round(asNumber(body.totalDays || body.requestedDays || 1))),
+        totalDays: Math.max(
+          1,
+          Math.round(asNumber(body.totalDays || body.requestedDays || 1)),
+        ),
         reason: clean(body.reason) || null,
         siteId: clean(body.siteId) || employee.siteId || null,
         siteName: clean(body.siteName) || employee.siteName || employee.site?.name || null,
@@ -154,6 +272,52 @@ export class PeopleOpsService {
         status: 'PENDING_SUPERVISOR',
       },
     });
+
+    const leaveNo = leave.leaveNo || leave.requestNo || `LEAVE-${leave.id}`;
+
+    const approvalWorkflow: any = await this.startPeopleOpsApproval({
+      workflowType: 'LEAVE_REQUEST',
+      sourceType: 'LEAVE_REQUEST',
+      sourceId: leave.id,
+      requestNo: leaveNo,
+      title: `Leave approval - ${leaveNo}`,
+      description: leave.reason || `${leave.leaveType} leave request`,
+      requestedBy: clean(body.submittedBy) || this.employeeName(employee),
+      requestedByEmail: clean(body.submittedByEmail) || null,
+      employee,
+      siteName: leave.siteName || null,
+      branch,
+      amount: 0,
+      payload: {
+        ...leave,
+        branch,
+        leaveNo,
+        employeeNumber: employee.employeeNumber,
+        employeeName: this.employeeName(employee),
+        siteManagerName: leave.siteManagerName,
+        siteManagerEmail: leave.siteManagerEmail,
+        leaveType: leave.leaveType,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        totalDays: leave.totalDays,
+        reason: leave.reason,
+      },
+    });
+
+    const approvalRequestId = approvalRequestIdFrom(approvalWorkflow);
+
+    const updatedLeave = await this.db().leaveRequest.update({
+      where: { id: leave.id },
+      data: {
+        approvalRequestId,
+        status: 'PENDING_SUPERVISOR',
+      },
+    });
+
+    return {
+      ...updatedLeave,
+      approvalWorkflow,
+    };
   }
 
   async createOvertimeRequest(body: any) {
@@ -163,13 +327,20 @@ export class PeopleOpsService {
     const rate = new Prisma.Decimal(asNumber(body.hourlyRate || employee.hourlyRate || 0));
     const estimatedCost = hours.mul(rate);
 
+    const branch =
+    clean(body.branch) ||
+    clean(body.siteBranch) ||
+    clean(employee.branch) ||
+    clean(employee.site?.branch) ||
+    null;
+
     const overtimeNo = await this.nextRef(
       'OT',
       'overtimeRequest',
       'overtimeNo',
     );
 
-    return this.db().overtimeRequest.create({
+    const overtime = await this.db().overtimeRequest.create({
       data: {
         overtimeNo,
         employeeId: employee.id,
@@ -189,5 +360,57 @@ export class PeopleOpsService {
         submittedByEmail: clean(body.submittedByEmail) || null,
       },
     });
+
+    const approvalWorkflow: any = await this.approvalWorkflowService.startWorkflowSafe({
+      module: 'PEOPLE_OPERATIONS',
+      workflowType: 'OVERTIME_REQUEST',
+      sourceType: 'OVERTIME_REQUEST',
+      sourceId: overtime.id,
+      requestNo: overtime.overtimeNo,
+      title: `Overtime approval - ${overtime.overtimeNo}`,
+      description: overtime.reason || 'Overtime request',
+      requestedBy: overtime.submittedBy || 'Staff user',
+      requestedByEmail: overtime.submittedByEmail || null,
+      requesterRole: 'PEOPLE_OPERATIONS_REQUESTER',
+      department: employee.department?.name || null,
+      departmentId: employee.departmentId || null,
+      site: overtime.siteName || null,
+      branch: branch,
+      amount: this.decimalNumber(overtime.estimatedCost),
+      currency: 'ZMW',
+      payload: {
+        ...overtime,
+        branch,
+        employeeNumber: employee.employeeNumber,
+        employeeName: this.employeeName(employee),
+        department: employee.department?.name || null,
+        jobTitle: employee.jobTitle?.name || null,
+        employmentType: employee.employmentType?.name || null,
+        siteName: overtime.siteName,
+        siteManagerName: overtime.siteManagerName,
+        siteManagerEmail: overtime.siteManagerEmail,
+        overtimeDate: overtime.overtimeDate,
+        requestedHours: this.decimalNumber(overtime.requestedHours),
+        hourlyRate: this.decimalNumber(overtime.hourlyRate),
+        estimatedCost: this.decimalNumber(overtime.estimatedCost),
+        reason: overtime.reason,
+      },
+    });
+
+    const approvalRequestId = approvalRequestIdFrom(approvalWorkflow);
+
+    const updatedOvertime = await this.db().overtimeRequest.update({
+      where: { id: overtime.id },
+      data: {
+        approvalRequestId,
+        status: 'SUBMITTED',
+      },
+    });
+
+    return {
+      ...updatedOvertime,
+      approvalWorkflow,
+    };
   }
+  
 }

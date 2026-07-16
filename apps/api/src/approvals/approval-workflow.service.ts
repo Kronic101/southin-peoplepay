@@ -212,7 +212,7 @@ export class ApprovalWorkflowService {
 
     const steps = this.getOrderedSteps(matrixRule);
 
-    const resolvedApprover = await this.approvalRoutingService.resolveApprover({
+    const resolvedApprover: any = await this.resolveApproverForStep({
       module,
       workflowType,
       approvalRole: firstStep.role,
@@ -229,15 +229,8 @@ export class ApprovalWorkflowService {
         ? 'PENDING_APPROVAL'
         : 'APPROVER_NOT_CONFIGURED';
 
-    const approverEmail =
-      resolvedApprover?.approver?.email ||
-      resolvedApprover?.originalApprover?.email ||
-      null;
-
-    const approverName =
-      resolvedApprover?.approver?.name ||
-      resolvedApprover?.originalApprover?.name ||
-      null;
+    const approverEmail = this.getResolvedApproverEmail(resolvedApprover);
+    const approverName = this.getResolvedApproverName(resolvedApprover);
 
     const requestTitle =
       clean(input.title) ||
@@ -492,19 +485,136 @@ export class ApprovalWorkflowService {
   }
 
   private getResolvedApproverEmail(result: any) {
+    const resolved: any = result || {};
+
     return (
-      clean(result?.approver?.email) ||
-      clean(result?.originalApprover?.email) ||
+      clean(resolved?.approver?.email) ||
+      clean(resolved?.originalApprover?.email) ||
+      clean(resolved?.assignment?.userEmail) ||
+      clean(resolved?.userEmail) ||
       null
     );
   }
 
   private getResolvedApproverName(result: any) {
+    const resolved: any = result || {};
+
     return (
-      clean(result?.approver?.name) ||
-      clean(result?.originalApprover?.name) ||
+      clean(resolved?.approver?.name) ||
+      clean(resolved?.originalApprover?.name) ||
+      clean(resolved?.assignment?.userName) ||
+      clean(resolved?.userName) ||
       null
     );
+  }
+
+  private sameScopeValue(leftValue: any, rightValue: any) {
+    const left = clean(leftValue).toLowerCase();
+    const right = clean(rightValue).toLowerCase();
+
+    if (!left && !right) return true;
+    if (!left || !right) return false;
+
+    return left === right || left.includes(right) || right.includes(left);
+  }
+
+  private async resolveApproverForStep(input: {
+    module: string;
+    workflowType: string;
+    approvalRole: string;
+    site?: string | null;
+    branch?: string | null;
+    departmentId?: string | null;
+    requesterEmail?: string | null;
+  }): Promise<any> {
+    const routed: any = await this.approvalRoutingService.resolveApprover({
+      module: input.module,
+      workflowType: input.workflowType,
+      approvalRole: input.approvalRole,
+      site: input.site,
+      branch: input.branch,
+      departmentId: input.departmentId,
+      requesterEmail: input.requesterEmail,
+    });
+
+    const routedEmail = this.getResolvedApproverEmail(routed);
+
+    if (this.isResolvedApprover(routed) && routedEmail) {
+      return routed;
+    }
+
+    const module = clean(input.module);
+    const workflowType = clean(input.workflowType);
+    const approvalRole = clean(input.approvalRole);
+    const site = clean(input.site);
+    const branch = clean(input.branch);
+
+    const assignments = await this.db().approvalApproverAssignment.findMany({
+      where: {
+        isActive: true,
+        approvalRole: approvalRole as ApprovalStepRole,
+        OR: [
+          { module, workflowType },
+          { module, workflowType: null },
+          { module: null, workflowType },
+          { module: null, workflowType: null },
+        ],
+      },
+      orderBy: [
+        { isPrimary: 'desc' },
+        { isDefault: 'desc' },
+        { priority: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    const ranked = assignments
+      .map((assignment: any) => {
+        const assignmentSite = clean(assignment.site);
+        const assignmentBranch = clean(assignment.branch);
+
+        if (assignmentSite && !this.sameScopeValue(assignmentSite, site)) {
+          return null;
+        }
+
+        if (assignmentBranch && !this.sameScopeValue(assignmentBranch, branch)) {
+          return null;
+        }
+
+        let score = 0;
+
+        if (clean(assignment.module) === module) score += 100;
+        if (clean(assignment.workflowType) === workflowType) score += 100;
+        if (assignmentSite && this.sameScopeValue(assignmentSite, site)) score += 50;
+        if (assignmentBranch && this.sameScopeValue(assignmentBranch, branch)) score += 30;
+        if (assignment.isPrimary) score += 10;
+        if (assignment.isDefault) score += 5;
+
+        score -= Number(assignment.priority || 99) / 100;
+
+        return { assignment, score };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.score - a.score);
+
+    const selected = ranked[0]?.assignment;
+
+    if (!selected?.userEmail) {
+      return routed;
+    }
+
+    return {
+      status: 'APPROVER_RESOLVED',
+      approvalRole,
+      assigneeType: selected.assigneeType || 'USER',
+      approver: {
+        name: selected.userName,
+        email: selected.userEmail,
+        microsoftUserId: selected.microsoftUserId || null,
+      },
+      assignment: selected,
+      fallbackReason: routed?.status || 'ROUTING_SERVICE_DID_NOT_RESOLVE',
+    };
   }
 
   private getHubBaseUrl() {
@@ -1038,7 +1148,7 @@ export class ApprovalWorkflowService {
 
     const sourceInput = payload.sourceInput || {};
 
-    const resolvedApprover = await this.approvalRoutingService.resolveApprover({
+    const resolvedApprover: any = await this.resolveApproverForStep({
       module: request.module,
       workflowType: request.workflowType,
       approvalRole: nextStep.role,

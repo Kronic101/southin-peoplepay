@@ -325,12 +325,15 @@ model AttendanceRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  approvalRequestId String?
+
   @@index([employeeId])
   @@index([siteId])
   @@index([siteManagerEmail])
   @@index([attendanceDate])
   @@index([status])
   @@map("attendance_records")
+  @@index([approvalRequestId])
 }
 
 model TimesheetRecord {
@@ -354,11 +357,14 @@ model TimesheetRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  approvalRequestId String?
+
   @@index([employeeId])
   @@index([siteId])
   @@index([siteManagerEmail])
   @@index([status])
   @@map("timesheet_records")
+  @@index([approvalRequestId])
 }
 
 model OvertimeRequest {
@@ -2758,6 +2764,7 @@ enum OperationsModule {
   OPERATIONS
   SHAREPOINT
   SYSTEM_ADMIN
+  PEOPLE_OPERATIONS
 }
 
 enum ApprovalWorkflowType {
@@ -2782,6 +2789,9 @@ enum ApprovalWorkflowType {
   PAYMENT_BATCH
   SHAREPOINT_PUBLISH
   GENERAL_REQUEST
+  PEOPLE_ATTENDANCE_REVIEW
+  TIMESHEET_APPROVAL
+  OVERTIME_REQUEST
 }
 
 enum ApprovalRequestStatus {
@@ -2810,6 +2820,7 @@ enum ApprovalStepRole {
   BRANCH_MANAGER
   HOD
   HR_MANAGER
+  HR_OFFICER
   PAYROLL_OFFICER
   FINANCE_MANAGER
   PROCUREMENT_OFFICER

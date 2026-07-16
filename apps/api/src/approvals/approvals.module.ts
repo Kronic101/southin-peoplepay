@@ -21,6 +21,7 @@ import { GraphMailService } from '../notifications/graph-mail.service';
     ApprovalsController,
     ApprovalWorkflowController,
     ApprovalRoutingController,
+    ApprovalNotificationsController,
   ],
   providers: [
     ApprovalsService,
