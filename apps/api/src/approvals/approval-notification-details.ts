@@ -16,6 +16,18 @@ function asObject(value: any): AnyRecord {
   return {};
 }
 
+function formatDateOnly(value: any): string {
+  if (!value) return '';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return scalar(value);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
 function scalar(value: any): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'object') return '';
@@ -212,20 +224,22 @@ export function buildApprovalDetailRows(input: AnyRecord): Array<[string, string
 
     if (module === 'PEOPLE_OPERATIONS' && workflowType === 'TIMESHEET_APPROVAL') {
     const rows: Array<[string, string]> = [
-        ['Timesheet No', scalar(sourcePayload.timesheetNo || sourceInput.requestNo || input.requestReference)],
-        ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
-        ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
-        ['Site', scalar(sourcePayload.siteName || sourceInput.site || input.requesterSite)],
-        ['Site Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
-        ['Period Start', scalar(sourcePayload.periodStart || sourceInput.periodStart)],
-        ['Period End', scalar(sourcePayload.periodEnd || sourceInput.periodEnd)],
-        ['Normal Hours', scalar(sourcePayload.normalHours || sourceInput.normalHours)],
-        ['Overtime Hours', scalar(sourcePayload.overtimeHours || sourceInput.overtimeHours)],
-        ['Notes', scalar(sourcePayload.notes || sourceInput.description || input.requestDescription)],
+      ['Employee', scalar(sourcePayload.employeeName || sourceInput.employeeName)],
+      ['Employee No', scalar(sourcePayload.employeeNumber || sourceInput.employeeNumber)],
+      ['Period Start', formatDateOnly(sourcePayload.periodStart || sourceInput.periodStart)],
+      ['Period End', formatDateOnly(sourcePayload.periodEnd || sourceInput.periodEnd)],
+      ['Normal Hours', scalar(sourcePayload.normalHours || sourceInput.normalHours)],
+      ['Overtime Hours', scalar(sourcePayload.overtimeHours || sourceInput.overtimeHours)],
+      ['Total Hours', scalar(sourcePayload.totalHours || sourceInput.totalHours)],
+      ['Site', scalar(sourcePayload.siteName || sourcePayload.site || sourceInput.site || input.requesterSite)],
+      ['Department', scalar(sourcePayload.department || sourceInput.department || input.requesterDepartment)],
+      ['Responsible Manager', scalar(sourcePayload.siteManagerName || sourceInput.siteManagerName)],
+      ['Manager Email', scalar(sourcePayload.siteManagerEmail || sourceInput.siteManagerEmail)],
+      ['Notes', scalar(sourcePayload.notes || sourceInput.notes || input.requestDescription)],
     ];
 
     return rows.filter(([, value]) => value);
-    }
+  }
 
     if (module === 'PEOPLE_OPERATIONS' && workflowType === 'PEOPLE_ATTENDANCE_REVIEW') {
     const rows: Array<[string, string]> = [

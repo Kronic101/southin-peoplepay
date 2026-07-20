@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { getOvertimeDashboard, getPeopleOpsContext } from '@/lib/api';
+import {
+  approvalLabel,
+  approvalProgress,
+  payrollReady as approvalPayrollReady,
+  currentApprover,
+} from '@/lib/people-ops-approval-ui';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -274,47 +280,50 @@ export default async function OvertimePage({ searchParams }: PageProps) {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Site</th>
-                  <th>Date</th>
-                  <th>Hours</th>
-                  <th>Rate</th>
-                  <th>Estimated Cost</th>
-                  <th>Manager</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+              <tr>
+                <th>Employee</th>
+                <th>Site</th>
+                <th>Date</th>
+                <th>Hours</th>
+                <th>Rate</th>
+                <th>Estimated Cost</th>
+                <th>Current Approver</th>
+                <th>Approval</th>
+                <th>Steps</th>
+                <th>Payroll Ready</th>
+              </tr>
+            </thead>
 
               <tbody>
                 {records.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No overtime requests found.</td>
+                    <td colSpan={10}>No overtime requests found.</td>
                   </tr>
                 ) : (
                   records.map((record: any) => {
-                    const hours = Number(record.approvedHours ?? record.requestedHours ?? record.hours ?? 0);
-                    const rate = Number(record.hourlyRate ?? record.rate ?? 0);
+                  const hours = Number(record.approvedHours ?? record.requestedHours ?? record.hours ?? 0);
+                  const rate = Number(record.hourlyRate ?? record.rate ?? 0);
+                  const estimatedCost = Number(record.estimatedCost ?? hours * rate);
 
-                    return (
-                      <tr key={record.id}>
-                        <td>{formatName(record)}</td>
-                        <td>{record.siteName || record.site?.name || '-'}</td>
-                        <td>{formatDate(record.overtimeDate || record.date || record.createdAt)}</td>
-                        <td>{hours}</td>
-                        <td>{rate ? money(rate) : '-'}</td>
-                        <td>{money(record.estimatedCost ?? hours * rate)}</td>
-                        <td>
-                          <strong>{record.managerName || record.approverName || '-'}</strong>
-                          <br />
-                          <span className="muted">{record.managerEmail || record.approverEmail || '-'}</span>
-                        </td>
-                        <td>
-                          <StatusPill status={record.status || 'PENDING'} />
-                        </td>
-                      </tr>
-                    );
-                  })
+                  return (
+                    <tr key={record.id}>
+                      <td>{formatName(record)}</td>
+                      <td>{record.siteName || record.site || '-'}</td>
+                      <td>{formatDate(record.overtimeDate || record.date || record.createdAt)}</td>
+                      <td>{hours}</td>
+                      <td>{money(rate)}</td>
+                      <td>{money(estimatedCost)}</td>
+                      <td>{currentApprover(record)}</td>
+                      <td>
+                        <StatusPill status={approvalLabel(record)} />
+                      </td>
+                      <td>{approvalProgress(record)}</td>
+                      <td>
+                        <StatusPill status={approvalPayrollReady(record)} />
+                      </td>
+                    </tr>
+                  );
+                })
                 )}
               </tbody>
             </table>

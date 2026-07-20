@@ -22,6 +22,29 @@ function asDate(value: unknown, fieldName: string) {
   return date;
 }
 
+type ApprovalTrackedRecord = {
+  approvalRequestId?: string | null;
+  status?: string | null;
+  [key: string]: any;
+};
+
+type ApprovalRequestLite = {
+  id: string;
+  status?: string | null;
+  currentStep?: number | null;
+  [key: string]: any;
+};
+
+type ApprovalDecisionLite = {
+  id?: string;
+  approvalRequestId: string;
+  sequence?: number | null;
+  role?: string | null;
+  approverEmail?: string | null;
+  status?: string | null;
+  [key: string]: any;
+};
+
 function approvalRequestIdFrom(workflow: any) {
   return (
     workflow?.approvalRequest?.id ||
@@ -91,6 +114,106 @@ export class PeopleOpsService {
   private decimalNumber(value: any) {
     const parsed = Number(value?.toString?.() ?? value ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private async attachApprovalState<T extends ApprovalTrackedRecord>(
+    records: T[],
+  ): Promise<Array<T & { approval: any }>> {
+    const approvalIds = Array.from(
+      new Set(
+        records
+          .map((record) => record.approvalRequestId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    if (!approvalIds.length) {
+      return records.map((record) => ({
+        ...record,
+        approval: {
+          id: null,
+          status: record.status || 'OPEN',
+          approvedSteps: 0,
+          totalSteps: 0,
+          currentStep: null,
+          currentRole: null,
+          currentApproverEmail: null,
+          fullyApproved: false,
+          payrollReady: false,
+        },
+      }));
+    }
+
+    const approvalRequests = (await this.db().approvalRequest.findMany({
+      where: {
+        id: {
+          in: approvalIds,
+        },
+      },
+    })) as ApprovalRequestLite[];
+
+    const decisions = (await this.db().approvalDecision.findMany({
+      where: {
+        approvalRequestId: {
+          in: approvalIds,
+        },
+      },
+      orderBy: {
+        sequence: 'asc',
+      },
+    })) as ApprovalDecisionLite[];
+
+    const requestById = new Map<string, ApprovalRequestLite>(
+      approvalRequests.map((request) => [request.id, request]),
+    );
+
+    const decisionsByRequestId = new Map<string, ApprovalDecisionLite[]>();
+
+    for (const decision of decisions) {
+      const list = decisionsByRequestId.get(decision.approvalRequestId) || [];
+      list.push(decision);
+      decisionsByRequestId.set(decision.approvalRequestId, list);
+    }
+
+    return records.map((record) => {
+      const approvalRequest: ApprovalRequestLite | null = record.approvalRequestId
+        ? requestById.get(record.approvalRequestId) || null
+        : null;
+
+      const approvalDecisions: ApprovalDecisionLite[] = record.approvalRequestId
+        ? decisionsByRequestId.get(record.approvalRequestId) || []
+        : [];
+
+      const approvedSteps = approvalDecisions.filter(
+        (decision) => decision.status === 'APPROVED',
+      ).length;
+
+      const totalSteps = approvalDecisions.length;
+
+      const pendingDecision =
+        approvalDecisions.find((decision) => decision.status === 'PENDING') ||
+        null;
+
+      const fullyApproved =
+        approvalRequest?.status === 'APPROVED' &&
+        totalSteps > 0 &&
+        approvedSteps === totalSteps;
+
+      return {
+        ...record,
+        approval: {
+          id: approvalRequest?.id || null,
+          status: approvalRequest?.status || record.status || 'OPEN',
+          currentStep: approvalRequest?.currentStep || null,
+          approvedSteps,
+          totalSteps,
+          currentRole: pendingDecision?.role || null,
+          currentApproverEmail: pendingDecision?.approverEmail || null,
+          fullyApproved,
+          payrollReady: fullyApproved,
+        },
+      };
+    });
   }
 
   private async startPeopleOpsApproval(input: {
@@ -179,11 +302,11 @@ export class PeopleOpsService {
     );
 
     const branch =
-    clean(body.branch) ||
-    clean(body.siteBranch) ||
-    clean(employee.branch) ||
-    clean(employee.site?.branch) ||
-    null;
+      clean(body.branch) ||
+      clean(body.siteBranch) ||
+      clean(employee.branch) ||
+      clean(employee.site?.branch) ||
+      null;
 
     const timesheet = await this.db().timesheetRecord.create({
       data: {
@@ -192,7 +315,11 @@ export class PeopleOpsService {
         employeeNumber: employee.employeeNumber,
         employeeName: this.employeeName(employee),
         siteId: clean(body.siteId) || employee.siteId || null,
-        siteName: clean(body.siteName) || employee.siteName || employee.site?.name || null,
+        siteName:
+          clean(body.siteName) ||
+          employee.siteName ||
+          employee.site?.name ||
+          null,
         siteManagerName: clean(body.siteManagerName) || null,
         siteManagerEmail: clean(body.siteManagerEmail) || null,
         periodStart: asDate(body.periodStart, 'Period start'),
@@ -212,11 +339,11 @@ export class PeopleOpsService {
 
     const approvalWorkflow: any = await this.startPeopleOpsApproval({
       workflowType: 'TIMESHEET_APPROVAL',
-      sourceType: 'TIMESHEET',
+      sourceType: 'TIMESHEET_APPROVAL',
       sourceId: timesheet.id,
       requestNo: timesheet.timesheetNo,
       title: `Timesheet approval - ${timesheet.timesheetNo}`,
-      description: `Timesheet for ${timesheet.employeeName}`,
+      description: timesheet.notes || `Timesheet approval for ${timesheet.employeeName}`,
       requestedBy: timesheet.submittedBy || 'Staff user',
       requestedByEmail: timesheet.submittedByEmail || null,
       employee,
@@ -226,12 +353,35 @@ export class PeopleOpsService {
       payload: {
         ...timesheet,
         branch,
+        employeeNumber: employee.employeeNumber,
+        employeeName: this.employeeName(employee),
+        department: employee.department?.name || null,
+        jobTitle: employee.jobTitle?.name || null,
+        employmentType: employee.employmentType?.name || null,
+        siteName: timesheet.siteName,
+        siteManagerName: timesheet.siteManagerName,
+        siteManagerEmail: timesheet.siteManagerEmail,
+        periodStart: timesheet.periodStart,
+        periodEnd: timesheet.periodEnd,
+        normalHours: this.decimalNumber(timesheet.normalHours),
+        overtimeHours: this.decimalNumber(timesheet.overtimeHours),
         totalHours,
+        notes: timesheet.notes,
+      },
+    });
+
+    const approvalRequestId = approvalRequestIdFrom(approvalWorkflow);
+
+    const updatedTimesheet = await this.db().timesheetRecord.update({
+      where: { id: timesheet.id },
+      data: {
+        approvalRequestId,
+        status: 'SUBMITTED',
       },
     });
 
     return {
-      ...timesheet,
+      ...updatedTimesheet,
       approvalWorkflow,
     };
   }

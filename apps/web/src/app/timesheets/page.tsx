@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { getTimesheetDashboard, getPeopleOpsContext } from '@/lib/api';
+import {
+  approvalLabel,
+  approvalProgress,
+  payrollReady as approvalPayrollReady,
+  currentApprover,
+} from '@/lib/people-ops-approval-ui';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -55,6 +61,9 @@ function getEmployeeRate(employee: any) {
   if (employee?.monthlyRate) return `${money(employee.monthlyRate)}/month`;
   return '-';
 }
+
+
+
 
 export default async function TimesheetsPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
@@ -301,39 +310,36 @@ export default async function TimesheetsPage({ searchParams }: PageProps) {
                   <th>Period</th>
                   <th>Normal Hours</th>
                   <th>Overtime Hours</th>
-                  <th>Manager</th>
-                  <th>Status</th>
+                  <th>Current Approver</th>
+                  <th>Approval</th>
+                  <th>Steps</th>
+                  <th>Payroll Ready</th>
                 </tr>
               </thead>
 
               <tbody>
                 {records.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No timesheets found.</td>
+                    <td colSpan={10}>No timesheets found.</td>
                   </tr>
                 ) : (
                   records.map((record: any) => (
                     <tr key={record.id}>
-                      <td>
-                        <strong>{record.timesheetNo || record.reference || '-'}</strong>
-                        <br />
-                        <span className="muted">{formatDate(record.createdAt)}</span>
-                      </td>
+                      <td>{record.timesheetNo || record.requestReference || '-'}</td>
                       <td>{formatName(record)}</td>
-                      <td>{record.siteName || record.site?.name || '-'}</td>
+                      <td>{record.siteName || record.site || '-'}</td>
                       <td>
-                        {formatDate(record.periodStart || record.startDate)} -{' '}
-                        {formatDate(record.periodEnd || record.endDate)}
+                        {formatDate(record.periodStart)} - {formatDate(record.periodEnd)}
                       </td>
-                      <td>{record.normalHours ?? record.hours ?? 0}</td>
-                      <td>{record.overtimeHours ?? 0}</td>
+                      <td>{record.normalHours ?? '-'}</td>
+                      <td>{record.overtimeHours ?? '-'}</td>
+                      <td>{currentApprover(record)}</td>
                       <td>
-                        <strong>{record.managerName || record.approverName || '-'}</strong>
-                        <br />
-                        <span className="muted">{record.managerEmail || record.approverEmail || '-'}</span>
+                        <StatusPill status={approvalLabel(record)} />
                       </td>
+                      <td>{approvalProgress(record)}</td>
                       <td>
-                        <StatusPill status={record.status || 'OPEN'} />
+                        <StatusPill status={approvalPayrollReady(record)} />
                       </td>
                     </tr>
                   ))

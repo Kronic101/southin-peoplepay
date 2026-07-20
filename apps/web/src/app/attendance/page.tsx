@@ -2,6 +2,11 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { getAttendanceDashboard, getPeopleOpsContext } from '@/lib/api';
+import {
+  approvalLabel,
+  approvalProgress,
+} from '@/lib/people-ops-approval-ui';
+
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,6 +16,20 @@ type PageProps = {
     siteId?: string;
   }>;
 };
+
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+
+  try {
+    return new Date(value).toLocaleDateString('en-ZM', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return '-';
+  }
+}
 
 function displayValue(value: any, fallback = '-') {
   if (value === null || value === undefined || value === '') return fallback;
@@ -31,6 +50,12 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const employees = context?.employees || [];
   const siteManagers = context?.siteManagers || [];
   const sites = context?.sites || [];
+
+  const records =
+  (data as any)?.attendanceRecords ||
+  (data as any)?.records ||
+  (data as any)?.items ||
+  [];
 
   return (
     <AppShell>
@@ -227,6 +252,70 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="finance-card">
+            <div className="section-heading-row">
+              <div>
+                <h2>Recent Attendance Activity</h2>
+                <p className="muted">
+                  Daily attendance remains captured activity until it is included in a reviewed attendance batch.
+                </p>
+              </div>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Employee No.</th>
+                    <th>Site</th>
+                    <th>Date</th>
+                    <th>Shift</th>
+                    <th>Status</th>
+                    <th>Captured By</th>
+                    <th>Review</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {records.length === 0 ? (
+                    <tr>
+                      <td colSpan={8}>No attendance activity found.</td>
+                    </tr>
+                  ) : (
+                    records.map((record: any) => (
+                      <tr key={record.id}>
+                        <td>{record.employeeName || '-'}</td>
+                        <td>{record.employeeNumber || '-'}</td>
+                        <td>{record.siteName || '-'}</td>
+                        <td>{formatDate(record.attendanceDate || record.createdAt)}</td>
+                        <td>{record.shift || '-'}</td>
+                        <td>
+                          <StatusPill status={record.status || 'CAPTURED'} />
+                        </td>
+                        <td>
+                          <strong>{record.capturedBy || '-'}</strong>
+                          <br />
+                          <span className="muted">{record.capturedByEmail || '-'}</span>
+                        </td>
+                        <td>
+                          {record.approval?.id ? (
+                            <>
+                              <StatusPill status={approvalLabel(record)} />
+                              <br />
+                              <span className="muted">{approvalProgress(record)}</span>
+                            </>
+                          ) : (
+                            <span className="muted">Not yet batched</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>

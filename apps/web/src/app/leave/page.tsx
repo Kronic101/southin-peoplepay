@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { getLeaveDashboard, getPeopleOpsContext } from '@/lib/api';
+import {
+  approvalLabel,
+  approvalProgress,
+  payrollReady as approvalPayrollReady,
+  currentApprover,
+} from '@/lib/people-ops-approval-ui';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -256,7 +262,7 @@ export default async function LeavePage({ searchParams }: PageProps) {
         <div className="finance-card">
           <div className="section-heading-row">
             <div>
-              <h2>Recent Leave Requests</h2>
+              <h2>Recent Leave Activity</h2>
               <p className="muted">
                 Approved leave must be included in payroll period validation before payroll is locked.
               </p>
@@ -272,8 +278,10 @@ export default async function LeavePage({ searchParams }: PageProps) {
                   <th>Leave Type</th>
                   <th>Dates</th>
                   <th>Days</th>
-                  <th>Manager</th>
-                  <th>Status</th>
+                  <th>Current Approver</th>
+                  <th>Approval</th>
+                  <th>Steps</th>
+                  <th>Payroll Ready</th>
                   <th>Submitted</th>
                 </tr>
               </thead>
@@ -281,25 +289,25 @@ export default async function LeavePage({ searchParams }: PageProps) {
               <tbody>
                 {records.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>No leave requests found.</td>
+                    <td colSpan={10}>No leave requests found.</td>
                   </tr>
                 ) : (
                   records.map((record: any) => (
                     <tr key={record.id}>
                       <td>{formatName(record)}</td>
-                      <td>{record.siteName || record.site?.name || '-'}</td>
-                      <td>{record.leaveType || record.type || '-'}</td>
+                      <td>{record.siteName || record.site || '-'}</td>
+                      <td>{record.leaveType || '-'}</td>
                       <td>
                         {formatDate(record.startDate)} - {formatDate(record.endDate)}
                       </td>
-                      <td>{record.requestedDays ?? record.days ?? '-'}</td>
+                      <td>{record.totalDays ?? record.requestedDays ?? '-'}</td>
+                      <td>{currentApprover(record)}</td>
                       <td>
-                        <strong>{record.managerName || record.approverName || '-'}</strong>
-                        <br />
-                        <span className="muted">{record.managerEmail || record.approverEmail || '-'}</span>
+                        <StatusPill status={approvalLabel(record)} />
                       </td>
+                      <td>{approvalProgress(record)}</td>
                       <td>
-                        <StatusPill status={record.status || 'PENDING'} />
+                        <StatusPill status={approvalPayrollReady(record)} />
                       </td>
                       <td>{formatDate(record.createdAt || record.submittedAt)}</td>
                     </tr>

@@ -671,16 +671,16 @@ export default function ApprovalInboxPage() {
     !isTerminalStatus(selected) &&
     roleMatchesApprovalStep(signedInRole, selectedCurrentRole);
   const selectedContextRows = useMemo<DetailRow[]>(() => {
-  if (!selected) return [];
+    if (!selected) return [];
 
-  const standardRows = buildApprovalRequestDetailRows(selected);
+    const standardRows = buildApprovalRequestDetailRows(selected);
 
-  if (standardRows.length) {
-    return standardRows;
-  }
+    if (standardRows.length) {
+      return standardRows;
+    }
 
-  return getApprovalContextRows(selected) as DetailRow[];
-}, [selected]);
+    return getApprovalContextRows(selected) as DetailRow[];
+  }, [selected]);
   const selectedAssetMovement = selected ? getAssetMovementDetails(selected) : null;
 
   async function handleApprove(record: ApprovalWorkflowRecord) {
