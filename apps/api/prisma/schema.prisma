@@ -397,6 +397,163 @@ model OvertimeRequest {
   @@map("overtime_requests")
 }
 
+model SafetyObservation {
+  id                String   @id @default(uuid())
+  observationNo     String   @unique
+
+  siteId            String?
+  siteName          String?
+  branch            String?
+  department        String?
+  exactLocation     String?
+
+  observationDate   DateTime
+  observationType   String   @default("UNSAFE_CONDITION")
+  riskLevel         String   @default("LOW")
+  description       String
+  immediateAction   String?
+
+  personObserved    String?
+  employeeId        String?
+  contractorName    String?
+
+  reportedBy        String?
+  reportedByEmail   String?
+
+  photoUrls         Json?
+  gpsLatitude       Decimal? @db.Decimal(10, 7)
+  gpsLongitude      Decimal? @db.Decimal(10, 7)
+
+  status            String   @default("OPEN")
+  approvalRequestId String?
+
+  mobileDraftId     String?
+  idempotencyKey    String?
+  syncStatus        String?  @default("SYNCED")
+  deviceId          String?
+  capturedOfflineAt DateTime?
+  syncedAt          DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  correctiveActions SafetyCorrectiveAction[] @relation("ObservationCorrectiveActions")
+
+  @@index([siteId])
+  @@index([siteName])
+  @@index([branch])
+  @@index([riskLevel])
+  @@index([status])
+  @@index([approvalRequestId])
+  @@index([reportedByEmail])
+  @@map("safety_observations")
+}
+
+model SafetyIncident {
+  id                 String   @id @default(uuid())
+  incidentNo         String   @unique
+
+  siteId             String?
+  siteName           String?
+  branch             String?
+  department         String?
+  exactLocation      String?
+
+  incidentDate       DateTime
+  reportedDate       DateTime @default(now())
+
+  incidentType       String   @default("NEAR_MISS")
+  severity           String   @default("LOW")
+  description        String
+  immediateAction    String?
+
+  injuredPersonName  String?
+  injuredEmployeeId  String?
+  contractorCompany  String?
+  injuryType         String?
+  bodyPart           String?
+
+  rootCause          String?
+  investigationNotes String?
+
+  reportedBy         String?
+  reportedByEmail    String?
+
+  photoUrls          Json?
+  gpsLatitude        Decimal? @db.Decimal(10, 7)
+  gpsLongitude       Decimal? @db.Decimal(10, 7)
+
+  status             String   @default("SUBMITTED")
+  approvalRequestId  String?
+
+  mobileDraftId      String?
+  idempotencyKey     String?
+  syncStatus         String?  @default("SYNCED")
+  deviceId           String?
+  capturedOfflineAt  DateTime?
+  syncedAt           DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  correctiveActions  SafetyCorrectiveAction[] @relation("IncidentCorrectiveActions")
+
+  @@index([siteId])
+  @@index([siteName])
+  @@index([branch])
+  @@index([incidentType])
+  @@index([severity])
+  @@index([status])
+  @@index([approvalRequestId])
+  @@index([reportedByEmail])
+  @@map("safety_incidents")
+}
+
+model SafetyCorrectiveAction {
+  id                 String   @id @default(uuid())
+  actionNo           String   @unique
+
+  sourceType         String
+  sourceId           String
+
+  observationId      String?
+  observation        SafetyObservation? @relation("ObservationCorrectiveActions", fields: [observationId], references: [id])
+
+  incidentId         String?
+  incident           SafetyIncident? @relation("IncidentCorrectiveActions", fields: [incidentId], references: [id])
+
+  title              String
+  description        String
+  priority           String   @default("MEDIUM")
+
+  assignedToName     String?
+  assignedToEmail    String?
+  dueDate            DateTime?
+
+  status             String   @default("OPEN")
+
+  completedBy        String?
+  completedAt        DateTime?
+  verificationNotes  String?
+  verifiedBy         String?
+  verifiedAt         DateTime?
+
+  createdBy          String?
+  createdByEmail     String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([sourceType, sourceId])
+  @@index([observationId])
+  @@index([incidentId])
+  @@index([assignedToEmail])
+  @@index([priority])
+  @@index([status])
+  @@index([dueDate])
+  @@map("safety_corrective_actions")
+}
+
 model PayrollPeriod {
   id         String       @id @default(uuid())
   periodName String
@@ -1591,36 +1748,6 @@ model FleetCostPosting {
   @@map("fleet_cost_postings")
 }
 
-model SafetyIncident {
-  id         String @id @default(uuid())
-  incidentNo String @unique
-
-  incidentDate DateTime
-  reportedBy   String?
-  department   String?
-  site         String?
-  location     String?
-
-  incidentType String
-  severity     String
-  description  String
-
-  status           SafetyIncidentStatus @default(REPORTED)
-  correctiveAction String?
-  closedBy         String?
-  closedAt         DateTime?
-
-  approvalRequestId String?
-  payload           Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
-  @@index([site])
-  @@map("safety_incidents")
-}
-
 model QualityRecord {
   id       String @id @default(uuid())
   recordNo String @unique
@@ -2792,6 +2919,8 @@ enum ApprovalWorkflowType {
   PEOPLE_ATTENDANCE_REVIEW
   TIMESHEET_APPROVAL
   OVERTIME_REQUEST
+  SAFETY_OBSERVATION_REVIEW
+  SAFETY_CORRECTIVE_ACTION_CLOSEOUT
 }
 
 enum ApprovalRequestStatus {

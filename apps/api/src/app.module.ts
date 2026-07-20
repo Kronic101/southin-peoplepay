@@ -22,6 +22,7 @@ import { StoresModule } from './stores/stores.module';
 import { SitesModule } from './sites/sites.module';
 import { PeopleOpsModule } from './people-ops/people-ops.module';
 import { OperationsModule } from './operations/operations.module';
+import { SafetyModule } from './safety/safety.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { OperationsModule } from './operations/operations.module';
     SitesModule,
     PeopleOpsModule,
     OperationsModule,
+    SafetyModule,
   ],
   controllers: [
     HealthController,

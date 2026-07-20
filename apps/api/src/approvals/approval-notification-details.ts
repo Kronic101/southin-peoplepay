@@ -271,6 +271,48 @@ export function buildApprovalDetailRows(input: AnyRecord): Array<[string, string
     return rows.filter(([, value]) => value);
   }
 
+  if (module === 'SAFETY' && workflowType === 'SAFETY_INCIDENT') {
+    const rows: Array<[string, string]> = [
+      ['Incident No', scalar(sourcePayload.incidentNo || sourceInput.incidentNo || input.requestReference)],
+      ['Incident Type', scalar(sourcePayload.incidentType || sourceInput.incidentType)],
+      ['Severity', scalar(sourcePayload.severity || sourceInput.severity)],
+      ['Incident Date', formatDateOnly(sourcePayload.incidentDate || sourceInput.incidentDate)],
+      ['Site', scalar(sourcePayload.siteName || sourceInput.site || input.requesterSite)],
+      ['Branch', scalar(sourcePayload.branch || sourceInput.branch)],
+      ['Department', scalar(sourcePayload.department || sourceInput.department)],
+      ['Exact Location', scalar(sourcePayload.exactLocation || sourceInput.exactLocation)],
+      ['Description', scalar(sourcePayload.description || sourceInput.description || input.requestDescription)],
+      ['Immediate Action', scalar(sourcePayload.immediateAction || sourceInput.immediateAction)],
+      ['Injured Person', scalar(sourcePayload.injuredPersonName || sourceInput.injuredPersonName)],
+      ['Contractor Company', scalar(sourcePayload.contractorCompany || sourceInput.contractorCompany)],
+      ['Reported By', scalar(sourcePayload.reportedBy || sourceInput.reportedBy || input.requesterName)],
+      ['Reporter Email', scalar(sourcePayload.reportedByEmail || sourceInput.reportedByEmail || input.requesterEmail)],
+    ];
+
+    return rows.filter(([, value]) => value);
+  }
+
+  if (module === 'SAFETY' && workflowType === 'SAFETY_OBSERVATION_REVIEW') {
+    const rows: Array<[string, string]> = [
+      ['Observation No', scalar(sourcePayload.observationNo || sourceInput.observationNo || input.requestReference)],
+      ['Observation Type', scalar(sourcePayload.observationType || sourceInput.observationType)],
+      ['Risk Level', scalar(sourcePayload.riskLevel || sourceInput.riskLevel)],
+      ['Observation Date', formatDateOnly(sourcePayload.observationDate || sourceInput.observationDate)],
+      ['Site', scalar(sourcePayload.siteName || sourceInput.site || input.requesterSite)],
+      ['Branch', scalar(sourcePayload.branch || sourceInput.branch)],
+      ['Department', scalar(sourcePayload.department || sourceInput.department)],
+      ['Exact Location', scalar(sourcePayload.exactLocation || sourceInput.exactLocation)],
+      ['Description', scalar(sourcePayload.description || sourceInput.description || input.requestDescription)],
+      ['Immediate Action', scalar(sourcePayload.immediateAction || sourceInput.immediateAction)],
+      ['Person Observed', scalar(sourcePayload.personObserved || sourceInput.personObserved)],
+      ['Contractor', scalar(sourcePayload.contractorName || sourceInput.contractorName)],
+      ['Reported By', scalar(sourcePayload.reportedBy || sourceInput.reportedBy || input.requesterName)],
+      ['Reporter Email', scalar(sourcePayload.reportedByEmail || sourceInput.reportedByEmail || input.requesterEmail)],
+    ];
+
+    return rows.filter(([, value]) => value);
+  }
+
   const rows: Array<[string, string]> = [
         ['Description', scalar(sourceInput.description || sourcePayload.description || input.requestDescription)],
         ['Department', scalar(sourceInput.department || sourcePayload.department || input.requesterDepartment)],

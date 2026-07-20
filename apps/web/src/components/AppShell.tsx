@@ -21,6 +21,7 @@ type StaffRole =
   | 'PROCUREMENT_OFFICER'
   | 'FLEET_MANAGER'
   | 'FLEET_DISPATCH_OFFICER'
+  | 'SAFETY_OFFICER'
   | '';
 
 type NavItem = {
@@ -528,6 +529,31 @@ const navSections: NavSection[] = [
           'FLEET_MANAGER',
           'FLEET_DISPATCH_OFFICER',
         ],
+      },
+    ],
+  },
+  {
+    title: 'Health & Safety',
+    items: [
+      {
+        label: 'Safety',
+        href: '/safety',
+        roles: ['ADMIN', 'DIRECTOR', 'SAFETY_OFFICER'],
+      },
+      {
+        label: 'Safety Observations',
+        href: '/safety/observations',
+        roles: ['ADMIN', 'DIRECTOR', 'SAFETY_OFFICER'],
+      },
+      {
+        label: 'Safety Incidents',
+        href: '/safety/incidents',
+        roles: ['ADMIN', 'DIRECTOR', 'SAFETY_OFFICER'],
+      },
+      {
+        label: 'Safety Actions',
+        href: '/safety/actions',
+        roles: ['ADMIN', 'DIRECTOR', 'SAFETY_OFFICER'],
       },
     ],
   },
