@@ -1,7 +1,5 @@
-﻿'use client';
-
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+﻿import { router } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -36,6 +34,10 @@ type DashboardData = {
   recentDefects?: any[];
 };
 
+function navigate(path: string) {
+  router.push(path as any);
+}
+
 function asNumber(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -60,11 +62,24 @@ function formatDate(value?: string | null) {
 function statusStyle(status?: string | null) {
   const value = String(status || '').toUpperCase();
 
-  if (['ACTIVE', 'PASSED', 'PASSED_WITH_DEFECTS', 'COMPLETED', 'CLOSED'].includes(value)) {
+  if (
+    ['ACTIVE', 'PASSED', 'PASSED_WITH_DEFECTS', 'COMPLETED', 'CLOSED'].includes(
+      value,
+    )
+  ) {
     return [styles.statusPill, styles.statusSuccess];
   }
 
-  if (['OPEN', 'PLANNED', 'IN_PROGRESS', 'PENDING', 'OVERDUE', 'WAITING_PARTS'].includes(value)) {
+  if (
+    [
+      'OPEN',
+      'PLANNED',
+      'IN_PROGRESS',
+      'PENDING',
+      'OVERDUE',
+      'WAITING_PARTS',
+    ].includes(value)
+  ) {
     return [styles.statusPill, styles.statusWarning];
   }
 
@@ -73,6 +88,107 @@ function statusStyle(status?: string | null) {
   }
 
   return [styles.statusPill, styles.statusNeutral];
+}
+
+function PressableSummaryCard({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      android_ripple={{ color: '#dbeafe' }}
+      style={({ pressed }) => [
+        styles.summaryCard,
+        styles.pressableCard,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </Pressable>
+  );
+}
+
+function ActionCard({
+  title,
+  text,
+  onPress,
+}: {
+  title: string;
+  text: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      android_ripple={{ color: '#dbeafe' }}
+      style={({ pressed }) => [
+        styles.actionCard,
+        styles.pressableCard,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionText}>{text}</Text>
+    </Pressable>
+  );
+}
+
+function PressableOfflineBox({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      android_ripple={{ color: '#dbeafe' }}
+      style={({ pressed }) => [
+        styles.offlineBox,
+        styles.pressableCard,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={styles.offlineLabel}>{label}</Text>
+      <Text style={styles.offlineValue}>{value}</Text>
+    </Pressable>
+  );
+}
+
+function PressableListRow({
+  children,
+  onPress,
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      android_ripple={{ color: '#dbeafe' }}
+      style={({ pressed }) => [
+        styles.listRow,
+        styles.pressableCard,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+    >
+      {children}
+    </Pressable>
+  );
 }
 
 export default function MobileDashboardPage() {
@@ -154,7 +270,9 @@ export default function MobileDashboardPage() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={loadDashboard} />}
+      refreshControl={
+        <RefreshControl refreshing={loading} onRefresh={loadDashboard} />
+      }
     >
       <View style={styles.mobileTopBar}>
         <Text style={styles.mobileTopBarText}>dashboard</Text>
@@ -164,16 +282,32 @@ export default function MobileDashboardPage() {
         <Text style={styles.eyebrow}>Southin Operations Hub</Text>
         <Text style={styles.heroTitle}>Mobile Dashboard</Text>
         <Text style={styles.heroText}>
-          Driver and field-user control centre for inspections, defects, trips, fuel capture and
-          offline sync.
+          Driver and field-user control centre for inspections, defects, trips,
+          fuel capture and offline sync.
         </Text>
 
         <View style={styles.heroActions}>
-          <Pressable style={styles.darkButton} onPress={() => router.push('/fleet/inspections/new')}>
+          <Pressable
+            accessibilityRole="button"
+            android_ripple={{ color: '#dbeafe' }}
+            style={({ pressed }) => [
+              styles.darkButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => navigate('/fleet/inspections/new')}
+          >
             <Text style={styles.darkButtonText}>New Inspection</Text>
           </Pressable>
 
-          <Pressable style={styles.lightButton} onPress={loadDashboard}>
+          <Pressable
+            accessibilityRole="button"
+            android_ripple={{ color: '#dbeafe' }}
+            style={({ pressed }) => [
+              styles.lightButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={loadDashboard}
+          >
             <Text style={styles.lightButtonText}>Refresh</Text>
           </Pressable>
         </View>
@@ -200,54 +334,71 @@ export default function MobileDashboardPage() {
       ) : null}
 
       <View style={styles.summaryGrid}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Vehicles</Text>
-          <Text style={styles.summaryValue}>{summary.vehicles}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Vehicles"
+          value={summary.vehicles}
+          onPress={() => navigate('/dashboard')}
+        />
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Active</Text>
-          <Text style={styles.summaryValue}>{summary.activeVehicles}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Active"
+          value={summary.activeVehicles}
+          onPress={() => navigate('/dashboard')}
+        />
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Inspections</Text>
-          <Text style={styles.summaryValue}>{summary.inspections}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Inspections"
+          value={summary.inspections}
+          onPress={() => navigate('/fleet/inspections/new')}
+        />
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Open Defects</Text>
-          <Text style={styles.summaryValue}>{summary.openDefects}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Open Defects"
+          value={summary.openDefects}
+          onPress={() => navigate('/fleet/defects/new')}
+        />
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Trips</Text>
-          <Text style={styles.summaryValue}>{summary.trips}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Trips"
+          value={summary.trips}
+          onPress={() => navigate('/fleet/trips/new')}
+        />
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Fuel Logs</Text>
-          <Text style={styles.summaryValue}>{summary.fuelLogs}</Text>
-        </View>
+        <PressableSummaryCard
+          label="Fuel Logs"
+          value={summary.fuelLogs}
+          onPress={() => navigate('/fleet/fuel/new')}
+        />
       </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Health & Safety</Text>
         <Text style={styles.muted}>
-          Field safety capture for observations, incidents, corrective actions, GPS and offline sync.
+          Field safety capture for observations, incidents, corrective actions,
+          GPS and offline sync.
         </Text>
 
         <View style={styles.heroActions}>
           <Pressable
-            style={styles.darkButton}
-            onPress={() => router.push('/safety')}
+            accessibilityRole="button"
+            android_ripple={{ color: '#dbeafe' }}
+            style={({ pressed }) => [
+              styles.darkButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => navigate('/safety')}
           >
             <Text style={styles.darkButtonText}>Open Safety</Text>
           </Pressable>
 
           <Pressable
-            style={styles.lightButton}
-            onPress={() => router.push('/safety/observations/new')}
+            accessibilityRole="button"
+            android_ripple={{ color: '#dbeafe' }}
+            style={({ pressed }) => [
+              styles.lightButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => navigate('/safety/observations/new')}
           >
             <Text style={styles.lightButtonText}>New Observation</Text>
           </Pressable>
@@ -258,70 +409,65 @@ export default function MobileDashboardPage() {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
 
         <View style={styles.actionGrid}>
-          <Pressable style={styles.actionCard} onPress={() => router.push('/fleet/inspections/new')}>
-            <Text style={styles.actionTitle}>Inspection</Text>
-            <Text style={styles.actionText}>Complete pre-start checklist.</Text>
-          </Pressable>
+          <ActionCard
+            title="Inspection"
+            text="Complete pre-start checklist."
+            onPress={() => navigate('/fleet/inspections/new')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/fleet/defects/new')}>
-            <Text style={styles.actionTitle}>Defect</Text>
-            <Text style={styles.actionText}>Raise a vehicle defect.</Text>
-          </Pressable>
+          <ActionCard
+            title="Defect"
+            text="Raise a vehicle defect."
+            onPress={() => navigate('/fleet/defects/new')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/fleet/trips/new')}>
-            <Text style={styles.actionTitle}>Trip</Text>
-            <Text style={styles.actionText}>Start a vehicle trip.</Text>
-          </Pressable>
+          <ActionCard
+            title="Trip"
+            text="Start a vehicle trip."
+            onPress={() => navigate('/fleet/trips/new')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/fleet/fuel/new')}>
-            <Text style={styles.actionTitle}>Fuel</Text>
-            <Text style={styles.actionText}>Capture fuel entry.</Text>
-          </Pressable>
+          <ActionCard
+            title="Fuel"
+            text="Capture fuel entry."
+            onPress={() => navigate('/fleet/fuel/new')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/scanner')}>
-            <Text style={styles.actionTitle}>Asset Scanner</Text>
-            <Text style={styles.actionText}>Scan stock, tools and scaffold tags.</Text>
-          </Pressable>
+          <ActionCard
+            title="Asset Scanner"
+            text="Scan stock, tools and scaffold tags."
+            onPress={() => navigate('/asset/scanner')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/movements/new')}>
-            <Text style={styles.actionTitle}>Asset Movement</Text>
-            <Text style={styles.actionText}>Move, issue or return stock items.</Text>
-          </Pressable>
+          <ActionCard
+            title="Asset Movement"
+            text="Move, issue or return stock items."
+            onPress={() => navigate('/asset/movements/new')}
+          />
 
-          <Pressable style={styles.actionCard} onPress={() => router.push('/asset/stock-counts/new')}>
-            <Text style={styles.actionTitle}>Stock Count</Text>
-            <Text style={styles.actionText}>Capture physical stock counts.</Text>
-          </Pressable>
+          <ActionCard
+            title="Stock Count"
+            text="Capture physical stock counts."
+            onPress={() => navigate('/asset/stock-counts/new')}
+          />
 
-          <Pressable
-            style={styles.actionCard}
-            onPress={() => router.push('/safety/observations/new')}
-          >
-            <Text style={styles.actionTitle}>Safety Observation</Text>
-            <Text style={styles.actionText}>
-              Capture unsafe acts, unsafe conditions, PPE findings and positive safety observations.
-            </Text>
-          </Pressable>
+          <ActionCard
+            title="Safety Observation"
+            text="Capture unsafe acts, unsafe conditions, PPE findings and positive safety observations."
+            onPress={() => navigate('/safety/observations/new')}
+          />
 
-          <Pressable
-            style={styles.actionCard}
-            onPress={() => router.push('/safety/incidents/new')}
-          >
-            <Text style={styles.actionTitle}>Safety Incident</Text>
-            <Text style={styles.actionText}>
-              Report incidents, near misses, injuries, damage and environmental events.
-            </Text>
-          </Pressable>
+          <ActionCard
+            title="Safety Incident"
+            text="Report incidents, near misses, injuries, damage and environmental events."
+            onPress={() => navigate('/safety/incidents/new')}
+          />
 
-          <Pressable
-            style={styles.actionCard}
-            onPress={() => router.push('/safety/actions/new')}
-          >
-            <Text style={styles.actionTitle}>Corrective Action</Text>
-            <Text style={styles.actionText}>
-              Create a corrective action linked to an observation or incident.
-            </Text>
-          </Pressable>
+          <ActionCard
+            title="Corrective Action"
+            text="Create a corrective action linked to an observation or incident."
+            onPress={() => navigate('/safety/actions/new')}
+          />
         </View>
       </View>
 
@@ -336,7 +482,16 @@ export default function MobileDashboardPage() {
             </Text>
           </View>
 
-          <Pressable style={styles.smallDarkButton} onPress={handleSyncOffline} disabled={syncing}>
+          <Pressable
+            accessibilityRole="button"
+            android_ripple={{ color: '#dbeafe' }}
+            style={({ pressed }) => [
+              styles.smallDarkButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={handleSyncOffline}
+            disabled={syncing}
+          >
             {syncing ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
@@ -346,25 +501,29 @@ export default function MobileDashboardPage() {
         </View>
 
         <View style={styles.offlineGrid}>
-          <View style={styles.offlineBox}>
-            <Text style={styles.offlineLabel}>Inspections</Text>
-            <Text style={styles.offlineValue}>{stats.inspections}</Text>
-          </View>
+          <PressableOfflineBox
+            label="Inspections"
+            value={stats.inspections}
+            onPress={() => navigate('/fleet/inspections/new')}
+          />
 
-          <View style={styles.offlineBox}>
-            <Text style={styles.offlineLabel}>Defects</Text>
-            <Text style={styles.offlineValue}>{stats.defects}</Text>
-          </View>
+          <PressableOfflineBox
+            label="Defects"
+            value={stats.defects}
+            onPress={() => navigate('/fleet/defects/new')}
+          />
 
-          <View style={styles.offlineBox}>
-            <Text style={styles.offlineLabel}>Trips</Text>
-            <Text style={styles.offlineValue}>{stats.trips}</Text>
-          </View>
+          <PressableOfflineBox
+            label="Trips"
+            value={stats.trips}
+            onPress={() => navigate('/fleet/trips/new')}
+          />
 
-          <View style={styles.offlineBox}>
-            <Text style={styles.offlineLabel}>Fuel</Text>
-            <Text style={styles.offlineValue}>{stats.fuel}</Text>
-          </View>
+          <PressableOfflineBox
+            label="Fuel"
+            value={stats.fuel}
+            onPress={() => navigate('/fleet/fuel/new')}
+          />
         </View>
       </View>
 
@@ -383,12 +542,16 @@ export default function MobileDashboardPage() {
         ) : null}
 
         {(data?.recentVehicles || []).slice(0, 5).map((vehicle) => (
-          <View key={vehicle.id} style={styles.listRow}>
+          <PressableListRow
+            key={vehicle.id}
+            onPress={() => navigate('/dashboard')}
+          >
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{vehicle.registrationNo || '-'}</Text>
               <Text style={styles.rowMeta}>
-                {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                {' â€¢ '}
+                {[vehicle.make, vehicle.model].filter(Boolean).join(' ') ||
+                  'Vehicle'}
+                {' • '}
                 {vehicle.site || 'No site'}
               </Text>
             </View>
@@ -396,7 +559,7 @@ export default function MobileDashboardPage() {
             <View style={statusStyle(vehicle.status)}>
               <Text style={styles.statusText}>{vehicle.status || '-'}</Text>
             </View>
-          </View>
+          </PressableListRow>
         ))}
       </View>
 
@@ -408,7 +571,10 @@ export default function MobileDashboardPage() {
         ) : null}
 
         {(data?.recentDefects || []).slice(0, 5).map((defect) => (
-          <View key={defect.id} style={styles.listRow}>
+          <PressableListRow
+            key={defect.id}
+            onPress={() => navigate('/fleet/defects/new')}
+          >
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>
                 {defect.vehicle?.registrationNo || 'Unknown Vehicle'}
@@ -421,7 +587,7 @@ export default function MobileDashboardPage() {
             <View style={statusStyle(defect.status)}>
               <Text style={styles.statusText}>{defect.status || '-'}</Text>
             </View>
-          </View>
+          </PressableListRow>
         ))}
       </View>
 
@@ -433,31 +599,40 @@ export default function MobileDashboardPage() {
         ) : null}
 
         {(data?.recentDueItems || []).slice(0, 5).map((item) => (
-          <View key={item.id} style={styles.listRow}>
+          <PressableListRow key={item.id} onPress={() => navigate('/dashboard')}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>
                 {item.vehicle?.registrationNo || 'Unknown Vehicle'}
               </Text>
               <Text style={styles.rowMeta}>
-                {item.title || item.dueType || 'Fleet due item'} â€¢ {formatDate(item.dueDate)}
+                {item.title || item.dueType || 'Fleet due item'} •{' '}
+                {formatDate(item.dueDate)}
               </Text>
             </View>
 
             <View style={statusStyle(item.status)}>
               <Text style={styles.statusText}>{item.status || '-'}</Text>
             </View>
-          </View>
+          </PressableListRow>
         ))}
       </View>
 
       <View style={styles.footerCard}>
         <Text style={styles.footerTitle}>Next Step</Text>
         <Text style={styles.footerText}>
-          Profile and login will control driver identity, permit number, role access and Microsoft
-          authentication once enabled.
+          Profile and login will control driver identity, permit number, role
+          access and Microsoft authentication once enabled.
         </Text>
 
-        <Pressable style={styles.profileButton} onPress={() => router.push('/profile')}>
+        <Pressable
+          accessibilityRole="button"
+          android_ripple={{ color: '#fdba74' }}
+          style={({ pressed }) => [
+            styles.profileButton,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={() => navigate('/profile')}
+        >
           <Text style={styles.profileButtonText}>Open Profile</Text>
         </Pressable>
       </View>
@@ -520,6 +695,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 13,
     alignItems: 'center',
+    overflow: 'hidden',
   },
   darkButtonText: {
     color: '#ffffff',
@@ -533,6 +709,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#cbd5e1',
+    overflow: 'hidden',
   },
   lightButtonText: {
     color: '#06152b',
@@ -552,6 +729,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccd8e5',
     padding: 14,
+  },
+  pressableCard: {
+    overflow: 'hidden',
+  },
+  cardPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.99 }],
+  },
+  buttonPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.98 }],
   },
   summaryLabel: {
     color: '#64748b',
@@ -592,6 +780,7 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     width: '48%',
+    minHeight: 105,
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     borderWidth: 1,
@@ -619,6 +808,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 12,
+    overflow: 'hidden',
   },
   smallDarkButtonText: {
     color: '#ffffff',
@@ -768,6 +958,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: 'center',
     marginTop: 14,
+    overflow: 'hidden',
   },
   profileButtonText: {
     color: '#ffffff',
