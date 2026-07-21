@@ -1,7 +1,7 @@
 export const env = {
   apiBaseUrl:
     process.env.EXPO_PUBLIC_API_URL ||
-    'http://172.29.41.23:4000/api',
+    'http://172.20.10.3:4000/api',
 
   allowDevLogin:
     process.env.EXPO_PUBLIC_ALLOW_DEV_LOGIN !== 'false',

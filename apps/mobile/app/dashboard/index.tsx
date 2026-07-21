@@ -232,6 +232,29 @@ export default function MobileDashboardPage() {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Health & Safety</Text>
+        <Text style={styles.muted}>
+          Field safety capture for observations, incidents, corrective actions, GPS and offline sync.
+        </Text>
+
+        <View style={styles.heroActions}>
+          <Pressable
+            style={styles.darkButton}
+            onPress={() => router.push('/safety')}
+          >
+            <Text style={styles.darkButtonText}>Open Safety</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.lightButton}
+            onPress={() => router.push('/safety/observations/new')}
+          >
+            <Text style={styles.lightButtonText}>New Observation</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
 
         <View style={styles.actionGrid}>
@@ -268,6 +291,36 @@ export default function MobileDashboardPage() {
           <Pressable style={styles.actionCard} onPress={() => router.push('/asset/stock-counts/new')}>
             <Text style={styles.actionTitle}>Stock Count</Text>
             <Text style={styles.actionText}>Capture physical stock counts.</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push('/safety/observations/new')}
+          >
+            <Text style={styles.actionTitle}>Safety Observation</Text>
+            <Text style={styles.actionText}>
+              Capture unsafe acts, unsafe conditions, PPE findings and positive safety observations.
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push('/safety/incidents/new')}
+          >
+            <Text style={styles.actionTitle}>Safety Incident</Text>
+            <Text style={styles.actionText}>
+              Report incidents, near misses, injuries, damage and environmental events.
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push('/safety/actions/new')}
+          >
+            <Text style={styles.actionTitle}>Corrective Action</Text>
+            <Text style={styles.actionText}>
+              Create a corrective action linked to an observation or incident.
+            </Text>
           </Pressable>
         </View>
       </View>
