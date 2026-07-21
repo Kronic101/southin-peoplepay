@@ -15,9 +15,14 @@ export class FleetController {
     return this.fleetService.getAssignments();
   }
 
+  @Get('mobile/context')
+  getMobileContext() {
+    return this.fleetService.getMobileContext();
+  }
+
   @Post('assignments')
   createAssignment(@Body() body: any) {
-    return this.fleetService.createAssignment(body);
+    return this.fleetService.createAssignment(body);   
   }
 
   @Patch('assignments/:id/return')

@@ -12,17 +12,44 @@ import {
   View,
 } from 'react-native';
 
-import { createFleetFuelLog, getFleetVehicles } from '../../../src/api/fleet';
+import {
+  createFleetFuelLog,
+  getFleetMobileContext,
+} from '../../../src/api/fleet';
 import { enqueueOfflineRequest } from '../../../src/storage/offlineQueue';
 import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
   registrationNo?: string | null;
+  assetId?: string | null;
+
   make?: string | null;
   model?: string | null;
-  site?: string | null;
+  year?: number | null;
+  vehicleType?: string | null;
+  status?: string | null;
+
   odometerCurrent?: string | number | null;
+
+  site?: string | null;
+  siteName?: string | null;
+  department?: string | null;
+  isPoolVehicle?: boolean;
+
+  activeDriver?: {
+    id: string;
+    employeeId?: string | null;
+    employeeNumber?: string | null;
+    driverName?: string | null;
+    licenceNo?: string | null;
+    licenceClass?: string | null;
+    licenceExpiry?: string | null;
+    department?: string | null;
+    site?: string | null;
+    branch?: string | null;
+    status?: string | null;
+  } | null;
 };
 
 function normalize(value: string) {
@@ -32,6 +59,16 @@ function normalize(value: string) {
 function asNumber(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function vehicleSite(vehicle?: VehicleRecord | null, fallback = 'No site recorded') {
+  return vehicle?.siteName || vehicle?.site || fallback;
+}
+
+function vehicleLabel(vehicle?: VehicleRecord | null) {
+  if (!vehicle) return 'Vehicle';
+
+  return [vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
 }
 
 function formatMoney(value: unknown) {
@@ -86,11 +123,11 @@ export default function NewFleetFuelPage() {
     setMessage('');
 
     try {
-      const result = await getFleetVehicles();
-      setVehicles(result || []);
+      const result: any = await getFleetMobileContext();
+      setVehicles(result?.vehicles || []);
     } catch (err: any) {
       setStatus('ERROR');
-      setMessage(err?.message || 'Unable to load vehicles.');
+      setMessage(err?.message || 'Unable to load mobile fleet context.');
     } finally {
       setLoadingVehicles(false);
     }
@@ -112,7 +149,7 @@ export default function NewFleetFuelPage() {
         normalize(vehicle.registrationNo || '').includes(search) ||
         normalize(vehicle.make || '').includes(search) ||
         normalize(vehicle.model || '').includes(search) ||
-        normalize(vehicle.site || '').includes(search)
+        normalize(vehicleSite(vehicle, '')).includes(search)
       );
     });
   }, [vehicleSearch, vehicles]);
@@ -178,7 +215,10 @@ export default function NewFleetFuelPage() {
       employeeNo: identity.employeeNo || undefined,
       employeeNumber: identity.employeeNumber || undefined,
       department: identity.department,
-      site: selectedVehicle.site || identity.site,
+      registrationNo: selectedVehicle.registrationNo || vehicleSearch,
+      assetId: selectedVehicle.assetId || undefined,
+      isPoolVehicle: selectedVehicle.isPoolVehicle || false,
+      site: vehicleSite(selectedVehicle, identity.site),
       submittedBy: identity.submittedBy,
       fuelDate: new Date().toISOString(),
       submittedFrom: 'MOBILE',
@@ -325,10 +365,10 @@ export default function NewFleetFuelPage() {
                   <Text style={styles.vehicleOptionTitle}>
                     {vehicle.registrationNo || 'Unknown Registration'}
                   </Text>
-                  <Text style={styles.vehicleOptionMeta}>
-                    {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                    {' â€¢ '}
-                    {vehicle.site || 'No site recorded'}
+                  <Text style={styles.vehicleMatchText}>
+                    {vehicleLabel(selectedVehicle)}
+                    {' - '}
+                    {vehicleSite(selectedVehicle)}
                   </Text>
                 </Pressable>
               ))
@@ -344,7 +384,7 @@ export default function NewFleetFuelPage() {
             <Text style={styles.vehicleMatchText}>
               {[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(' ') ||
                 'Vehicle'}
-              {' â€¢ '}
+              {' • '}
               {selectedVehicle.site || 'No site recorded'}
             </Text>
           </View>
@@ -689,3 +729,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

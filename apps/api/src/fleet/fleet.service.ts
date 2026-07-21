@@ -303,4 +303,156 @@ export class FleetService {
       },
     });
   }
+
+  async getMobileContext() {
+    const [vehicles, drivers, assignments] = await Promise.all([
+      this.db().fleetVehicle.findMany({
+        orderBy: {
+          registrationNo: 'asc',
+        },
+        select: {
+          id: true,
+          registrationNo: true,
+          assetId: true,
+          make: true,
+          model: true,
+          year: true,
+          vehicleType: true,
+          department: true,
+          site: true,
+          odometerCurrent: true,
+          status: true,
+          insuranceExpiry: true,
+          fitnessExpiry: true,
+          roadTaxExpiry: true,
+          telematicsProvider: true,
+          telematicsUnitId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+
+      this.db().fleetDriverProfile.findMany({
+        orderBy: {
+          driverName: 'asc',
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          employeeNumber: true,
+          driverName: true,
+          licenceNo: true,
+          licenceClass: true,
+          licenceExpiry: true,
+          department: true,
+          site: true,
+          branch: true,
+          status: true,
+        },
+      }),
+
+      this.db().fleetVehicleAssignment.findMany({
+        where: {
+          status: 'ACTIVE',
+        },
+        orderBy: {
+          assignedAt: 'desc',
+        },
+        include: {
+          driver: true,
+        },
+      }),
+    ]);
+
+    const activeAssignmentByVehicleId = new Map<string, any>();
+
+    for (const assignment of assignments) {
+      if (!activeAssignmentByVehicleId.has(assignment.vehicleId)) {
+        activeAssignmentByVehicleId.set(assignment.vehicleId, assignment);
+      }
+    }
+
+    const mobileVehicles = vehicles.map((vehicle: any) => {
+      const siteName = String(vehicle.site || '').trim();
+      const assignment = activeAssignmentByVehicleId.get(vehicle.id) || null;
+      const driver = assignment?.driver || null;
+
+      return {
+        id: vehicle.id,
+        registrationNo: vehicle.registrationNo,
+        assetId: vehicle.assetId,
+
+        make: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        vehicleType: vehicle.vehicleType,
+        department: vehicle.department,
+
+        siteName: siteName || 'UNASSIGNED / POOL',
+        isPoolVehicle: !siteName,
+
+        status: vehicle.status || 'ACTIVE',
+        odometerCurrent:
+          vehicle.odometerCurrent?.toString?.() ||
+          String(vehicle.odometerCurrent || '0'),
+
+        insuranceExpiry: vehicle.insuranceExpiry,
+        fitnessExpiry: vehicle.fitnessExpiry,
+        roadTaxExpiry: vehicle.roadTaxExpiry,
+        telematicsProvider: vehicle.telematicsProvider,
+        telematicsUnitId: vehicle.telematicsUnitId,
+
+        activeDriver: driver
+          ? {
+              id: driver.id,
+              employeeId: driver.employeeId,
+              employeeNumber: driver.employeeNumber,
+              driverName: driver.driverName,
+              licenceNo: driver.licenceNo,
+              licenceClass: driver.licenceClass,
+              licenceExpiry: driver.licenceExpiry,
+              department: driver.department,
+              site: driver.site,
+              branch: driver.branch,
+              status: driver.status,
+            }
+          : null,
+      };
+    });
+
+    const sites = Array.from(
+      new Set(
+        mobileVehicles
+          .map((vehicle: any) => vehicle.siteName)
+          .filter(Boolean),
+      ),
+    )
+      .sort()
+      .map((siteName) => ({
+        id: siteName,
+        name: siteName,
+        isPoolSite: siteName === 'UNASSIGNED / POOL',
+      }));
+
+    return {
+      vehicles: mobileVehicles,
+      drivers,
+      assignments,
+      sites,
+      summary: {
+        vehicles: mobileVehicles.length,
+        activeVehicles: mobileVehicles.filter(
+          (vehicle: any) => String(vehicle.status).toUpperCase() === 'ACTIVE',
+        ).length,
+        poolVehicles: mobileVehicles.filter(
+          (vehicle: any) => vehicle.isPoolVehicle,
+        ).length,
+        assignedSiteVehicles: mobileVehicles.filter(
+          (vehicle: any) => !vehicle.isPoolVehicle,
+        ).length,
+        activeAssignments: assignments.length,
+        drivers: drivers.length,
+      },
+    };
+  }
 }

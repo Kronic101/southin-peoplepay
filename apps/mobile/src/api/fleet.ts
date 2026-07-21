@@ -4,7 +4,6 @@ import {
   FleetFuelLog,
   FleetInspectionPayload,
   FleetTrip,
-  FleetVehicle,
   FleetWorkshopJob,
 } from '../types/fleet';
 
@@ -17,8 +16,40 @@ export const getFleetDashboard = () => apiGet<any>('/fleet/dashboard');
 /**
  * Fleet vehicles
  */
-export const getFleetVehicles = () => apiGet<FleetVehicle[]>('/fleet/vehicles');
+export type FleetVehicle = {
+  id: string;
+  registrationNo: string;
+  assetId?: string | null;
 
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  vehicleType?: string | null;
+  department?: string | null;
+
+  site?: string | null;
+  siteName?: string | null;
+  isPoolVehicle?: boolean;
+
+  status?: string | null;
+  odometerCurrent?: string | number | null;
+
+  activeDriver?: {
+    id: string;
+    employeeId?: string | null;
+    employeeNumber?: string | null;
+    driverName?: string | null;
+    licenceNo?: string | null;
+    licenceClass?: string | null;
+    licenceExpiry?: string | null;
+    department?: string | null;
+    site?: string | null;
+    branch?: string | null;
+    status?: string | null;
+  } | null;
+};
+export const getFleetVehicles = () => apiGet<FleetVehicle[]>('/fleet/vehicles');
+export const getFleetMobileContext = () => apiGet('/fleet/mobile/context');
 export const getFleetVehicle = (id: string) =>
   apiGet<FleetVehicle>(`/fleet/vehicles/${id}`);
 

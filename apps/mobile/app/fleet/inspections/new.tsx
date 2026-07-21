@@ -12,7 +12,10 @@ import {
   View,
 } from 'react-native';
 
-import { getFleetVehicles, submitFleetInspection } from '../../../src/api/fleet';
+import {
+  getFleetMobileContext,
+  submitFleetInspection,
+} from '../../../src/api/fleet';
 import { enqueueFleetInspection } from '../../../src/storage/offlineQueue';
 import type { FleetInspectionPayload } from '../../../src/types/fleet';
 import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
@@ -20,13 +23,34 @@ import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 type VehicleRecord = {
   id: string;
   registrationNo?: string | null;
+  assetId?: string | null;
+
   make?: string | null;
   model?: string | null;
+  year?: number | null;
   vehicleType?: string | null;
   status?: string | null;
+
   odometerCurrent?: string | number | null;
+
   site?: string | null;
+  siteName?: string | null;
   department?: string | null;
+  isPoolVehicle?: boolean;
+
+  activeDriver?: {
+    id: string;
+    employeeId?: string | null;
+    employeeNumber?: string | null;
+    driverName?: string | null;
+    licenceNo?: string | null;
+    licenceClass?: string | null;
+    licenceExpiry?: string | null;
+    department?: string | null;
+    site?: string | null;
+    branch?: string | null;
+    status?: string | null;
+  } | null;
 };
 
 type CheckStatus = 'OKAY' | 'NOT_OKAY';
@@ -56,6 +80,9 @@ type ApiChecklistItem = {
 
 type InspectionSubmitPayload = FleetInspectionPayload & {
   vehicleNo?: string;
+  registrationNo?: string;
+  assetId?: string | null;
+  isPoolVehicle?: boolean;
   employeeNo?: string;
   employeeNumber?: string;
   drivingPermitNo?: string | null;
@@ -293,6 +320,16 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function vehicleSite(vehicle?: VehicleRecord | null, fallback = 'No site recorded') {
+  return vehicle?.siteName || vehicle?.site || fallback;
+}
+
+function vehicleLabel(vehicle?: VehicleRecord | null) {
+  if (!vehicle) return 'Vehicle';
+
+  return [vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
+}
+
 function cloneChecklist() {
   return baseChecklist.map((item) => ({ ...item }));
 }
@@ -345,8 +382,8 @@ export default function NewFleetInspectionPage() {
     setMessage('');
 
     try {
-      const result = await getFleetVehicles();
-      const list = result || [];
+      const result: any = await getFleetMobileContext();
+      const list = result?.vehicles || [];
 
       setVehicles(list);
 
@@ -356,7 +393,8 @@ export default function NewFleetInspectionPage() {
     } catch (err: any) {
       setSubmitStatus('ERROR');
       setMessage(
-        err?.message || 'Unable to load vehicle list. Confirm API is reachable from the phone.',
+        err?.message ||
+          'Unable to load mobile fleet context. Confirm API is reachable from the phone.',
       );
     } finally {
       setLoadingVehicles(false);
@@ -378,7 +416,7 @@ export default function NewFleetInspectionPage() {
       const registration = normalize(vehicle.registrationNo || '');
       const make = normalize(vehicle.make || '');
       const model = normalize(vehicle.model || '');
-      const site = normalize(vehicle.site || '');
+      const site = normalize(vehicle.siteName || vehicle.site || '');
 
       return (
         registration.includes(search) ||
@@ -422,6 +460,14 @@ export default function NewFleetInspectionPage() {
 
     if (odometer) {
       setOdometerStart(odometer);
+    }
+
+    if (vehicle.activeDriver?.driverName) {
+      setDriverName(vehicle.activeDriver.driverName);
+    }
+
+    if (vehicle.activeDriver?.licenceNo) {
+      setPermitNo(vehicle.activeDriver.licenceNo);
     }
   }
 
@@ -520,12 +566,16 @@ export default function NewFleetInspectionPage() {
     return {
       vehicleId,
       vehicleNo: selectedVehicle.registrationNo || vehicleSearch,
+      registrationNo: selectedVehicle.registrationNo || vehicleSearch,
+      assetId: selectedVehicle.assetId || null,
+      isPoolVehicle: selectedVehicle.isPoolVehicle || false,
+
       driverName: driverName.trim() || identity.driverName,
       employeeNo: identity.employeeNo || undefined,
       employeeNumber: identity.employeeNumber || undefined,
       drivingPermitNo: permitNo.trim() || identity.drivingPermitNo || null,
       department: identity.department,
-      site: selectedVehicle.site || identity.site,
+      site: vehicleSite(selectedVehicle, identity.site),
       submittedBy: identity.submittedBy,
 
       checklistPhase: 'PRE_START',
@@ -697,10 +747,10 @@ export default function NewFleetInspectionPage() {
                   <Text style={styles.vehicleOptionTitle}>
                     {vehicle.registrationNo || 'Unknown Registration'}
                   </Text>
-                  <Text style={styles.vehicleOptionMeta}>
-                    {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                    {' â€¢ '}
-                    {vehicle.site || 'No site recorded'}
+                  <Text style={styles.vehicleMatchText}>
+                    {vehicleLabel(selectedVehicle)}
+                    {' - '}
+                    {vehicleSite(selectedVehicle)}
                   </Text>
                 </Pressable>
               ))
@@ -714,10 +764,9 @@ export default function NewFleetInspectionPage() {
               {selectedVehicle.registrationNo} selected successfully
             </Text>
             <Text style={styles.vehicleMatchText}>
-              {[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(' ') ||
-                'Vehicle'}
-              {' â€¢ '}
-              {selectedVehicle.site || 'No site recorded'}
+              {vehicleLabel(selectedVehicle)}
+              {'  -  '}
+              {vehicleSite(selectedVehicle)}
             </Text>
           </View>
         ) : (
@@ -792,7 +841,7 @@ export default function NewFleetInspectionPage() {
                 <Text style={styles.checkTitle}>{item.label}</Text>
                 <Text style={styles.checkMeta}>
                   {item.severity}
-                  {item.blocksUse ? ' â€¢ Blocks vehicle use' : ' â€¢ Advisory defect'}
+                  {item.blocksUse ? '  -  Blocks vehicle use' : '  -  Advisory defect'}
                 </Text>
               </View>
             </View>
@@ -1202,3 +1251,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+
+

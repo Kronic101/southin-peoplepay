@@ -112,7 +112,7 @@ function vehicleLabel(inspection: InspectionRecord) {
     .filter(Boolean)
     .join(' ');
 
-  return vehicleName ? `${registrationNo} â€¢ ${vehicleName}` : registrationNo;
+  return vehicleName ? `${registrationNo}  -  ${vehicleName}` : registrationNo;
 }
 
 export default function FleetInspectionHistoryPage() {
@@ -323,8 +323,8 @@ export default function FleetInspectionHistoryPage() {
 
                   {failedItems.map((item: any, index: number) => (
                     <Text key={`${inspection.id}-failed-${index}`} style={styles.failedItem}>
-                      {item.no}. {item.label} â€¢ {item.severity || 'MEDIUM'}
-                      {item.blocksUse ? ' â€¢ Blocks use' : ' â€¢ Advisory'}
+                      {item.no}. {item.label}  -  {item.severity || 'MEDIUM'}
+                      {item.blocksUse ? '  -  Blocks use' : '  -  Advisory'}
                       {item.comments ? ` â€” ${item.comments}` : ''}
                     </Text>
                   ))}
@@ -632,3 +632,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+
+

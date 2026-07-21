@@ -12,17 +12,44 @@ import {
   View,
 } from 'react-native';
 
-import { createFleetDefect, getFleetVehicles } from '../../../src/api/fleet';
+import {
+  createFleetDefect,
+  getFleetMobileContext,
+} from '../../../src/api/fleet';
 import { enqueueOfflineRequest } from '../../../src/storage/offlineQueue';
 import { useDriverIdentity } from '../../../src/hooks/useDriverIdentity';
 
 type VehicleRecord = {
   id: string;
   registrationNo?: string | null;
+  assetId?: string | null;
+
   make?: string | null;
   model?: string | null;
-  site?: string | null;
+  year?: number | null;
+  vehicleType?: string | null;
+  status?: string | null;
+
   odometerCurrent?: string | number | null;
+
+  site?: string | null;
+  siteName?: string | null;
+  department?: string | null;
+  isPoolVehicle?: boolean;
+
+  activeDriver?: {
+    id: string;
+    employeeId?: string | null;
+    employeeNumber?: string | null;
+    driverName?: string | null;
+    licenceNo?: string | null;
+    licenceClass?: string | null;
+    licenceExpiry?: string | null;
+    department?: string | null;
+    site?: string | null;
+    branch?: string | null;
+    status?: string | null;
+  } | null;
 };
 
 function normalize(value: string) {
@@ -38,6 +65,16 @@ function isNetworkError(err: any) {
     message.includes('networkerror') ||
     message.includes('load failed')
   );
+}
+
+function vehicleSite(vehicle?: VehicleRecord | null, fallback = 'No site recorded') {
+  return vehicle?.siteName || vehicle?.site || fallback;
+}
+
+function vehicleLabel(vehicle?: VehicleRecord | null) {
+  if (!vehicle) return 'Vehicle';
+
+  return [vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
 }
 
 export default function NewFleetDefectPage() {
@@ -73,11 +110,11 @@ export default function NewFleetDefectPage() {
     setMessage('');
 
     try {
-      const result = await getFleetVehicles();
-      setVehicles(result || []);
+      const result: any = await getFleetMobileContext();
+      setVehicles(result?.vehicles || []);
     } catch (err: any) {
       setStatus('ERROR');
-      setMessage(err?.message || 'Unable to load vehicles.');
+      setMessage(err?.message || 'Unable to load mobile fleet context.');
     } finally {
       setLoadingVehicles(false);
     }
@@ -99,7 +136,7 @@ export default function NewFleetDefectPage() {
         normalize(vehicle.registrationNo || '').includes(search) ||
         normalize(vehicle.make || '').includes(search) ||
         normalize(vehicle.model || '').includes(search) ||
-        normalize(vehicle.site || '').includes(search)
+        normalize(vehicleSite(vehicle, '')).includes(search)
       );
     });
   }, [vehicleSearch, vehicles]);
@@ -116,9 +153,7 @@ export default function NewFleetDefectPage() {
       setOdometer(String(vehicle.odometerCurrent));
     }
 
-    if (vehicle.site) {
-      setLocation(vehicle.site);
-    }
+    setLocation(vehicleSite(vehicle, identity.site));
   }
 
   function resetForm() {
@@ -126,7 +161,7 @@ export default function NewFleetDefectPage() {
     setDescription('');
     setSeverity('MEDIUM');
     setOdometer(selectedVehicle?.odometerCurrent ? String(selectedVehicle.odometerCurrent) : '');
-    setLocation(selectedVehicle?.site || '');
+    setLocation(vehicleSite(selectedVehicle, identity.site));
   }
 
   function buildPayload() {
@@ -152,9 +187,13 @@ export default function NewFleetDefectPage() {
       employeeNo: identity.employeeNo || undefined,
       employeeNumber: identity.employeeNumber || undefined,
       department: identity.department,
-      site: selectedVehicle.site || identity.site,
+      vehicleNo: selectedVehicle.registrationNo || vehicleSearch,
+      registrationNo: selectedVehicle.registrationNo || vehicleSearch,
+      assetId: selectedVehicle.assetId || undefined,
+      isPoolVehicle: selectedVehicle.isPoolVehicle || false,
+      site: vehicleSite(selectedVehicle, identity.site),
+      location: location.trim() || vehicleSite(selectedVehicle, identity.site) || undefined,
       odometer: odometer.trim() || undefined,
-      location: location.trim() || selectedVehicle.site || identity.site || undefined,
       reportedAt: new Date().toISOString(),
       submittedBy: identity.submittedBy,
       submittedFrom: 'MOBILE',
@@ -301,10 +340,10 @@ export default function NewFleetDefectPage() {
                   <Text style={styles.vehicleOptionTitle}>
                     {vehicle.registrationNo || 'Unknown Registration'}
                   </Text>
-                  <Text style={styles.vehicleOptionMeta}>
-                    {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-                    {' â€¢ '}
-                    {vehicle.site || 'No site recorded'}
+                  <Text style={styles.vehicleMatchText}>
+                    {vehicleLabel(selectedVehicle)}
+                    {' - '}
+                    {vehicleSite(selectedVehicle)}
                   </Text>
                 </Pressable>
               ))
@@ -320,7 +359,7 @@ export default function NewFleetDefectPage() {
             <Text style={styles.vehicleMatchText}>
               {[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(' ') ||
                 'Vehicle'}
-              {' â€¢ '}
+              {'  -  '}
               {selectedVehicle.site || 'No site recorded'}
             </Text>
           </View>
@@ -642,3 +681,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+
+

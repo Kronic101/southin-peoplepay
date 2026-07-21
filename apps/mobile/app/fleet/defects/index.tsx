@@ -267,7 +267,7 @@ export default function FleetDefectsPage() {
                   <Text style={styles.defectTitle}>{defect.title || 'Vehicle defect'}</Text>
                   <Text style={styles.defectMeta}>
                     {defect.vehicle?.registrationNo || 'Unknown Vehicle'}
-                    {' â€¢ '}
+                    {'  -  '}
                     {[defect.vehicle?.make, defect.vehicle?.model].filter(Boolean).join(' ') ||
                       'Vehicle'}
                   </Text>
@@ -626,3 +626,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 });
+
+
+
