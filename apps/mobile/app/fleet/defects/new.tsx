@@ -360,7 +360,7 @@ export default function NewFleetDefectPage() {
               {[selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(' ') ||
                 'Vehicle'}
               {'  -  '}
-              {selectedVehicle.site || 'No site recorded'}
+              {vehicleSite(selectedVehicle)}
             </Text>
           </View>
         ) : (

@@ -416,7 +416,7 @@ export default function NewFleetInspectionPage() {
       const registration = normalize(vehicle.registrationNo || '');
       const make = normalize(vehicle.make || '');
       const model = normalize(vehicle.model || '');
-      const site = normalize(vehicle.siteName || vehicle.site || '');
+      const site = normalize(vehicleSite(vehicle, ''));
 
       return (
         registration.includes(search) ||
