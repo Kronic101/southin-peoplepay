@@ -20,12 +20,23 @@ export const createSafetyIncident = (payload: SafetyIncidentPayload) =>
 export const getSafetyCorrectiveActions = () =>
   apiGet('/safety/corrective-actions');
 
-export const createSafetyCorrectiveAction = (
-  payload: SafetyCorrectiveActionPayload,
-) => apiPost('/safety/corrective-actions', payload);
+export const getSafetyCorrectiveAction = (id: string) =>
+  apiGet(`/safety/corrective-actions/${id}`);
+
+export const createSafetyCorrectiveAction = (payload: any) =>
+  apiPost('/safety/corrective-actions', payload);
 
 export const updateSafetyCorrectiveActionStatus = (id: string, payload: any) =>
   apiPatch(`/safety/corrective-actions/${id}/status`, payload);
+
+export const completeSafetyCorrectiveAction = (id: string, payload: any) =>
+  apiPatch(`/safety/corrective-actions/${id}/complete`, payload);
+
+export const verifySafetyCorrectiveAction = (id: string, payload: any) =>
+  apiPatch(`/safety/corrective-actions/${id}/verify`, payload);
+
+export const closeSafetyCorrectiveAction = (id: string, payload: any) =>
+  apiPatch(`/safety/corrective-actions/${id}/close`, payload);
 
 /**
  * Temporary site lookup.

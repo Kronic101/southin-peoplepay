@@ -32,12 +32,17 @@ export class SafetyController {
 
   @Get('corrective-actions')
   getCorrectiveActions(@Query('siteId') siteId?: string) {
-    return this.safetyService.getCorrectiveActions({ siteId });
+    return this.safetyService.getCorrectiveActions(siteId);
   }
-
+  
   @Post('corrective-actions')
   createCorrectiveAction(@Body() body: any) {
     return this.safetyService.createCorrectiveAction(body);
+  }
+
+    @Get('corrective-actions/:id')
+  getCorrectiveAction(@Param('id') id: string) {
+    return this.safetyService.getCorrectiveAction(id);
   }
 
   @Patch('corrective-actions/:id/status')
@@ -46,5 +51,29 @@ export class SafetyController {
     @Body() body: any,
   ) {
     return this.safetyService.updateCorrectiveActionStatus(id, body);
+  }
+
+  @Patch('corrective-actions/:id/complete')
+  completeCorrectiveAction(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.safetyService.completeCorrectiveAction(id, body);
+  }
+
+  @Patch('corrective-actions/:id/verify')
+  verifyCorrectiveAction(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.safetyService.verifyCorrectiveAction(id, body);
+  }
+
+  @Patch('corrective-actions/:id/close')
+  closeCorrectiveAction(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.safetyService.closeCorrectiveAction(id, body);
   }
 }

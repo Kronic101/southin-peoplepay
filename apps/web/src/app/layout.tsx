@@ -3,9 +3,13 @@ import './globals.css';
 import FloatingDevRoleSelector from '@/components/FloatingDevRoleSelector';
 import Providers from "./providers";
 
-export const metadata: Metadata = {
-  title: 'Southin PeoplePay',
-  description: 'Southin HR, payroll, finance, and employee self-service platform.',
+export const metadata = {
+  title: 'Southin Hub',
+  description: 'Southin Operations, People, Fleet, Safety and Asset Control Centre',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({

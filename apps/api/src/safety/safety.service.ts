@@ -347,58 +347,142 @@ export class SafetyService {
     };
   }
 
-  async getCorrectiveActions(filter: { siteId?: string }) {
-    const siteId = clean(filter.siteId);
-
-    const where: any = {};
-
-    if (siteId) {
-      where.OR = [
-        {
-          observation: {
-            siteId,
-          },
-        },
-        {
-          incident: {
-            siteId,
-          },
-        },
-      ];
-    }
+  async getCorrectiveActions(siteId?: string) {
+    const cleanSiteId = clean(siteId);
 
     return this.db().safetyCorrectiveAction.findMany({
-      where,
-      include: {
-        observation: {
-          select: {
-            id: true,
-            observationNo: true,
-            siteName: true,
-            exactLocation: true,
-            riskLevel: true,
-            status: true,
-            description: true,
-          },
-        },
-        incident: {
-          select: {
-            id: true,
-            incidentNo: true,
-            siteName: true,
-            exactLocation: true,
-            severity: true,
-            status: true,
-            description: true,
-          },
-        },
-      },
+      where: cleanSiteId
+        ? {
+            OR: [
+              {
+                observation: {
+                  siteId: cleanSiteId,
+                },
+              },
+              {
+                incident: {
+                  siteId: cleanSiteId,
+                },
+              },
+            ],
+          }
+        : undefined,
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100,
+      include: {
+        observation: true,
+        incident: true,
+      },
     });
   }
+
+  async getCorrectiveAction(id: string) {
+    const action = await this.db().safetyCorrectiveAction.findUnique({
+      where: { id },
+      include: {
+        observation: true,
+        incident: true,
+      },
+    });
+
+    if (!action) {
+      throw new NotFoundException('Corrective action not found.');
+    }
+
+    return action;
+  }
+  async updateCorrectiveActionStatus(id: string, body: any) {
+    const status = clean(body.status);
+
+    if (!status) {
+      throw new BadRequestException('Corrective action status is required.');
+    }
+
+    const existing = await this.db().safetyCorrectiveAction.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Corrective action not found.');
+    }
+
+    return this.db().safetyCorrectiveAction.update({
+      where: { id },
+      data: {
+        status,
+      },
+    });
+  }
+
+  async completeCorrectiveAction(id: string, body: any) {
+  const existing = await this.db().safetyCorrectiveAction.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new NotFoundException('Corrective action not found.');
+  }
+
+  return this.db().safetyCorrectiveAction.update({
+    where: { id },
+    data: {
+      status: 'COMPLETED',
+      completedBy:
+        clean(body.actionedBy) ||
+        clean(body.completedBy) ||
+        clean(body.actionedByEmail) ||
+        'Southin Hub User',
+      completedAt: new Date(),
+    },
+  });
+}
+
+async verifyCorrectiveAction(id: string, body: any) {
+  const existing = await this.db().safetyCorrectiveAction.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new NotFoundException('Corrective action not found.');
+  }
+
+  return this.db().safetyCorrectiveAction.update({
+    where: { id },
+    data: {
+      status: 'VERIFIED',
+      verificationNotes: clean(body.notes) || clean(body.verificationNotes) || null,
+      verifiedBy:
+        clean(body.verifiedBy) ||
+        clean(body.verifiedByEmail) ||
+        'Southin Hub User',
+      verifiedAt: new Date(),
+    },
+  });
+}
+
+async closeCorrectiveAction(id: string, body: any) {
+  const existing = await this.db().safetyCorrectiveAction.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new NotFoundException('Corrective action not found.');
+  }
+
+  return this.db().safetyCorrectiveAction.update({
+    where: { id },
+    data: {
+      status: 'CLOSED',
+      closeoutNotes: clean(body.notes) || clean(body.closeoutNotes) || null,
+      closedBy:
+        clean(body.closedBy) ||
+        clean(body.closedByEmail) ||
+        'Southin Hub User',
+      closedAt: new Date(),
+    },
+  });
+}
 
   async createCorrectiveAction(body: any) {
     const sourceType = clean(body.sourceType).toUpperCase();
@@ -493,38 +577,6 @@ export class SafetyService {
     }
 
     return action;
-  }
-
-  async updateCorrectiveActionStatus(id: string, body: any) {
-    const action = await this.db().safetyCorrectiveAction.findUnique({
-      where: { id },
-    });
-
-    if (!action) {
-      throw new NotFoundException('Corrective action not found.');
-    }
-
-    const status = clean(body.status).toUpperCase();
-
-    const updateData: any = {
-      status,
-      verificationNotes: clean(body.verificationNotes) || action.verificationNotes,
-    };
-
-    if (status === 'COMPLETED') {
-      updateData.completedBy = clean(body.completedBy) || 'Safety user';
-      updateData.completedAt = new Date();
-    }
-
-    if (status === 'VERIFIED') {
-      updateData.verifiedBy = clean(body.verifiedBy) || 'Safety verifier';
-      updateData.verifiedAt = new Date();
-    }
-
-    return this.db().safetyCorrectiveAction.update({
-      where: { id },
-      data: updateData,
-    });
   }
 
   private async startSafetyWorkflow(input: {

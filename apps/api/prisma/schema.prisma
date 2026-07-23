@@ -538,6 +538,10 @@ model SafetyCorrectiveAction {
   verifiedBy         String?
   verifiedAt         DateTime?
 
+  closeoutNotes      String?
+  closedBy           String?
+  closedAt           DateTime?
+
   createdBy          String?
   createdByEmail     String?
 

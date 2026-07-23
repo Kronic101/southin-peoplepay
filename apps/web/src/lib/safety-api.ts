@@ -72,16 +72,61 @@ export function createSafetyIncident(body: any) {
   return apiPost<any>('/safety/incidents', body);
 }
 
-export function getSafetyCorrectiveActions(siteId?: string) {
-  return apiGet<any[]>(withSite('/safety/corrective-actions', siteId));
+export function getSafetyCorrectiveActions() {
+  return apiGet<any[]>('/safety/corrective-actions');
+}
+
+export function getSafetyCorrectiveAction(id: string) {
+  return apiGet<any>(`/safety/corrective-actions/${id}`);
 }
 
 export function createSafetyCorrectiveAction(body: any) {
   return apiPost<any>('/safety/corrective-actions', body);
 }
 
-export function updateSafetyCorrectiveActionStatus(id: string, body: any) {
+export function updateSafetyCorrectiveActionStatus(
+  id: string,
+  body: {
+    status: string;
+    notes?: string;
+    actionedBy?: string;
+    actionedByEmail?: string;
+  },
+) {
   return apiPatch<any>(`/safety/corrective-actions/${id}/status`, body);
+}
+
+export function completeSafetyCorrectiveAction(
+  id: string,
+  body: {
+    notes?: string;
+    actionedBy?: string;
+    actionedByEmail?: string;
+  },
+) {
+  return apiPatch<any>(`/safety/corrective-actions/${id}/complete`, body);
+}
+
+export function verifySafetyCorrectiveAction(
+  id: string,
+  body: {
+    notes?: string;
+    verifiedBy?: string;
+    verifiedByEmail?: string;
+  },
+) {
+  return apiPatch<any>(`/safety/corrective-actions/${id}/verify`, body);
+}
+
+export function closeSafetyCorrectiveAction(
+  id: string,
+  body: {
+    notes?: string;
+    closedBy?: string;
+    closedByEmail?: string;
+  },
+) {
+  return apiPatch<any>(`/safety/corrective-actions/${id}/close`, body);
 }
 
 export function makeIdempotencyKey(prefix = 'WEB') {

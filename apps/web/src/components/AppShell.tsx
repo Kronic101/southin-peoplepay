@@ -648,10 +648,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <Link className="app-brand" href={demoEnabled ? '/workbench' : '/dashboard'}>
-          <span className="app-brand-mark">SP</span>
-          <span>
-            <strong>{APP_BRAND.platformName}</strong>
-          </span>
+          <div className="app-brand">
+              <img
+                src="/logo.png"
+                alt="Southin Operations Hub"
+                className="app-logo"
+              />
+              <div>
+                <strong>Southin Hub</strong>
+                <span>Operations Control Centre</span>
+              </div>
+            </div>
         </Link>
 
         {demoEnabled ? (
