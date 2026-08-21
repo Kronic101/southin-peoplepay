@@ -101,6 +101,23 @@ function normaliseRole(value: unknown): StaffRole {
   return '';
 }
 
+function roleFromEmail(email: unknown): StaffRole {
+  const normalisedEmail = String(email || '').trim().toLowerCase();
+
+  if (
+    normalisedEmail === 'naomi.kimena@southincon.com' ||
+    normalisedEmail === 'moonga.sianongo@southincon.com'
+  ) {
+    return 'PROCUREMENT_OFFICER';
+  }
+
+  if (normalisedEmail === 'chipo.mutale@southincon.com') {
+    return 'STORES_OFFICER';
+  }
+
+  return '';
+}
+
 function getStoredRole(demoEnabled: boolean): StaffRole {
   if (typeof window === 'undefined') return 'ADMIN';
 

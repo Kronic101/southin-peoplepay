@@ -15,9 +15,7 @@ import StatusPill from '../../../src/components/StatusPill';
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return '-';
 
   return date.toLocaleDateString('en-ZM', {
@@ -27,14 +25,27 @@ function formatDate(value?: string | null) {
   });
 }
 
-function sourceLabel(action: any) {
-  if (action?.observation?.observationNo) return action.observation.observationNo;
-  if (action?.incident?.incidentNo) return action.incident.incidentNo;
-  return action?.sourceId || '-';
+function sourceNo(action: any) {
+  return (
+    action?.observation?.observationNo ||
+    action?.incident?.incidentNo ||
+    action?.sourceNo ||
+    action?.sourceId ||
+    '-'
+  );
+}
+
+function sourceDescription(action: any) {
+  return (
+    action?.observation?.description ||
+    action?.incident?.description ||
+    action?.sourceType ||
+    '-'
+  );
 }
 
 export default function MobileSafetyActionsPage() {
-  const [actions, setActions] = useState<any[]>([]);
+  const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -44,7 +55,7 @@ export default function MobileSafetyActionsPage() {
 
     try {
       const result: any = await getSafetyCorrectiveActions();
-      setActions(Array.isArray(result) ? result : result?.actions || []);
+      setRecords(Array.isArray(result) ? result : result?.actions || []);
     } catch (err: any) {
       setMessage(err?.message || 'Unable to load corrective actions.');
     } finally {
@@ -66,7 +77,7 @@ export default function MobileSafetyActionsPage() {
         <Text style={styles.eyebrow}>Mobile Safety</Text>
         <Text style={styles.title}>Corrective Actions</Text>
         <Text style={styles.subtitle}>
-          Review open, completed, verified and closed safety corrective actions.
+          View, complete, verify and close corrective actions linked to safety observations and incidents.
         </Text>
 
         <View style={styles.actionRow}>
@@ -81,40 +92,44 @@ export default function MobileSafetyActionsPage() {
       </View>
 
       {message ? (
-        <View style={styles.errorNotice}>
-          <Text style={styles.errorText}>{message}</Text>
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>{message}</Text>
         </View>
       ) : null}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Action Register</Text>
 
-        {loading && actions.length === 0 ? <ActivityIndicator /> : null}
+        {loading && records.length === 0 ? <ActivityIndicator /> : null}
 
-        {!loading && actions.length === 0 ? (
+        {!loading && records.length === 0 ? (
           <Text style={styles.emptyText}>No corrective actions found.</Text>
         ) : null}
 
-        {actions.map((action) => (
+        {records.map((action) => (
           <Pressable
             key={action.id}
-            style={({ pressed }) => [styles.listRow, pressed && styles.cardPressed]}
+            style={({ pressed }) => [styles.actionCard, pressed && styles.pressed]}
             onPress={() => router.push(`/safety/actions/${action.id}`)}
           >
-            <View style={styles.rowMain}>
-              <Text style={styles.rowTitle}>{action.actionNo || 'Corrective Action'}</Text>
-              <Text style={styles.rowMeta}>{action.title || action.description || '-'}</Text>
-              <Text style={styles.rowMeta}>
-                {sourceLabel(action)} - Due {formatDate(action.dueDate)}
-              </Text>
-              <Text style={styles.rowMeta}>
-                Assigned: {action.assignedToName || 'Not assigned'}
-              </Text>
+            <View style={styles.actionHeader}>
+              <Text style={styles.actionNo}>{action.actionNo || 'Corrective Action'}</Text>
+              <StatusPill status={action.status || 'OPEN'} />
             </View>
 
-            <View style={styles.rowStatus}>
+            <Text style={styles.actionTitle}>{action.title || '-'}</Text>
+            <Text style={styles.meta}>{sourceNo(action)}</Text>
+            <Text style={styles.description}>{sourceDescription(action)}</Text>
+
+            <View style={styles.footerRow}>
+              <Text style={styles.footerText}>
+                Assigned: {action.assignedToName || 'Not assigned'}
+              </Text>
+              <Text style={styles.footerText}>Due: {formatDate(action.dueDate)}</Text>
+            </View>
+
+            <View style={styles.priorityRow}>
               <StatusPill status={action.priority || 'MEDIUM'} />
-              <StatusPill status={action.status || 'OPEN'} />
             </View>
           </Pressable>
         ))}
@@ -169,17 +184,9 @@ const styles = StyleSheet.create({
     borderColor: '#ccd8e5',
     padding: 16,
   },
-  sectionTitle: {
-    color: '#06152b',
-    fontSize: 20,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
+  sectionTitle: { color: '#06152b', fontSize: 20, fontWeight: '900', marginBottom: 10 },
   emptyText: { color: '#64748b', fontWeight: '800', paddingVertical: 12 },
-  listRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
+  actionCard: {
     borderWidth: 1,
     borderColor: '#d7e1ed',
     borderRadius: 16,
@@ -187,21 +194,22 @@ const styles = StyleSheet.create({
     marginTop: 10,
     backgroundColor: '#f8fafc',
   },
-  rowMain: { flex: 1 },
-  rowTitle: { color: '#06152b', fontWeight: '900', fontSize: 15 },
-  rowMeta: { color: '#64748b', fontWeight: '700', marginTop: 3 },
-  rowStatus: { gap: 6, alignItems: 'flex-end' },
-  cardPressed: {
-    opacity: 0.72,
-    transform: [{ scale: 0.99 }],
-  },
-  errorNotice: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5',
+  actionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  actionNo: { color: '#06152b', fontWeight: '900', fontSize: 15, flex: 1 },
+  actionTitle: { color: '#06152b', fontWeight: '900', fontSize: 18, marginTop: 10 },
+  meta: { color: '#f26a21', fontWeight: '900', marginTop: 6 },
+  description: { color: '#475569', fontWeight: '700', marginTop: 4, lineHeight: 20 },
+  footerRow: { marginTop: 10 },
+  footerText: { color: '#64748b', fontWeight: '800', marginTop: 3 },
+  priorityRow: { alignItems: 'flex-start', marginTop: 10 },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
+  notice: {
+    backgroundColor: '#fff7ed',
+    borderColor: '#fdba74',
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
     marginBottom: 14,
   },
-  errorText: { color: '#991b1b', fontWeight: '900' },
+  noticeText: { color: '#9a3412', fontWeight: '900' },
 });

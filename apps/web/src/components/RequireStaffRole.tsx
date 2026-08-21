@@ -76,6 +76,23 @@ function getDemoRole(): StaffRole | '' {
   return '';
 }
 
+function roleFromEmail(email: unknown): StaffRole | '' {
+  const normalisedEmail = String(email || '').trim().toLowerCase();
+
+  if (
+    normalisedEmail === 'naomi.kimena@southincon.com' ||
+    normalisedEmail === 'moonga.sianongo@southincon.com'
+  ) {
+    return 'PROCUREMENT_OFFICER';
+  }
+
+  if (normalisedEmail === 'chipo.mutale@southincon.com') {
+    return 'STORES_OFFICER';
+  }
+
+  return '';
+}
+
 export function RequireStaffRole({
   allowedRoles,
   children,
@@ -92,9 +109,10 @@ export function RequireStaffRole({
   const demoVisible = typeof window !== 'undefined' && isDemoEnabledForBrowser();
 
   const sessionRole = normaliseRole((session?.user as any)?.staffRole);
+  const emailRole = roleFromEmail((session?.user as any)?.email);
   const demoRole = demoVisible ? getDemoRole() : '';
 
-  const role = sessionRole || demoRole;
+  const role = sessionRole || emailRole || demoRole;
 
   const allowed =
     role === 'ADMIN' ||

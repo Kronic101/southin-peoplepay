@@ -617,4 +617,107 @@ async closeCorrectiveAction(id: string, body: any) {
       },
     });
   }
+
+  async getCorrectiveActionSources(siteId?: string) {
+    const cleanSiteId = clean(siteId);
+
+    const [observations, incidents] = await Promise.all([
+      this.db().safetyObservation.findMany({
+        where: {
+          ...(cleanSiteId ? { siteId: cleanSiteId } : {}),
+          status: {
+            in: ['OPEN', 'UNDER_REVIEW', 'ACTION_REQUIRED'],
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 50,
+        select: {
+          id: true,
+          observationNo: true,
+          observationType: true,
+          riskLevel: true,
+          siteId: true,
+          siteName: true,
+          branch: true,
+          exactLocation: true,
+          description: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+
+      this.db().safetyIncident.findMany({
+        where: {
+          ...(cleanSiteId ? { siteId: cleanSiteId } : {}),
+          status: {
+            in: ['REPORTED', 'UNDER_REVIEW', 'ACTION_REQUIRED', 'OPEN'],
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 50,
+        select: {
+          id: true,
+          incidentNo: true,
+          incidentType: true,
+          severity: true,
+          siteId: true,
+          siteName: true,
+          branch: true,
+          exactLocation: true,
+          description: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const observationOptions = observations.map((item: any) => ({
+      id: item.id,
+      sourceId: item.id,
+      sourceType: 'SAFETY_OBSERVATION',
+      sourceNo: item.observationNo,
+      sourceKind: 'Observation',
+      riskOrSeverity: item.riskLevel,
+      category: item.observationType,
+      siteId: item.siteId,
+      siteName: item.siteName,
+      branch: item.branch,
+      exactLocation: item.exactLocation,
+      description: item.description,
+      status: item.status,
+      createdAt: item.createdAt,
+      label: `${item.observationNo} - ${item.riskLevel || 'Risk'} - ${item.siteName || 'No site'} - ${item.description || ''}`,
+    }));
+
+    const incidentOptions = incidents.map((item: any) => ({
+      id: item.id,
+      sourceId: item.id,
+      sourceType: 'SAFETY_INCIDENT',
+      sourceNo: item.incidentNo,
+      sourceKind: 'Incident / Near Miss',
+      riskOrSeverity: item.severity,
+      category: item.incidentType,
+      siteId: item.siteId,
+      siteName: item.siteName,
+      branch: item.branch,
+      exactLocation: item.exactLocation,
+      description: item.description,
+      status: item.status,
+      createdAt: item.createdAt,
+      label: `${item.incidentNo} - ${item.severity || 'Severity'} - ${item.siteName || 'No site'} - ${item.description || ''}`,
+    }));
+
+    return {
+      observations: observationOptions,
+      incidents: incidentOptions,
+      options: [...observationOptions, ...incidentOptions].sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    };
+  }
 }

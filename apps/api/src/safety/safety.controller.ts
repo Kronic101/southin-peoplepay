@@ -40,6 +40,11 @@ export class SafetyController {
     return this.safetyService.createCorrectiveAction(body);
   }
 
+  @Get('corrective-action-sources')
+  getCorrectiveActionSources(@Query('siteId') siteId?: string) {
+    return this.safetyService.getCorrectiveActionSources(siteId);
+  }
+
     @Get('corrective-actions/:id')
   getCorrectiveAction(@Param('id') id: string) {
     return this.safetyService.getCorrectiveAction(id);

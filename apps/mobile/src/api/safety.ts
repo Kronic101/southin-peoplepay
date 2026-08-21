@@ -38,6 +38,11 @@ export const verifySafetyCorrectiveAction = (id: string, payload: any) =>
 export const closeSafetyCorrectiveAction = (id: string, payload: any) =>
   apiPatch(`/safety/corrective-actions/${id}/close`, payload);
 
+export const getSafetyCorrectiveActionSources = (siteId?: string) => {
+  const suffix = siteId ? `?siteId=${encodeURIComponent(siteId)}` : '';
+  return apiGet(`/safety/corrective-action-sources${suffix}`);
+};
+
 /**
  * Temporary site lookup.
  * Later we should replace this with /sites or /people-ops/context

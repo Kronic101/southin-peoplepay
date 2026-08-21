@@ -136,3 +136,9 @@ export function makeIdempotencyKey(prefix = 'WEB') {
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+export function getSafetyCorrectiveActionSources(siteId?: string) {
+  return apiGet<any>(
+    withSite('/safety/corrective-action-sources', siteId),
+  );
+}

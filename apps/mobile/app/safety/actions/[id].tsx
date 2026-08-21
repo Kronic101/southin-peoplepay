@@ -21,9 +21,7 @@ import StatusPill from '../../../src/components/StatusPill';
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return '-';
 
   return date.toLocaleDateString('en-ZM', {
@@ -33,10 +31,14 @@ function formatDate(value?: string | null) {
   });
 }
 
-function sourceLabel(action: any) {
-  if (action?.observation?.observationNo) return action.observation.observationNo;
-  if (action?.incident?.incidentNo) return action.incident.incidentNo;
-  return action?.sourceId || '-';
+function sourceNo(action: any) {
+  return (
+    action?.observation?.observationNo ||
+    action?.incident?.incidentNo ||
+    action?.sourceNo ||
+    action?.sourceId ||
+    '-'
+  );
 }
 
 function sourceDescription(action: any) {
@@ -158,12 +160,15 @@ export default function MobileSafetyActionDetailPage() {
             <Text style={styles.sectionTitle}>{action.title || 'Corrective Action'}</Text>
             <Text style={styles.description}>{action.description || '-'}</Text>
 
-            <Info label="Linked Source" value={sourceLabel(action)} />
+            <Info label="Linked Source" value={sourceNo(action)} />
             <Info label="Source Description" value={sourceDescription(action)} />
             <Info label="Assigned To" value={action.assignedToName || 'Not assigned'} />
             <Info label="Assigned Email" value={action.assignedToEmail || '-'} />
             <Info label="Due Date" value={formatDate(action.dueDate)} />
-            <Info label="Created By" value={action.createdBy || '-'} />
+            <Info label="Completed By" value={action.completedBy || '-'} />
+            <Info label="Verified By" value={action.verifiedBy || '-'} />
+            <Info label="Closed By" value={action.closedBy || '-'} />
+            <Info label="Closeout Notes" value={action.closeoutNotes || '-'} />
           </View>
 
           <View style={styles.card}>
@@ -265,18 +270,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   statusRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  sectionTitle: {
-    color: '#06152b',
-    fontSize: 20,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
+  sectionTitle: { color: '#06152b', fontSize: 20, fontWeight: '900', marginBottom: 8 },
   description: { color: '#475569', fontWeight: '700', lineHeight: 22 },
-  infoBox: {
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingVertical: 12,
-  },
+  infoBox: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingVertical: 12 },
   infoLabel: {
     color: '#64748b',
     textTransform: 'uppercase',

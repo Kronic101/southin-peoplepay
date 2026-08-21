@@ -95,13 +95,13 @@ export default function MobileSafetyPage() {
           </Pressable>
         </View>
 
-        <Pressable
-          style={[styles.secondaryButton, styles.fullButton]}
-          onPress={() => router.push('/safety/actions/new')}
-        >
-          <Text style={styles.secondaryButtonText}>New Corrective Action</Text>
-        </Pressable>
-      </View>
+          <Pressable
+            style={[styles.secondaryButton, styles.fullButton]}
+            onPress={() => router.push('/safety/actions/new')}
+          >
+            <Text style={styles.secondaryButtonText}>New Corrective Action</Text>
+          </Pressable>
+        </View>
 
       {error ? (
         <View style={styles.errorNotice}>
