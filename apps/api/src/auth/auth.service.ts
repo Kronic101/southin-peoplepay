@@ -108,6 +108,7 @@ export class AuthService {
       sub: portalAccount.employeeId,
       employeeId: portalAccount.employeeId,
       employeeNumber: portalAccount.employeeNumber,
+      mustChangePin: portalAccount.mustChangePin,
     });
 
     return {
@@ -190,6 +191,7 @@ export class AuthService {
       sub: portalAccount.employeeId,
       employeeId: portalAccount.employeeId,
       employeeNumber: portalAccount.employeeNumber,
+      mustChangePin: false,
     });
 
     return {
@@ -606,7 +608,9 @@ export class AuthService {
     let payload: any;
 
     try {
-      payload = JSON.parse(Buffer.from(encodedBody, 'base64url').toString('utf8'));
+      payload = JSON.parse(
+        Buffer.from(encodedBody, 'base64url').toString('utf8'),
+      );
     } catch {
       throw new UnauthorizedException('Invalid token.');
     }
@@ -615,8 +619,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid employee session.');
     }
 
-    if (payload?.exp && Number(payload.exp) < Math.floor(Date.now() / 1000)) {
+    if (
+      payload?.exp &&
+      Number(payload.exp) < Math.floor(Date.now() / 1000)
+    ) {
       throw new UnauthorizedException('Employee session expired.');
+    }
+
+    // Employee has authenticated using the temporary/default PIN.
+    // Normal protected employee endpoints remain blocked until
+    // employeeChangePin() succeeds and issues a new token.
+    if (payload?.mustChangePin === true) {
+      throw new ForbiddenException('PIN_CHANGE_REQUIRED');
     }
 
     return payload;

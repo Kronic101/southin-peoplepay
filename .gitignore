@@ -1,3 +1,9 @@
+# HR production data
+/southin peoplepay employee import filled.xlsx
+
+# HR import reports
+/apps/api/import-reports/
+
 node_modules
 .next
 dist

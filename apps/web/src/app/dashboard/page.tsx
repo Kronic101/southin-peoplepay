@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getServerSession } from 'next-auth';
+import { getServerSession, type Session } from 'next-auth';
 
 import { authOptions } from '@/auth';
 import { AppShell } from '@/components/AppShell';
@@ -100,10 +100,10 @@ function displayRole(role?: string | null) {
 }
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+  const session = (await getServerSession(authOptions)) as Session | null;
 
-  const email = session?.user?.email || '';
-  const role = cleanRole((session?.user as any)?.staffRole || 'ADMIN');
+  const email = session?.user?.email ?? '';
+  const role = cleanRole(session?.user?.staffRole ?? 'ADMIN');
 
   const dashboard = await getDashboardSummary(role, email);
 
