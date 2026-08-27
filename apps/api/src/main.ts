@@ -20,7 +20,64 @@ function isLocalOrLanOrigin(origin: string) {
   );
 }
 
+function logDatabaseConfiguration() {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    console.warn('[DB CONFIG] DATABASE_URL is not configured.');
+    return;
+  }
+
+  try {
+    const parsed = new URL(databaseUrl);
+
+    console.log(
+      [
+        '[DB CONFIG]',
+        `host=${parsed.hostname}`,
+        `port=${parsed.port || '5432'}`,
+        `database=${parsed.pathname.replace('/', '') || 'postgres'}`,
+        `pgbouncer=${parsed.searchParams.get('pgbouncer') || 'false'}`,
+        `connection_limit=${
+          parsed.searchParams.get('connection_limit') || 'default'
+        }`,
+        `pool_timeout=${parsed.searchParams.get('pool_timeout') || 'default'}`,
+      ].join(' '),
+    );
+  } catch {
+    console.warn('[DB CONFIG] DATABASE_URL could not be parsed.');
+  }
+}
+
 async function bootstrap() {
+  /**
+   * Safe diagnostic only.
+   * Does NOT log usernames, passwords or the complete DATABASE_URL.
+   */
+  logDatabaseConfiguration();
+
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (databaseUrl) {
+    try {
+      const parsed = new URL(databaseUrl);
+
+      console.log(
+        `[DB CONFIG] host=${parsed.hostname} ` +
+        `port=${parsed.port || '5432'} ` +
+        `pgbouncer=${parsed.searchParams.get('pgbouncer') || 'false'} ` +
+        `connection_limit=${
+          parsed.searchParams.get('connection_limit') || 'default'
+        } ` +
+        `pool_timeout=${
+          parsed.searchParams.get('pool_timeout') || 'default'
+        }`,
+      );
+    } catch (error) {
+      console.error('[DB CONFIG] DATABASE_URL could not be parsed.', error);
+    }
+  }
+
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
@@ -36,7 +93,13 @@ async function bootstrap() {
     'http://127.0.0.1:8081',
     'http://172.29.41.23:3000',
     'http://172.29.41.23:8081',
+
+    // Railway web
     'https://southinweb-production.up.railway.app',
+
+    // Production Southin Hub
+    'https://hub.southincon.com',
+
     ...configuredOrigins,
   ];
 
@@ -59,7 +122,9 @@ async function bootstrap() {
 
       callback(new Error(`CORS blocked origin: ${origin}`), false);
     },
+
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -67,7 +132,6 @@ async function bootstrap() {
       'Origin',
       'X-Requested-With',
 
-      // Local RBAC / role headers used by the web app before Microsoft 365 auth is completed
       'x-user-role',
       'x-user-email',
       'x-user-name',
@@ -75,7 +139,6 @@ async function bootstrap() {
       'x-employee-id',
       'x-employee-number',
 
-      // Same headers in capitalized form for safety
       'X-User-Role',
       'X-User-Email',
       'X-User-Name',
@@ -83,8 +146,11 @@ async function bootstrap() {
       'X-Employee-Id',
       'X-Employee-Number',
     ],
+
     exposedHeaders: ['Content-Length', 'Content-Type'],
+
     credentials: true,
+
     optionsSuccessStatus: 204,
   });
 
