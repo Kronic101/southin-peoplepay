@@ -41,7 +41,9 @@ function logDatabaseConfiguration() {
         `connection_limit=${
           parsed.searchParams.get('connection_limit') || 'default'
         }`,
-        `pool_timeout=${parsed.searchParams.get('pool_timeout') || 'default'}`,
+        `pool_timeout=${
+          parsed.searchParams.get('pool_timeout') || 'default'
+        }`,
       ].join(' '),
     );
   } catch {
@@ -50,33 +52,9 @@ function logDatabaseConfiguration() {
 }
 
 async function bootstrap() {
-  /**
-   * Safe diagnostic only.
-   * Does NOT log usernames, passwords or the complete DATABASE_URL.
-   */
+  // Safe runtime diagnostic.
+  // Does not expose usernames or passwords.
   logDatabaseConfiguration();
-
-  const databaseUrl = process.env.DATABASE_URL;
-
-  if (databaseUrl) {
-    try {
-      const parsed = new URL(databaseUrl);
-
-      console.log(
-        `[DB CONFIG] host=${parsed.hostname} ` +
-        `port=${parsed.port || '5432'} ` +
-        `pgbouncer=${parsed.searchParams.get('pgbouncer') || 'false'} ` +
-        `connection_limit=${
-          parsed.searchParams.get('connection_limit') || 'default'
-        } ` +
-        `pool_timeout=${
-          parsed.searchParams.get('pool_timeout') || 'default'
-        }`,
-      );
-    } catch (error) {
-      console.error('[DB CONFIG] DATABASE_URL could not be parsed.', error);
-    }
-  }
 
   const app = await NestFactory.create(AppModule);
 
@@ -115,15 +93,28 @@ async function bootstrap() {
         return;
       }
 
-      if (process.env.NODE_ENV !== 'production' && isLocalOrLanOrigin(origin)) {
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        isLocalOrLanOrigin(origin)
+      ) {
         callback(null, true);
         return;
       }
 
-      callback(new Error(`CORS blocked origin: ${origin}`), false);
+      callback(
+        new Error(`CORS blocked origin: ${origin}`),
+        false,
+      );
     },
 
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: [
+      'GET',
+      'POST',
+      'PATCH',
+      'PUT',
+      'DELETE',
+      'OPTIONS',
+    ],
 
     allowedHeaders: [
       'Content-Type',
@@ -147,7 +138,10 @@ async function bootstrap() {
       'X-Employee-Number',
     ],
 
-    exposedHeaders: ['Content-Length', 'Content-Type'],
+    exposedHeaders: [
+      'Content-Length',
+      'Content-Type',
+    ],
 
     credentials: true,
 
@@ -158,7 +152,9 @@ async function bootstrap() {
 
   await app.listen(port, '0.0.0.0');
 
-  console.log(`Southin PeoplePay API running on port ${port}`);
+  console.log(
+    `Southin PeoplePay API running on port ${port}`,
+  );
 }
 
 bootstrap();

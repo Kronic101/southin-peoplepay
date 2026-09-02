@@ -2053,11 +2053,11 @@ export class AssetsService {
 
   async getAssets() {
     return this.db().hubAsset.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        stockItem: true,
-        qrTags: true,
-      },
+      orderBy: [
+        {
+          createdAt: 'desc',
+        },
+      ],
     });
   }
 
