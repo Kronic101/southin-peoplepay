@@ -124,6 +124,7 @@ async function bootstrap() {
       'X-Requested-With',
 
       'x-user-role',
+      'x-user-roles',
       'x-user-email',
       'x-user-name',
       'x-user-id',
@@ -131,6 +132,7 @@ async function bootstrap() {
       'x-employee-number',
 
       'X-User-Role',
+      'X-User-Roles',
       'X-User-Email',
       'X-User-Name',
       'X-User-Id',

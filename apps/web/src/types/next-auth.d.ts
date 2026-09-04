@@ -1,21 +1,55 @@
-import type { DefaultSession } from "next-auth";
+import type {
+  DefaultSession,
+} from 'next-auth';
 
-declare module "next-auth" {
+import type {
+  StaffRole,
+} from '../lib/staff-roles';
+
+declare module 'next-auth' {
   interface Session {
     user: {
-      entraObjectId?: string | null;
+      entraObjectId?:
+        | string
+        | null;
+
       entraGroups?: string[];
-      staffRole?: string | null;
-      entraGroupOverage?: boolean;
-    } & DefaultSession["user"];
+
+      /**
+       * Primary role retained for
+       * backward compatibility.
+       */
+      staffRole?:
+        | StaffRole
+        | null;
+
+      /**
+       * NEW:
+       * all applicable roles.
+       */
+      staffRoles?: StaffRole[];
+
+      entraGroupOverage?:
+        boolean;
+    } & DefaultSession['user'];
   }
 }
 
-declare module "next-auth/jwt" {
+declare module 'next-auth/jwt' {
   interface JWT {
-    entraObjectId?: string | null;
+    entraObjectId?:
+      | string
+      | null;
+
     entraGroups?: string[];
-    staffRole?: string | null;
-    entraGroupOverage?: boolean;
+
+    staffRole?:
+      | StaffRole
+      | null;
+
+    staffRoles?: StaffRole[];
+
+    entraGroupOverage?:
+      boolean;
   }
 }
