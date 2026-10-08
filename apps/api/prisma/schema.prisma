@@ -123,8 +123,7 @@ model Site {
   siteGroup   SiteGroup? @relation(fields: [siteGroupId], references: [id])
 
   description String?
-
-  isActive Boolean @default(true)
+  isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,8 +132,7 @@ model Site {
   managerAssignments   SiteManagerAssignment[]
   initiatorAssignments SiteInitiatorAssignment[]
 
-  @@index([siteGroupId])
-  @@index([isActive])
+  assets HubAsset[] @relation("HubAssetCanonicalSite")
 }
 
 model SiteInitiatorAssignment {
@@ -1703,8 +1701,15 @@ model HubAsset {
   description String?
 
   department String?
-  site       String?
-  location   String?
+
+  // Legacy/imported textual site value.
+  site String?
+
+  // Canonical PeoplePay site.
+  siteId     String?
+  siteRecord Site?   @relation("HubAssetCanonicalSite", fields: [siteId], references: [id])
+
+  location String?
 
   manufacturer String?
   modelNumber  String?
@@ -1744,6 +1749,7 @@ model HubAsset {
   custodyAssignments  AssetCustodyAssignment[]
   depreciationHistory AssetDepreciationHistory[]
 
+  @@index([siteId])
   @@index([category])
   @@index([status])
   @@index([site])
