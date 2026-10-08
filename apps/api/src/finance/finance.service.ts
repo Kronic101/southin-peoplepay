@@ -444,7 +444,7 @@ export class FinanceService {
       requesterEmail: record.requestedByEmail || undefined,
       requesterEntraId: record.requestedByEntraId || undefined,
       requesterRole: record.requestedByRole || 'PROCUREMENT_REQUESTER',
-      requesterDepartment: record.department,
+      requesterDepartment: record.department ?? undefined,
       requesterSite: record.site || undefined,
       amount,
       sourceEntityType: 'ProcurementRequest',

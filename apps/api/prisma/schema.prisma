@@ -60,16 +60,81 @@ model JobTitle {
   employees   Employee[]
 }
 
+model SiteGroup {
+  id String @id @default(uuid())
+
+  code String @unique
+  name String @unique
+
+  town        String?
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sites              Site[]
+  managerAssignments SiteGroupManagerAssignment[]
+
+  @@index([town])
+  @@index([isActive])
+  @@map("site_groups")
+}
+
+model SiteGroupManagerAssignment {
+  id String @id @default(uuid())
+
+  siteGroupId String
+  siteGroup   SiteGroup @relation(fields: [siteGroupId], references: [id], onDelete: Cascade)
+
+  managerEmployeeId String?
+  managerEmployee   Employee? @relation("SiteGroupManagerEmployee", fields: [managerEmployeeId], references: [id])
+
+  managerName  String
+  managerEmail String?
+
+  managerRole String @default("SITE_MANAGER")
+
+  isPrimary Boolean @default(true)
+  isActive  Boolean @default(true)
+
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([siteGroupId])
+  @@index([managerEmployeeId])
+  @@index([managerEmail])
+  @@index([isActive])
+  @@map("site_group_manager_assignments")
+}
+
 model Site {
-  id                   String                    @id @default(uuid())
-  name                 String                    @unique
-  code                 String?                   @unique
-  description          String?
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
+  id   String  @id @default(uuid())
+  name String  @unique
+  code String? @unique
+
+  sourceDivisionName String?
+
+  siteGroupId String?
+  siteGroup   SiteGroup? @relation(fields: [siteGroupId], references: [id])
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   employees            Employee[]
   managerAssignments   SiteManagerAssignment[]
   initiatorAssignments SiteInitiatorAssignment[]
+
+  @@index([siteGroupId])
+  @@index([isActive])
 }
 
 model SiteInitiatorAssignment {
@@ -78,10 +143,15 @@ model SiteInitiatorAssignment {
   siteId String
   site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  initiatorName  String
-  initiatorEmail String?
-  initiatorRole  String  @default("SITE_INITIATOR")
-  moduleScope    Json    @default("[\"STORES\", \"PROCUREMENT\", \"ASSETS\"]")
+  initiatorEmployeeId String?
+  initiatorEmployee   Employee? @relation("SiteInitiatorEmployee", fields: [initiatorEmployeeId], references: [id])
+
+  initiatorName          String
+  initiatorEmail         String?
+  initiatorEntraObjectId String?
+
+  initiatorRole String @default("DATA_ENTRY_CLERK")
+  moduleScope   Json   @default("[]")
 
   isPrimary Boolean @default(false)
   isActive  Boolean @default(true)
@@ -90,7 +160,9 @@ model SiteInitiatorAssignment {
   updatedAt DateTime @updatedAt
 
   @@index([siteId])
+  @@index([initiatorEmployeeId])
   @@index([initiatorEmail])
+  @@index([initiatorEntraObjectId])
   @@map("site_initiator_assignments")
 }
 
@@ -105,34 +177,36 @@ model EmploymentType {
 }
 
 model Employee {
-  id               String                 @id @default(uuid())
-  employeeNumber   String                 @unique
-  firstName        String
-  middleName       String?
-  lastName         String
-  gender           String?
-  dateOfBirth      DateTime?
-  nrcNumber        String?
-  email            String?
-  phone            String?
-  departmentId     String?
-  jobTitleId       String?
-  siteId           String?
-  siteName         String?
-  employmentTypeId String?
-  supervisorId     String?
-  startDate        DateTime?
-  endDate          DateTime?
-  status           EmployeeStatus         @default(DRAFT)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  department       Department?            @relation(fields: [departmentId], references: [id])
-  employmentType   EmploymentType?        @relation(fields: [employmentTypeId], references: [id])
-  jobTitle         JobTitle?              @relation(fields: [jobTitleId], references: [id])
-  site             Site?                  @relation(fields: [siteId], references: [id])
-  supervisor       Employee?              @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
-  directReports    Employee[]             @relation("EmployeeSupervisor")
-  bankAuditLogs    EmployeeBankAuditLog[]
+  id                          String                       @id @default(uuid())
+  employeeNumber              String                       @unique
+  firstName                   String
+  middleName                  String?
+  lastName                    String
+  gender                      String?
+  dateOfBirth                 DateTime?
+  nrcNumber                   String?
+  email                       String?
+  phone                       String?
+  departmentId                String?
+  jobTitleId                  String?
+  siteId                      String?
+  siteName                    String?
+  employmentTypeId            String?
+  supervisorId                String?
+  startDate                   DateTime?
+  endDate                     DateTime?
+  status                      EmployeeStatus               @default(DRAFT)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  department                  Department?                  @relation(fields: [departmentId], references: [id])
+  employmentType              EmploymentType?              @relation(fields: [employmentTypeId], references: [id])
+  jobTitle                    JobTitle?                    @relation(fields: [jobTitleId], references: [id])
+  site                        Site?                        @relation(fields: [siteId], references: [id])
+  supervisor                  Employee?                    @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  directReports               Employee[]                   @relation("EmployeeSupervisor")
+  siteGroupManagerAssignments SiteGroupManagerAssignment[] @relation("SiteGroupManagerEmployee")
+  siteInitiatorAssignments    SiteInitiatorAssignment[]    @relation("SiteInitiatorEmployee")
+  bankAuditLogs               EmployeeBankAuditLog[]
 
   bankAccounts          EmployeeBankAccount[]
   bankName              String?
@@ -151,13 +225,18 @@ model Employee {
   monthlyRate       Decimal?  @db.Decimal(18, 2)
   rateEffectiveFrom DateTime?
 
-  contracts         EmployeeContract[]
-  portalAccount     EmployeePortalAccount?
-  serviceConditions EmployeeServiceCondition[]
-  paymentBatchItems PaymentBatchItem[]
-  statutoryDetails  EmployeeStatutoryDetails?
-  payrollRuns       PayrollRunEmployee[]
-  payslips          Payslip[]
+  contracts          EmployeeContract[]
+  portalAccount      EmployeePortalAccount?
+  serviceConditions  EmployeeServiceCondition[]
+  payrollAdjustments EmployeePayrollAdjustment[]
+  medicalRecords     EmployeeMedicalRecord[]
+  paymentBatchItems  PaymentBatchItem[]
+  statutoryDetails   EmployeeStatutoryDetails?
+  medicalCompliance  EmployeeMedicalCompliance?
+  payrollRuns        PayrollRunEmployee[]
+  payslips           Payslip[]
+
+  assetCustodyAssignments AssetCustodyAssignment[]
 
   leaveRequests LeaveRequest[]
 }
@@ -306,6 +385,129 @@ model EmployeeServiceCondition {
   template      ServiceConditionTemplate @relation(fields: [templateId], references: [id])
 }
 
+model EmployeeMedicalCompliance {
+  id String @id @default(uuid())
+
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Periodic occupational medical
+  periodicMedicalDate    DateTime?
+  periodicMedicalDueDate DateTime?
+
+  // Exit medical
+  exitMedicalDate DateTime?
+
+  // Return-to-work assessment
+  returnToWorkMedicalDate DateTime?
+
+  // Other clinic medical
+  otherClinicMedicalDate DateTime?
+  otherClinicMedicalType String?
+  otherClinicNotes       String?
+
+  // Basic operational status
+  fitnessStatus String?
+  // FIT
+  // FIT_WITH_RESTRICTIONS
+  // NOT_FIT
+  // PENDING
+
+  restrictionNotes String?
+
+  // Audit
+  updatedBy      String?
+  updatedByEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([periodicMedicalDueDate])
+  @@index([fitnessStatus])
+}
+
+model EmployeeMedicalRecord {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  medicalType MedicalRecordType
+
+  completedDate DateTime?
+  expiryDate    DateTime?
+
+  fitnessStatus MedicalFitnessStatus @default(UNKNOWN)
+
+  restrictions String?
+
+  site     String?
+  provider String?
+
+  certificateNumber String?
+  notes             String?
+
+  source          String?
+  sourceReference String?
+
+  createdBy      String?
+  createdByEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([medicalType])
+  @@index([expiryDate])
+  @@index([fitnessStatus])
+}
+
+model EmployeePayrollAdjustment {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  componentCode String
+  componentName String
+
+  kind      PayrollAdjustmentKind
+  frequency PayrollAdjustmentFrequency @default(ONCE)
+
+  amount Decimal @db.Decimal(18, 2)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  // Important for accruals/opening balances such as historical gratuity
+  affectsNetPay Boolean @default(true)
+
+  source          String?
+  sourceReference String?
+  notes           String?
+
+  approvalRequestId String?
+
+  status PayrollAdjustmentStatus @default(DRAFT)
+
+  createdBy      String?
+  createdByEmail String?
+
+  approvedBy      String?
+  approvedByEmail String?
+  approvedAt      DateTime?
+
+  appliedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([componentCode])
+  @@index([status])
+  @@index([effectiveFrom])
+}
+
 model AttendanceRecord {
   id               String   @id @default(uuid())
   attendanceNo     String   @unique
@@ -332,8 +534,8 @@ model AttendanceRecord {
   @@index([siteManagerEmail])
   @@index([attendanceDate])
   @@index([status])
-  @@map("attendance_records")
   @@index([approvalRequestId])
+  @@map("attendance_records")
 }
 
 model TimesheetRecord {
@@ -363,31 +565,31 @@ model TimesheetRecord {
   @@index([siteId])
   @@index([siteManagerEmail])
   @@index([status])
-  @@map("timesheet_records")
   @@index([approvalRequestId])
+  @@map("timesheet_records")
 }
 
 model OvertimeRequest {
-  id               String   @id @default(uuid())
-  overtimeNo       String   @unique
-  employeeId       String
-  employeeNumber   String?
-  employeeName     String?
-  siteId           String?
-  siteName         String?
-  siteManagerName  String?
-  siteManagerEmail String?
-  overtimeDate     DateTime
-  requestedHours   Decimal  @default(0) @db.Decimal(10, 2)
-  hourlyRate       Decimal  @default(0) @db.Decimal(14, 2)
-  estimatedCost    Decimal  @default(0) @db.Decimal(14, 2)
-  reason           String?
-  status           String   @default("SUBMITTED")
-  submittedBy      String?
-  submittedByEmail String?
+  id                String   @id @default(uuid())
+  overtimeNo        String   @unique
+  employeeId        String
+  employeeNumber    String?
+  employeeName      String?
+  siteId            String?
+  siteName          String?
+  siteManagerName   String?
+  siteManagerEmail  String?
+  overtimeDate      DateTime
+  requestedHours    Decimal  @default(0) @db.Decimal(10, 2)
+  hourlyRate        Decimal  @default(0) @db.Decimal(14, 2)
+  estimatedCost     Decimal  @default(0) @db.Decimal(14, 2)
+  reason            String?
+  status            String   @default("SUBMITTED")
+  submittedBy       String?
+  submittedByEmail  String?
   approvalRequestId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([employeeId])
   @@index([siteId])
@@ -397,45 +599,121 @@ model OvertimeRequest {
   @@map("overtime_requests")
 }
 
+model DocumentAttachment {
+  id String @id @default(uuid())
+
+  // What part of Southin owns this document?
+  module     String
+  entityType String
+  entityId   String
+
+  // What kind of evidence is it?
+  category String
+  title    String?
+  notes    String?
+
+  // Original file information
+  originalFileName String
+  mimeType         String
+  fileSize         Int?
+
+  // Storage location
+  storageProvider String @default("SUPABASE")
+  storageBucket   String
+  storagePath     String @unique
+
+  // Audit identity
+  uploadedBy        String?
+  uploadedByEmail   String?
+  uploadedByEntraId String?
+
+  uploadedAt DateTime @default(now())
+
+  documentDate DateTime?
+  expiresAt    DateTime?
+
+  status         String  @default("UPLOADED")
+  isConfidential Boolean @default(false)
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([module])
+  @@index([entityType, entityId])
+  @@index([category])
+  @@index([status])
+  @@index([uploadedAt])
+  @@index([expiresAt])
+}
+
+model EvidenceRequirementRule {
+  id String @id @default(uuid())
+
+  module       String
+  workflowType String
+
+  category String
+
+  label       String
+  description String?
+
+  minimumCount Int @default(1)
+
+  minimumAmount Decimal? @db.Decimal(18, 2)
+  maximumAmount Decimal? @db.Decimal(18, 2)
+
+  required Boolean @default(true)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([module, workflowType])
+  @@index([category])
+  @@index([isActive])
+}
+
 model SafetyObservation {
-  id                String   @id @default(uuid())
-  observationNo     String   @unique
+  id            String @id @default(uuid())
+  observationNo String @unique
 
-  siteId            String?
-  siteName          String?
-  branch            String?
-  department        String?
-  exactLocation     String?
+  siteId        String?
+  siteName      String?
+  branch        String?
+  department    String?
+  exactLocation String?
 
-  observationDate   DateTime
-  observationType   String   @default("UNSAFE_CONDITION")
-  riskLevel         String   @default("LOW")
-  description       String
-  immediateAction   String?
+  observationDate DateTime
+  observationType String   @default("UNSAFE_CONDITION")
+  riskLevel       String   @default("LOW")
+  description     String
+  immediateAction String?
 
-  personObserved    String?
-  employeeId        String?
-  contractorName    String?
+  personObserved String?
+  employeeId     String?
+  contractorName String?
 
-  reportedBy        String?
-  reportedByEmail   String?
+  reportedBy      String?
+  reportedByEmail String?
 
-  photoUrls         Json?
-  gpsLatitude       Decimal? @db.Decimal(10, 7)
-  gpsLongitude      Decimal? @db.Decimal(10, 7)
+  photoUrls    Json?
+  gpsLatitude  Decimal? @db.Decimal(10, 7)
+  gpsLongitude Decimal? @db.Decimal(10, 7)
 
-  status            String   @default("OPEN")
+  status            String  @default("OPEN")
   approvalRequestId String?
 
   mobileDraftId     String?
   idempotencyKey    String?
-  syncStatus        String?  @default("SYNCED")
+  syncStatus        String?   @default("SYNCED")
   deviceId          String?
   capturedOfflineAt DateTime?
   syncedAt          DateTime?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   correctiveActions SafetyCorrectiveAction[] @relation("ObservationCorrectiveActions")
 
@@ -450,53 +728,53 @@ model SafetyObservation {
 }
 
 model SafetyIncident {
-  id                 String   @id @default(uuid())
-  incidentNo         String   @unique
+  id         String @id @default(uuid())
+  incidentNo String @unique
 
-  siteId             String?
-  siteName           String?
-  branch             String?
-  department         String?
-  exactLocation      String?
+  siteId        String?
+  siteName      String?
+  branch        String?
+  department    String?
+  exactLocation String?
 
-  incidentDate       DateTime
-  reportedDate       DateTime @default(now())
+  incidentDate DateTime
+  reportedDate DateTime @default(now())
 
-  incidentType       String   @default("NEAR_MISS")
-  severity           String   @default("LOW")
-  description        String
-  immediateAction    String?
+  incidentType    String  @default("NEAR_MISS")
+  severity        String  @default("LOW")
+  description     String
+  immediateAction String?
 
-  injuredPersonName  String?
-  injuredEmployeeId  String?
-  contractorCompany  String?
-  injuryType         String?
-  bodyPart           String?
+  injuredPersonName String?
+  injuredEmployeeId String?
+  contractorCompany String?
+  injuryType        String?
+  bodyPart          String?
 
   rootCause          String?
   investigationNotes String?
 
-  reportedBy         String?
-  reportedByEmail    String?
+  reportedBy      String?
+  reportedByEmail String?
 
-  photoUrls          Json?
-  gpsLatitude        Decimal? @db.Decimal(10, 7)
-  gpsLongitude       Decimal? @db.Decimal(10, 7)
+  photoUrls    Json?
+  gpsLatitude  Decimal? @db.Decimal(10, 7)
+  gpsLongitude Decimal? @db.Decimal(10, 7)
 
-  status             String   @default("SUBMITTED")
-  approvalRequestId  String?
+  status            String  @default("SUBMITTED")
+  approvalRequestId String?
 
-  mobileDraftId      String?
-  idempotencyKey     String?
-  syncStatus         String?  @default("SYNCED")
-  deviceId           String?
-  capturedOfflineAt  DateTime?
-  syncedAt           DateTime?
+  mobileDraftId     String?
+  idempotencyKey    String?
+  syncStatus        String?   @default("SYNCED")
+  deviceId          String?
+  capturedOfflineAt DateTime?
+  syncedAt          DateTime?
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  correctiveActions  SafetyCorrectiveAction[] @relation("IncidentCorrectiveActions")
+  correctiveActions SafetyCorrectiveAction[] @relation("IncidentCorrectiveActions")
 
   @@index([siteId])
   @@index([siteName])
@@ -510,43 +788,43 @@ model SafetyIncident {
 }
 
 model SafetyCorrectiveAction {
-  id                 String   @id @default(uuid())
-  actionNo           String   @unique
+  id       String @id @default(uuid())
+  actionNo String @unique
 
-  sourceType         String
-  sourceId           String
+  sourceType String
+  sourceId   String
 
-  observationId      String?
-  observation        SafetyObservation? @relation("ObservationCorrectiveActions", fields: [observationId], references: [id])
+  observationId String?
+  observation   SafetyObservation? @relation("ObservationCorrectiveActions", fields: [observationId], references: [id])
 
-  incidentId         String?
-  incident           SafetyIncident? @relation("IncidentCorrectiveActions", fields: [incidentId], references: [id])
+  incidentId String?
+  incident   SafetyIncident? @relation("IncidentCorrectiveActions", fields: [incidentId], references: [id])
 
-  title              String
-  description        String
-  priority           String   @default("MEDIUM")
+  title       String
+  description String
+  priority    String @default("MEDIUM")
 
-  assignedToName     String?
-  assignedToEmail    String?
-  dueDate            DateTime?
+  assignedToName  String?
+  assignedToEmail String?
+  dueDate         DateTime?
 
-  status             String   @default("OPEN")
+  status String @default("OPEN")
 
-  completedBy        String?
-  completedAt        DateTime?
-  verificationNotes  String?
-  verifiedBy         String?
-  verifiedAt         DateTime?
+  completedBy       String?
+  completedAt       DateTime?
+  verificationNotes String?
+  verifiedBy        String?
+  verifiedAt        DateTime?
 
-  closeoutNotes      String?
-  closedBy           String?
-  closedAt           DateTime?
+  closeoutNotes String?
+  closedBy      String?
+  closedAt      DateTime?
 
-  createdBy          String?
-  createdByEmail     String?
+  createdBy      String?
+  createdByEmail String?
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([sourceType, sourceId])
   @@index([observationId])
@@ -1287,7 +1565,10 @@ model ProcurementRequest {
   id            String @id @default(uuid())
   requisitionNo String @unique
 
-  department String
+  requestType ProcurementRequestType @default(NON_CONSUMABLE)
+  origin      ProcurementOrigin      @default(DIRECT)
+
+  department String?
   site       String?
 
   requestedBy        String?
@@ -1295,10 +1576,24 @@ model ProcurementRequest {
   requestedByEntraId String?
   requestedByRole    String?
 
+  sourceRequestFromName  String?
+  sourceRequestFromEmail String?
+  sourceRequestDate      DateTime?
+  sourceRequestReference String?
+
+  sourceStoresRequisitionId String?
+  sourceStoresRequisition   StoresRequisition? @relation("StoresGeneratedProcurement", fields: [sourceStoresRequisitionId], references: [id])
+
+  description String
+
+  estimatedAmount Decimal? @db.Decimal(18, 2)
+  amount          Decimal? @db.Decimal(18, 2)
+  currency        String   @default("ZMW")
+
   supplierName String?
   supplierId   String?
-  description  String
-  amount       Decimal @db.Decimal(18, 2)
+
+  requiredBy DateTime?
 
   procurementStage String                   @default("REQUISITION_SUBMITTED")
   financeStage     String                   @default("NOT_REVIEWED")
@@ -1308,6 +1603,7 @@ model ProcurementRequest {
   paymentStatus        String @default("NOT_PAID")
   proofOfPaymentStatus String @default("NOT_UPLOADED")
 
+  // Retain temporarily for compatibility
   purchaseOrderNo   String?
   invoiceNo         String?
   goodsReceivedNote String?
@@ -1318,15 +1614,84 @@ model ProcurementRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  supplier           Supplier?       @relation(fields: [supplierId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  lines          ProcurementRequestLine[]
+  quotations     ProcurementQuotation[]
+  purchaseOrders PurchaseOrder[]
+
   stockMovements     StockMovement[]
   stockLedgerEntries StockLedger[]
 
+  @@index([requestType])
+  @@index([origin])
   @@index([status])
   @@index([department])
   @@index([site])
   @@index([supplierId])
+  @@index([sourceStoresRequisitionId])
   @@map("procurement_requests")
+}
+
+model ProcurementRequestLine {
+  id String @id @default(uuid())
+
+  procurementRequestId String
+  procurementRequest   ProcurementRequest @relation(fields: [procurementRequestId], references: [id], onDelete: Cascade)
+
+  itemName      String
+  description   String?
+  specification String?
+
+  category String?
+
+  quantity      Decimal @default(1) @db.Decimal(18, 2)
+  unitOfMeasure String  @default("EA")
+
+  estimatedUnitCost Decimal? @db.Decimal(18, 2)
+  estimatedTotal    Decimal? @db.Decimal(18, 2)
+
+  replacementAssetNo String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([procurementRequestId])
+}
+
+model ProcurementQuotation {
+  id String @id @default(uuid())
+
+  procurementRequestId String
+  procurementRequest   ProcurementRequest @relation(fields: [procurementRequestId], references: [id], onDelete: Cascade)
+
+  supplierId   String?
+  supplierName String
+
+  quotationNo   String?
+  quotationDate DateTime?
+  validUntil    DateTime?
+
+  currency String  @default("ZMW")
+  amount   Decimal @db.Decimal(18, 2)
+
+  isSelected Boolean @default(false)
+
+  notes String?
+
+  createdBy      String?
+  createdByEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([procurementRequestId])
+  @@index([supplierId])
+  @@index([isSelected])
 }
 
 model HubAsset {
@@ -1341,7 +1706,14 @@ model HubAsset {
   site       String?
   location   String?
 
-  serialNumber  String?
+  manufacturer String?
+  modelNumber  String?
+
+  serialNumber String?
+
+  imei1 String? @unique
+  imei2 String? @unique
+
   purchaseDate  DateTime?
   purchaseValue Decimal?  @db.Decimal(18, 2)
   currentValue  Decimal?  @db.Decimal(18, 2)
@@ -1352,9 +1724,12 @@ model HubAsset {
   depreciationMethod      String?
   monthlyDepreciationRate Decimal? @db.Decimal(8, 4)
 
-  supplierName         String?
-  supplierId           String?
+  supplierName String?
+  supplierId   String?
+
   procurementRequestId String?
+  purchaseOrderId      String?
+  goodsReceiptLineId   String?
 
   status AssetStatus @default(ACTIVE)
 
@@ -1797,6 +2172,8 @@ model Supplier {
 
   stockItems          StockItem[]
   procurementRequests ProcurementRequest[]
+  quotations          ProcurementQuotation[]
+  purchaseOrders      PurchaseOrder[]
   hubAssets           HubAsset[]
 
   @@index([supplierName])
@@ -1815,6 +2192,10 @@ model StockItem {
   minimumLevel  Decimal? @db.Decimal(18, 2)
   reorderLevel  Decimal? @db.Decimal(18, 2)
   standardCost  Decimal? @db.Decimal(18, 2)
+
+  inventoryControlType      InventoryControlType @default(CONSUMABLE)
+  assetRegistrationRequired Boolean              @default(false)
+  custodyTrackingRequired   Boolean              @default(false)
 
   supplierId   String?
   supplierCode String?
@@ -1844,6 +2225,7 @@ model StockItem {
   scaffoldDeployments ScaffoldDeployment[]
 
   @@index([itemType])
+  @@index([inventoryControlType])
   @@index([category])
   @@index([supplierId])
   @@index([legacyCode])
@@ -2153,6 +2535,8 @@ model AssetCustodyAssignment {
   assignedToType  String
   assignedToName  String
   assignedToEmail String?
+  employeeId      String?
+  employee        Employee? @relation(fields: [employeeId], references: [id])
   employeeNumber  String?
 
   department String?
@@ -2189,6 +2573,8 @@ model AssetCustodyAssignment {
   @@index([financeExpenseId])
   @@index([status])
   @@index([assignedToName])
+  @@index([employeeId])
+  @@index([employeeNumber])
   @@map("asset_custody_assignments")
 }
 
@@ -2541,15 +2927,28 @@ model StoresRequisition {
   description String?
   reason      String?
 
+  // Naomi / Moonga - actual system initiator
   requestedBy      String?
   requestedByEmail String?
   requesterRole    String?
 
+  // Original source request from the site
+  sourceRequestFromName  String?
+  sourceRequestFromEmail String?
+  sourceRequestDate      DateTime?
+  sourceRequestReference String?
+
   department   String?
   departmentId String?
-  site         String?
-  branch       String?
-  projectCode  String?
+
+  // DIVISION/site the request belongs to
+  site        String?
+  branch      String?
+  projectCode String?
+
+  requiredBy DateTime?
+
+  availabilityStatus StoresAvailabilityStatus @default(PENDING_CHECK)
 
   status            String  @default("SUBMITTED")
   approvalRequestId String?
@@ -2568,10 +2967,13 @@ model StoresRequisition {
 
   lines StoresRequisitionLine[]
 
+  procurementRequests ProcurementRequest[] @relation("StoresGeneratedProcurement")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([requisitionNo])
+  @@index([availabilityStatus])
   @@index([status])
   @@index([site])
   @@index([branch])
@@ -2724,6 +3126,19 @@ enum StockMovementType {
   SCAFFOLD_RETURN
 }
 
+enum InventoryControlType {
+  CONSUMABLE
+  NON_CONSUMABLE
+}
+
+enum StoresAvailabilityStatus {
+  PENDING_CHECK
+  IN_STOCK
+  PARTIALLY_AVAILABLE
+  NOT_IN_STOCK
+  ISSUED
+}
+
 enum StockMovementStatus {
   DRAFT
   SUBMITTED
@@ -2845,6 +3260,91 @@ enum ProcurementRequestStatus {
   CLOSED
 }
 
+enum ProcurementRequestType {
+  NON_CONSUMABLE
+  STOCK_REPLENISHMENT
+  DIRECT_PURCHASE
+  OTHER
+}
+
+enum ProcurementOrigin {
+  DIRECT
+  STORES_STOCKOUT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+  CLOSED
+}
+
+model PurchaseOrder {
+  id       String @id @default(uuid())
+  poNumber String @unique
+
+  procurementRequestId String
+  procurementRequest   ProcurementRequest @relation(fields: [procurementRequestId], references: [id])
+
+  supplierId   String?
+  supplierName String
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  currency String @default("ZMW")
+
+  subtotal Decimal @default(0) @db.Decimal(18, 2)
+  tax      Decimal @default(0) @db.Decimal(18, 2)
+  total    Decimal @default(0) @db.Decimal(18, 2)
+
+  status PurchaseOrderStatus @default(DRAFT)
+
+  issuedBy      String?
+  issuedByEmail String?
+  issuedAt      DateTime?
+
+  expectedDeliveryDate DateTime?
+
+  notes String?
+
+  lines PurchaseOrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([procurementRequestId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model PurchaseOrderLine {
+  id String @id @default(uuid())
+
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  procurementRequestLineId String?
+
+  itemCode    String?
+  itemName    String
+  description String?
+
+  quantity      Decimal @default(1) @db.Decimal(18, 2)
+  unitOfMeasure String  @default("EA")
+
+  unitPrice Decimal @default(0) @db.Decimal(18, 2)
+  total     Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+}
+
 enum HubDocumentStatus {
   DRAFT
   UPLOADED
@@ -2925,6 +3425,7 @@ enum ApprovalWorkflowType {
   OVERTIME_REQUEST
   SAFETY_OBSERVATION_REVIEW
   SAFETY_CORRECTIVE_ACTION_CLOSEOUT
+  PROCUREMENT_REQUISITION
 }
 
 enum ApprovalRequestStatus {
@@ -2998,6 +3499,40 @@ enum EmployeeStatus {
   CONTRACT_EXPIRING
   TERMINATED
   ARCHIVED
+}
+
+enum MedicalRecordType {
+  PERIODIC
+  SILICOSIS
+  EXIT
+  RETURN_TO_WORK
+  CLINIC_OTHER
+}
+
+enum MedicalFitnessStatus {
+  FIT
+  FIT_WITH_RESTRICTIONS
+  NOT_FIT
+  PENDING
+  UNKNOWN
+}
+
+enum PayrollAdjustmentKind {
+  EARNING
+  DEDUCTION
+  EMPLOYER_COST
+}
+
+enum PayrollAdjustmentFrequency {
+  ONCE
+  RECURRING
+}
+
+enum PayrollAdjustmentStatus {
+  DRAFT
+  APPROVED
+  APPLIED
+  CANCELLED
 }
 
 enum PayrollRunStatus {
