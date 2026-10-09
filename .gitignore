@@ -35,3 +35,6 @@ apps/api/site-import-reports/
 # Sensitive HR/payroll source workbooks
 docs/2026_Sep_INCOMESandDEDUCTIONS_DETAILED.xlsx
 docs/MEDICAL TRACKER (version 1) updated.xlsx
+
+# Generated payroll source reports
+apps/api/payroll-source-reports/
