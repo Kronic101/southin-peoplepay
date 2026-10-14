@@ -15,6 +15,17 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000/api';
 
 type CodeMode = 'AUTO' | 'MANUAL' | 'EXTERNAL';
+type InventoryControlType = 'CONSUMABLE' | 'NON_CONSUMABLE';
+
+type ExtendedStockItem = StockItem & {
+  inventoryControlType?: InventoryControlType | null;
+  assetRegistrationRequired?: boolean | null;
+  custodyTrackingRequired?: boolean | null;
+};
+
+type ExtendedStockBalance = StockBalance & {
+  stockItem?: ExtendedStockItem | null;
+};
 
 type CreateStockForm = {
   codeMode: CodeMode;
@@ -23,12 +34,15 @@ type CreateStockForm = {
   externalItemCode: string;
   itemName: string;
   itemType: string;
+  inventoryControlType: InventoryControlType;
   category: string;
   unitOfMeasure: string;
   minimumLevel: string;
   reorderLevel: string;
   standardCost: string;
   description: string;
+  assetRegistrationRequired: boolean;
+  custodyTrackingRequired: boolean;
   isSerialized: boolean;
   isQrTracked: boolean;
   isRfidTracked: boolean;
@@ -83,12 +97,15 @@ const initialForm: CreateStockForm = {
   externalItemCode: '',
   itemName: '',
   itemType: 'OTHER',
+  inventoryControlType: 'CONSUMABLE',
   category: 'General',
   unitOfMeasure: 'EA',
   minimumLevel: '0',
   reorderLevel: '0',
   standardCost: '0',
   description: '',
+  assetRegistrationRequired: false,
+  custodyTrackingRequired: false,
   isSerialized: false,
   isQrTracked: false,
   isRfidTracked: false,
@@ -101,10 +118,12 @@ function controlStatusClass(isLow: boolean) {
 
 export default function AssetStockPage() {
   const [mounted, setMounted] = useState(false);
-  const [items, setItems] = useState<StockItem[]>([]);
-  const [balances, setBalances] = useState<StockBalance[]>([]);
+  const [items, setItems] = useState<ExtendedStockItem[]>([]);
+  const [balances, setBalances] = useState<ExtendedStockBalance[]>([]);
   const [form, setForm] = useState<CreateStockForm>(initialForm);
   const [previewCode, setPreviewCode] = useState('');
+  const [search, setSearch] = useState('');
+  const [controlFilter, setControlFilter] = useState<'ALL' | InventoryControlType>('ALL');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -138,12 +157,15 @@ export default function AssetStockPage() {
         itemCode: item.itemCode || '',
         itemName: item.itemName || '',
         itemType: item.itemType || '',
+        inventoryControlType: item.inventoryControlType || 'CONSUMABLE',
         category: item.category || '',
         unitOfMeasure: item.unitOfMeasure || '',
         minimumLevel: item.minimumLevel || 0,
         reorderLevel: item.reorderLevel || 0,
         standardCost: item.standardCost || 0,
         totalOnHand,
+        assetRegistrationRequired: item.assetRegistrationRequired ? 'Yes' : 'No',
+        custodyTrackingRequired: item.custodyTrackingRequired ? 'Yes' : 'No',
         isSerialized: item.isSerialized ? 'Yes' : 'No',
         isQrTracked: item.isQrTracked ? 'Yes' : 'No',
         isRfidTracked: item.isRfidTracked ? 'Yes' : 'No',
@@ -164,8 +186,8 @@ export default function AssetStockPage() {
         getStockBalances(),
       ]);
 
-      setItems(Array.isArray(stockResult) ? stockResult : []);
-      setBalances(Array.isArray(balanceResult) ? balanceResult : []);
+      setItems(Array.isArray(stockResult) ? (stockResult as ExtendedStockItem[]) : []);
+      setBalances(Array.isArray(balanceResult) ? (balanceResult as ExtendedStockBalance[]) : []);
     } catch (err: any) {
       setItems([]);
       setBalances([]);
@@ -199,6 +221,16 @@ export default function AssetStockPage() {
     }));
   }
 
+  function changeInventoryControlType(value: InventoryControlType) {
+    setForm((current) => ({
+      ...current,
+      inventoryControlType: value,
+      assetRegistrationRequired:
+        value === 'CONSUMABLE' ? false : current.assetRegistrationRequired,
+      custodyTrackingRequired: value === 'NON_CONSUMABLE',
+    }));
+  }
+
   async function handleCreateStockItem() {
     setSaving(true);
     setError('');
@@ -217,6 +249,10 @@ export default function AssetStockPage() {
         throw new Error('External item code is required.');
       }
 
+      if (form.inventoryControlType === 'CONSUMABLE' && form.assetRegistrationRequired) {
+        throw new Error('A consumable item cannot require asset registration.');
+      }
+
       const payload = {
         ...form,
         itemCode: form.codeMode === 'EXTERNAL' ? form.externalItemCode : form.itemCode,
@@ -232,8 +268,10 @@ export default function AssetStockPage() {
       setForm({
         ...initialForm,
         itemType: form.itemType,
+        inventoryControlType: form.inventoryControlType,
         category: form.category,
         unitOfMeasure: form.unitOfMeasure,
+        custodyTrackingRequired: form.inventoryControlType === 'NON_CONSUMABLE',
       });
 
       await loadPage();
@@ -245,27 +283,44 @@ export default function AssetStockPage() {
   }
 
   const summary = useMemo(() => {
-    const qrTracked = items.filter((item) => item.isQrTracked).length;
-    const serialized = items.filter((item) => item.isSerialized).length;
+    const consumable = items.filter(
+      (item) => String(item.inventoryControlType || 'CONSUMABLE').toUpperCase() === 'CONSUMABLE',
+    ).length;
+    const nonConsumable = items.filter(
+      (item) => String(item.inventoryControlType || '').toUpperCase() === 'NON_CONSUMABLE',
+    ).length;
+    const controlled = items.filter(
+      (item) => item.assetRegistrationRequired || item.custodyTrackingRequired,
+    ).length;
 
     const lowStock = balances.filter((balance) => {
       const item = balance.stockItem;
       if (!item) return false;
-
       const min = asNumber(item.minimumLevel);
-      if (min <= 0) return false;
-
-      return asNumber(balance.quantityOnHand) <= min;
+      return min > 0 && asNumber(balance.quantityOnHand) <= min;
     }).length;
 
     return {
       stockItems: items.length,
       balances: balances.length,
-      qrTracked,
-      serialized,
+      consumable,
+      nonConsumable,
+      controlled,
       lowStock,
     };
   }, [items, balances]);
+
+  const filteredItems = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const control = String(item.inventoryControlType || 'CONSUMABLE').toUpperCase();
+      if (controlFilter !== 'ALL' && control !== controlFilter) return false;
+      if (!needle) return true;
+      return [item.itemCode, item.itemName, item.itemType, item.category, item.unitOfMeasure]
+        .map((value) => String(value || '').toLowerCase())
+        .some((value) => value.includes(needle));
+    });
+  }, [items, search, controlFilter]);
 
   if (!mounted) return null;
 
@@ -275,12 +330,11 @@ export default function AssetStockPage() {
         <div className="finance-live-card">
           <div className="finance-live-header">
             <div>
-              <p className="eyebrow">Asset Management</p>
+              <p className="eyebrow">Stores & Inventory</p>
               <h1>Stores & Stock Register</h1>
               <p className="muted">
-                Central stock master for Omni Core migrated items, PPE, scaffold components,
-                materials, tools, workshop spares and disposable stock. The system supports manual,
-                external and generated Southin item codes.
+                Central stock master for consumable and non-consumable Stores inventory,
+                controlled items, provisional balances and future physical stock-count reconciliation.
               </p>
             </div>
 
@@ -291,6 +345,12 @@ export default function AssetStockPage() {
             <button className="btn-secondary" type="button" onClick={handleExportCsv}>
               Export CSV
             </button>
+          </div>
+
+          <div className="finance-notice warning">
+            <strong>PROVISIONAL OPENING STOCK — PHYSICAL STOCKTAKE PENDING.</strong>{' '}
+            Current balances are available for controlled production testing. The new physical
+            stocktake will be posted through Stock Count adjustments so issue history is retained.
           </div>
 
           {error ? <div className="finance-notice danger">{error}</div> : null}
@@ -308,13 +368,18 @@ export default function AssetStockPage() {
             </div>
 
             <div className="finance-summary-card">
-              <span>QR / RFID Ready</span>
-              <strong>{summary.qrTracked}</strong>
+              <span>Consumable</span>
+              <strong>{summary.consumable}</strong>
             </div>
 
             <div className="finance-summary-card">
-              <span>Serialized</span>
-              <strong>{summary.serialized}</strong>
+              <span>Non-Consumable</span>
+              <strong>{summary.nonConsumable}</strong>
+            </div>
+
+            <div className="finance-summary-card">
+              <span>Asset / Custody Controlled</span>
+              <strong>{summary.controlled}</strong>
             </div>
 
             <div className="finance-summary-card">
@@ -325,7 +390,35 @@ export default function AssetStockPage() {
         </div>
 
         <div className="finance-live-card">
-          <h2>Create Stock Item</h2>
+          <h2>Find Stock</h2>
+          <div className="finance-form-grid">
+            <label className="span-2">
+              Search
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by item code, name or category"
+              />
+            </label>
+
+            <label>
+              Inventory Control
+              <select
+                value={controlFilter}
+                onChange={(event) =>
+                  setControlFilter(event.target.value as 'ALL' | InventoryControlType)
+                }
+              >
+                <option value="ALL">All stock</option>
+                <option value="CONSUMABLE">Consumable</option>
+                <option value="NON_CONSUMABLE">Non-Consumable</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="finance-live-card">
+          <h2>Create / Update Stock Item</h2>
           <p className="muted">
             Create new stock items while allowing existing Omni Core item codes and Southin-generated
             item code sequences.
@@ -405,9 +498,24 @@ export default function AssetStockPage() {
                 <option value="PPE">PPE</option>
                 <option value="SCAFFOLD_COMPONENT">Scaffold Component</option>
                 <option value="TOOL">Tool</option>
-                <option value="SPARE">Workshop Spare</option>
+                <option value="SPARE_PART">Workshop Spare</option>
                 <option value="CONSUMABLE">Consumable</option>
                 <option value="MATERIAL">Material</option>
+                <option value="FUEL">Fuel</option>
+                <option value="EQUIPMENT">Equipment</option>
+              </select>
+            </label>
+
+            <label>
+              Inventory Control
+              <select
+                value={form.inventoryControlType}
+                onChange={(event) =>
+                  changeInventoryControlType(event.target.value as InventoryControlType)
+                }
+              >
+                <option value="CONSUMABLE">Consumable — used up through operations</option>
+                <option value="NON_CONSUMABLE">Non-Consumable — reusable / accountable</option>
               </select>
             </label>
 
@@ -469,6 +577,30 @@ export default function AssetStockPage() {
             <label className="checkbox-row">
               <input
                 type="checkbox"
+                checked={form.assetRegistrationRequired}
+                disabled={form.inventoryControlType === 'CONSUMABLE'}
+                onChange={(event) =>
+                  updateForm('assetRegistrationRequired', event.target.checked)
+                }
+              />
+              Asset registration required
+            </label>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.custodyTrackingRequired}
+                disabled={form.inventoryControlType === 'CONSUMABLE'}
+                onChange={(event) =>
+                  updateForm('custodyTrackingRequired', event.target.checked)
+                }
+              />
+              Custody tracking required
+            </label>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
                 checked={form.isSerialized}
                 onChange={(event) => updateForm('isSerialized', event.target.checked)}
               />
@@ -509,7 +641,7 @@ export default function AssetStockPage() {
         </div>
 
         <div className="finance-live-card">
-          <h2>Stock Items</h2>
+          <h2>Stock Catalogue</h2>
 
           <div className="finance-table-wrap">
             <table className="finance-table">
@@ -518,35 +650,41 @@ export default function AssetStockPage() {
                   <th>Code</th>
                   <th>Name</th>
                   <th>Type</th>
+                  <th>Control</th>
                   <th>Category</th>
                   <th>UOM</th>
                   <th>Minimum</th>
                   <th>Reorder</th>
                   <th>Standard Cost</th>
+                  <th>Asset</th>
+                  <th>Custody</th>
                   <th>QR/RFID</th>
                   <th>Serialized</th>
                 </tr>
               </thead>
 
               <tbody>
-                {items.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={10}>
-                      {loading ? 'Loading stock items...' : 'No stock items found.'}
+                    <td colSpan={13}>
+                      {loading ? 'Loading stock items...' : 'No stock items match the current filter.'}
                     </td>
                   </tr>
                 ) : (
-                  items.map((item) => (
+                  filteredItems.map((item) => (
                     <tr key={item.id}>
                       <td>{item.itemCode}</td>
                       <td>{item.itemName}</td>
                       <td>{item.itemType}</td>
+                      <td>{item.inventoryControlType === 'NON_CONSUMABLE' ? 'NON-CONSUMABLE' : 'CONSUMABLE'}</td>
                       <td>{item.category}</td>
                       <td>{item.unitOfMeasure}</td>
                       <td>{asNumber(item.minimumLevel)}</td>
                       <td>{asNumber(item.reorderLevel)}</td>
                       <td>{item.standardCost ? money(item.standardCost) : '-'}</td>
-                      <td>{item.isQrTracked ? 'Yes' : 'No'}</td>
+                      <td>{item.assetRegistrationRequired ? 'Yes' : 'No'}</td>
+                      <td>{item.custodyTrackingRequired ? 'Yes' : 'No'}</td>
+                      <td>{item.isQrTracked || item.isRfidTracked ? 'Yes' : 'No'}</td>
                       <td>{item.isSerialized ? 'Yes' : 'No'}</td>
                     </tr>
                   ))
@@ -565,6 +703,7 @@ export default function AssetStockPage() {
                 <tr>
                   <th>Item Code</th>
                   <th>Item Name</th>
+                  <th>Control</th>
                   <th>Location Code</th>
                   <th>Location</th>
                   <th>On Hand</th>
@@ -578,7 +717,7 @@ export default function AssetStockPage() {
               <tbody>
                 {balances.length === 0 ? (
                   <tr>
-                    <td colSpan={9}>{loading ? 'Loading balances...' : 'No stock balances found.'}</td>
+                    <td colSpan={10}>{loading ? 'Loading balances...' : 'No stock balances found.'}</td>
                   </tr>
                 ) : (
                   balances.map((balance) => {
@@ -586,12 +725,23 @@ export default function AssetStockPage() {
                     const location = balance.location;
                     const onHand = asNumber(balance.quantityOnHand);
                     const min = asNumber(item?.minimumLevel);
-                    const isLow = Boolean(item && min > 0 && onHand <= min);
+                    const reorder = asNumber(item?.reorderLevel);
+                    const isOut = onHand <= 0;
+                    const isLow = Boolean(item && !isOut && min > 0 && onHand <= min);
+                    const isReorder = Boolean(item && !isOut && reorder > 0 && onHand <= reorder);
+                    const stockStatus = isOut
+                      ? 'OUT OF STOCK'
+                      : isLow
+                        ? 'LOW STOCK'
+                        : isReorder
+                          ? 'REORDER'
+                          : 'IN STOCK';
 
                     return (
                       <tr key={balance.id}>
                         <td>{item?.itemCode || '-'}</td>
                         <td>{item?.itemName || '-'}</td>
+                        <td>{item?.inventoryControlType === 'NON_CONSUMABLE' ? 'NON-CONSUMABLE' : 'CONSUMABLE'}</td>
                         <td>{location?.locationCode || '-'}</td>
                         <td>{location?.locationName || '-'}</td>
                         <td>{onHand}</td>
@@ -599,8 +749,8 @@ export default function AssetStockPage() {
                         <td>{asNumber(balance.quantityDamaged)}</td>
                         <td>{asNumber(balance.quantityLost)}</td>
                         <td>
-                          <span className={controlStatusClass(isLow)}>
-                            {isLow ? 'LOW STOCK' : 'OK'}
+                          <span className={controlStatusClass(isOut || isLow || isReorder)}>
+                            {stockStatus}
                           </span>
                         </td>
                       </tr>

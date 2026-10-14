@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  InventoryControlType,
+  Prisma,
+} from '@prisma/client';
 
 import { ApprovalWorkflowService } from '../approvals/approval-workflow.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -119,55 +122,80 @@ export class StoresService {
   }
 
   private async resolveStockItem(line: any) {
-    const stockItemId = clean(line.stockItemId);
-    const itemCode = clean(line.itemCode);
+    const stockItemId =
+      clean(line.stockItemId);
+
+    const itemCode =
+      clean(line.itemCode);
+
+    const select = {
+      id: true,
+      itemCode: true,
+      itemName: true,
+      itemType: true,
+      category: true,
+      description: true,
+      unitOfMeasure: true,
+      standardCost: true,
+      inventoryControlType: true,
+      assetRegistrationRequired: true,
+      custodyTrackingRequired: true,
+      isSerialized: true,
+      isActive: true,
+    };
 
     if (stockItemId) {
-      const item = await this.db().stockItem.findUnique({
-        where: { id: stockItemId },
-        select: {
-          id: true,
-          itemCode: true,
-          itemName: true,
-          unitOfMeasure: true,
-          isActive: true,
-        },
-      });
+      const item =
+        await this.db()
+          .stockItem
+          .findUnique({
+            where: {
+              id: stockItemId,
+            },
+
+            select,
+          });
 
       if (!item) {
-        throw new BadRequestException(`Selected stock item does not exist.`);
+        throw new BadRequestException(
+          'Selected stock item does not exist.',
+        );
       }
 
       if (!item.isActive) {
-        throw new BadRequestException(`Stock item ${item.itemCode} is not active.`);
+        throw new BadRequestException(
+          `Stock item ${item.itemCode} is not active.`,
+        );
       }
 
       return item;
     }
 
     if (itemCode) {
-      const item = await this.db().stockItem.findFirst({
-        where: {
-          itemCode: {
-            equals: itemCode,
-            mode: 'insensitive',
-          },
-        },
-        select: {
-          id: true,
-          itemCode: true,
-          itemName: true,
-          unitOfMeasure: true,
-          isActive: true,
-        },
-      });
+      const item =
+        await this.db()
+          .stockItem
+          .findFirst({
+            where: {
+              itemCode: {
+                equals: itemCode,
+                mode: 'insensitive',
+              },
+            },
+
+            select,
+          });
 
       if (!item) {
-        throw new BadRequestException(`Stock item code ${itemCode} does not exist.`);
+        throw new BadRequestException(
+          `Stock item code ${itemCode} does not exist.`,
+        );
       }
 
       if (!item.isActive) {
-        throw new BadRequestException(`Stock item ${item.itemCode} is not active.`);
+        throw new BadRequestException(
+          `Stock item ${item.itemCode} is not active.`,
+        );
       }
 
       return item;
@@ -201,142 +229,531 @@ export class StoresService {
   }
 
   async createRequisition(body: any) {
-    const lines = Array.isArray(body.lines) ? body.lines : [];
+    const lines =
+      Array.isArray(body.lines)
+        ? body.lines
+        : [];
 
     if (!lines.length) {
-      throw new BadRequestException('At least one requisition line is required.');
+      throw new BadRequestException(
+        'At least one requisition line is required.',
+      );
     }
 
-    const siteContext = await this.resolveSiteFromBody(body);
+    const siteContext =
+      await this.resolveSiteFromBody(
+        body,
+      );
 
-    const requestedBy = clean(body.requestedBy) || 'Requester';
-    const requestedByEmail = cleanOrNull(body.requestedByEmail);
-    const requesterRole = clean(body.requesterRole) || 'REQUESTER';
-    const department = clean(body.department) || 'Operations';
+    const requestedBy =
+      clean(body.requestedBy);
 
-    const preparedLines = [];
+    if (!requestedBy) {
+      throw new BadRequestException(
+        'Requested By is required.',
+      );
+    }
+
+    const requestedByEmail =
+      cleanOrNull(
+        body.requestedByEmail,
+      );
+
+    const requesterRole =
+      clean(body.requesterRole) ||
+      'REQUESTER';
+
+    const department =
+      clean(body.department);
+
+    if (!department) {
+      throw new BadRequestException(
+        'Department is required.',
+      );
+    }
+
+    const preparedLines: any[] =
+      [];
+
+    const requestControlTypes =
+      new Set<
+        InventoryControlType
+      >();
+
+    const seenStockItemIds =
+      new Set<string>();
 
     for (const line of lines) {
-      const item = await this.resolveStockItem(line);
+      const item =
+        await this.resolveStockItem(
+          line,
+        );
 
-      const quantityNumber = asNumber(line.quantity || 1);
-
-      if (quantityNumber <= 0) {
-        throw new BadRequestException('Requisition line quantity must be greater than zero.');
+      /*
+      * Stores requisitions must now use
+      * the controlled StockItem catalogue.
+      *
+      * Free-text lines are no longer
+      * accepted.
+      */
+      if (!item) {
+        throw new BadRequestException(
+          'Every Stores requisition line must reference an existing stock catalogue item.',
+        );
       }
 
-      const quantity = new Prisma.Decimal(quantityNumber);
-      const unitCost = new Prisma.Decimal(asNumber(line.unitCost || 0));
-      const totalCost = quantity.mul(unitCost);
-
-      const itemCode = clean(line.itemCode) || item?.itemCode || null;
-      const itemName = clean(line.itemName || line.description) || item?.itemName || '';
-
-      if (!itemName) {
-        throw new BadRequestException('Each requisition line must have an item name or stock item.');
+      if (
+        seenStockItemIds.has(
+          item.id,
+        )
+      ) {
+        throw new BadRequestException(
+          `Stock item ${item.itemCode} - ${item.itemName} has been added more than once. Combine it into one requisition line.`,
+        );
       }
+
+      seenStockItemIds.add(
+        item.id,
+      );
+
+      if (
+        item.inventoryControlType !==
+          InventoryControlType.CONSUMABLE &&
+        item.inventoryControlType !==
+          InventoryControlType.NON_CONSUMABLE
+      ) {
+        throw new BadRequestException(
+          `Stock item ${item.itemCode} does not have a valid inventory control classification.`,
+        );
+      }
+
+      requestControlTypes.add(
+        item.inventoryControlType,
+      );
+
+      /*
+      * HARD BUSINESS RULE:
+      *
+      * One Stores requisition may contain
+      * Consumables OR Non-Consumables,
+      * never both.
+      */
+      if (
+        requestControlTypes.size >
+        1
+      ) {
+        throw new BadRequestException(
+          'Consumable and non-consumable stock cannot be raised on the same Stores Requisition. Create separate requisitions.',
+        );
+      }
+
+      const quantityNumber =
+        asNumber(
+          line.quantity,
+        );
+
+      if (
+        quantityNumber <=
+        0
+      ) {
+        throw new BadRequestException(
+          `Requested quantity for ${item.itemCode} - ${item.itemName} must be greater than zero.`,
+        );
+      }
+
+      const quantity =
+        new Prisma.Decimal(
+          quantityNumber,
+        );
+
+      /*
+      * The browser no longer controls
+      * the valuation.
+      *
+      * Standard cost comes from StockItem.
+      */
+      const unitCost =
+        new Prisma.Decimal(
+          item.standardCost
+            ? item.standardCost.toString()
+            : '0',
+        );
+
+      const totalCost =
+        quantity.mul(
+          unitCost,
+        );
 
       preparedLines.push({
-        stockItemId: item?.id || cleanOrNull(line.stockItemId),
-        itemCode,
-        itemName,
-        description: cleanOrNull(line.description),
-        unitOfMeasure: clean(line.unitOfMeasure) || item?.unitOfMeasure || 'EA',
+        stockItemId:
+          item.id,
+
+        itemCode:
+          item.itemCode,
+
+        itemName:
+          item.itemName,
+
+        description:
+          cleanOrNull(
+            item.description,
+          ),
+
+        unitOfMeasure:
+          item.unitOfMeasure ||
+          'EA',
+
         quantity,
+
         unitCost,
+
         totalCost,
-        notes: cleanOrNull(line.notes),
+
+        notes:
+          cleanOrNull(
+            line.notes,
+          ),
+
+        inventoryControlType:
+          item.inventoryControlType,
       });
     }
 
-    const totalValue = preparedLines.reduce((sum: Prisma.Decimal, line: any) => {
-      return sum.plus(line.totalCost);
-    }, new Prisma.Decimal(0));
+    if (
+      requestControlTypes.size !==
+      1
+    ) {
+      throw new BadRequestException(
+        'Unable to determine the inventory control type for this Stores requisition.',
+      );
+    }
 
-    const requisitionNo = clean(body.requisitionNo) || (await this.nextRequisitionNo());
+    const requestControlType =
+      Array.from(
+        requestControlTypes,
+      )[0];
 
+    /*
+    * Future clients may explicitly send
+    * requestControlType.
+    *
+    * If they do, it must agree with the
+    * catalogue-derived result.
+    */
+    const submittedControlType =
+      clean(
+        body.inventoryControlType ||
+          body.requestControlType,
+      ).toUpperCase();
+
+    if (
+      submittedControlType &&
+      submittedControlType !==
+        requestControlType
+    ) {
+      throw new BadRequestException(
+        `Submitted request type ${submittedControlType} does not match the stock catalogue classification ${requestControlType}.`,
+      );
+    }
+
+    const totalValue =
+      preparedLines.reduce(
+        (
+          sum: Prisma.Decimal,
+          line: any,
+        ) => {
+          return sum.plus(
+            line.totalCost,
+          );
+        },
+        new Prisma.Decimal(
+          0,
+        ),
+      );
+
+    const requisitionNo =
+      clean(
+        body.requisitionNo,
+      ) ||
+      (
+        await this.nextRequisitionNo()
+      );
+
+    /*
+    * Preserve the derived control type
+    * in the JSON snapshot.
+    *
+    * This gives us an immutable record
+    * even before we add a dedicated
+    * StoresRequisition column later.
+    */
     const payload = {
       ...body,
+
+      inventoryControlType:
+        requestControlType,
+
       siteContext,
-      lines: preparedLines.map((line) => ({
-        stockItemId: line.stockItemId,
-        itemCode: line.itemCode,
-        itemName: line.itemName,
-        quantity: line.quantity.toString(),
-        unitOfMeasure: line.unitOfMeasure,
-        unitCost: line.unitCost.toString(),
-        totalCost: line.totalCost.toString(),
-      })),
+
+      lines:
+        preparedLines.map(
+          (
+            line,
+          ) => ({
+            stockItemId:
+              line.stockItemId,
+
+            itemCode:
+              line.itemCode,
+
+            itemName:
+              line.itemName,
+
+            inventoryControlType:
+              line.inventoryControlType,
+
+            quantity:
+              line.quantity.toString(),
+
+            unitOfMeasure:
+              line.unitOfMeasure,
+
+            unitCost:
+              line.unitCost.toString(),
+
+            totalCost:
+              line.totalCost.toString(),
+
+            notes:
+              line.notes,
+          }),
+        ),
     };
 
-    const created = await this.db().storesRequisition.create({
-      data: {
-        requisitionNo,
-        title: clean(body.title) || `Stores requisition ${requisitionNo}`,
-        description: clean(body.description) || clean(body.reason) || null,
-        reason: cleanOrNull(body.reason),
-        requestedBy,
-        requestedByEmail,
-        requesterRole,
-        department,
-        departmentId: cleanOrNull(body.departmentId),
-        site: siteContext.site,
-        branch: siteContext.branch,
-        projectCode: cleanOrNull(body.projectCode),
-        status: 'SUBMITTED',
-        totalValue,
-        currency: clean(body.currency) || 'ZMW',
-        payload,
-        lines: {
-          create: preparedLines,
-        },
-      },
-      include: {
-        lines: true,
-      },
-    });
+    /*
+    * inventoryControlType is currently
+    * a request snapshot field, not a
+    * StoresRequisitionLine database
+    * column, so strip it before Prisma
+    * creates the actual lines.
+    */
+    const linesToCreate =
+      preparedLines.map(
+        (
+          line,
+        ) => ({
+          stockItemId:
+            line.stockItemId,
 
-    const approvalWorkflow = await this.approvalWorkflowService.startWorkflowSafe({
-      module: 'STORES',
-      workflowType: 'STORES_REQUISITION',
-      sourceType: 'STORES_REQUISITION',
-      sourceId: created.id,
-      requestNo: created.requisitionNo,
-      title: created.title || `Stores requisition ${created.requisitionNo}`,
-      description: created.description || created.reason || 'Stores requisition approval.',
-      requestedBy: created.requestedBy,
-      requestedByEmail: created.requestedByEmail,
-      requesterRole: created.requesterRole,
-      department: created.department,
-      departmentId: created.departmentId,
-      site: created.site,
-      branch: created.branch,
-      amount: created.totalValue,
-      currency: created.currency,
-      payload: created,
-    });
+          itemCode:
+            line.itemCode,
 
-    const approvalRequestId = (approvalWorkflow as any)?.approvalRequest?.id || null;
+          itemName:
+            line.itemName,
 
-    const updated = approvalRequestId
-      ? await this.db().storesRequisition.update({
-          where: { id: created.id },
+          description:
+            line.description,
+
+          unitOfMeasure:
+            line.unitOfMeasure,
+
+          quantity:
+            line.quantity,
+
+          unitCost:
+            line.unitCost,
+
+          totalCost:
+            line.totalCost,
+
+          notes:
+            line.notes,
+        }),
+      );
+
+    const created =
+      await this.db()
+        .storesRequisition
+        .create({
           data: {
-            approvalRequestId,
+            requisitionNo,
+
+            title:
+              clean(
+                body.title,
+              ) ||
+              `${
+                requestControlType ===
+                InventoryControlType.NON_CONSUMABLE
+                  ? 'Non-Consumable'
+                  : 'Consumable'
+              } Stores requisition ${requisitionNo}`,
+
+            description:
+              clean(
+                body.description,
+              ) ||
+              clean(
+                body.reason,
+              ) ||
+              null,
+
+            reason:
+              cleanOrNull(
+                body.reason,
+              ),
+
+            requestedBy,
+
+            requestedByEmail,
+
+            requesterRole,
+
+            department,
+
+            departmentId:
+              cleanOrNull(
+                body.departmentId,
+              ),
+
+            site:
+              siteContext.site,
+
+            branch:
+              siteContext.branch,
+
+            projectCode:
+              cleanOrNull(
+                body.projectCode,
+              ),
+
             status:
-              approvalWorkflow.status === 'APPROVER_NOT_CONFIGURED'
-                ? 'APPROVER_NOT_CONFIGURED'
-                : 'SUBMITTED',
+              'SUBMITTED',
+
+            totalValue,
+
+            currency:
+              clean(
+                body.currency,
+              ) ||
+              'ZMW',
+
+            payload,
+
+            lines: {
+              create:
+                linesToCreate,
+            },
           },
+
           include: {
             lines: true,
           },
-        })
-      : created;
+        });
+
+    const approvalWorkflow =
+      await this
+        .approvalWorkflowService
+        .startWorkflowSafe({
+          module:
+            'STORES',
+
+          workflowType:
+            'STORES_REQUISITION',
+
+          sourceType:
+            'STORES_REQUISITION',
+
+          sourceId:
+            created.id,
+
+          requestNo:
+            created.requisitionNo,
+
+          title:
+            created.title ||
+            `Stores requisition ${created.requisitionNo}`,
+
+          description:
+            created.description ||
+            created.reason ||
+            'Stores requisition approval.',
+
+          requestedBy:
+            created.requestedBy,
+
+          requestedByEmail:
+            created.requestedByEmail,
+
+          requesterRole:
+            created.requesterRole,
+
+          department:
+            created.department,
+
+          departmentId:
+            created.departmentId,
+
+          site:
+            created.site,
+
+          branch:
+            created.branch,
+
+          amount:
+            created.totalValue,
+
+          currency:
+            created.currency,
+
+          payload:
+            created,
+        });
+
+    const approvalRequestId =
+      (
+        approvalWorkflow as any
+      )
+        ?.approvalRequest
+        ?.id ||
+      null;
+
+    const updated =
+      approvalRequestId
+        ? await this
+            .db()
+            .storesRequisition
+            .update({
+              where: {
+                id:
+                  created.id,
+              },
+
+              data: {
+                approvalRequestId,
+
+                status:
+                  approvalWorkflow.status ===
+                  'APPROVER_NOT_CONFIGURED'
+                    ? 'APPROVER_NOT_CONFIGURED'
+                    : 'SUBMITTED',
+              },
+
+              include: {
+                lines:
+                  true,
+              },
+            })
+        : created;
 
     return {
-      requisition: updated,
+      requisition:
+        updated,
+
       approvalWorkflow,
+
+      inventoryControlType:
+        requestControlType,
     };
   }
 
