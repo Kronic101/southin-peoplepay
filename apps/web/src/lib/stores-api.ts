@@ -114,3 +114,331 @@ export const updateStoresRequisitionStatus = (id: string, payload: any) =>
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+
+
+/* -------------------------------------------------------------------------- */
+/* Stores operations / controlled issuing                                     */
+/* -------------------------------------------------------------------------- */
+
+export type StoresAvailabilityStatus =
+  | 'PENDING_CHECK'
+  | 'IN_STOCK'
+  | 'PARTIALLY_AVAILABLE'
+  | 'NOT_IN_STOCK'
+  | 'ISSUED';
+
+export type StockAssignmentPolicy =
+  | 'NONE'
+  | 'EMPLOYEE'
+  | 'SITE'
+  | 'DEPARTMENT'
+  | 'PROJECT'
+  | 'DEPLOYMENT'
+  | 'FLEXIBLE';
+
+export type StoresIssueAssignmentType =
+  | 'EMPLOYEE'
+  | 'SITE'
+  | 'DEPARTMENT'
+  | 'PROJECT';
+
+export type StoresIssueAssignment =
+  | {
+      type: 'EMPLOYEE';
+      employeeId: string;
+      referenceId?: never;
+    }
+  | {
+      type: 'SITE';
+      referenceId: string;
+      employeeId?: never;
+    }
+  | {
+      type: 'DEPARTMENT';
+      referenceId: string;
+      employeeId?: never;
+    }
+  | {
+      type: 'PROJECT';
+      referenceId: string;
+      employeeId?: never;
+    };
+
+export type StoresOperationLocation = {
+  balanceId: string;
+  locationId: string;
+  locationCode?: string | null;
+  locationName?: string | null;
+  locationType?: string | null;
+  site?: string | null;
+  branch?: string | null;
+  quantityOnHand: number;
+};
+
+export type StoresOperationLine = {
+  lineId: string;
+
+  stockItemId?: string | null;
+  itemCode?: string | null;
+  itemName: string;
+  description?: string | null;
+
+  unitOfMeasure: string;
+
+  requestedQuantity: number;
+  issuedQuantity: number;
+  remainingQuantity: number;
+
+  requestedSiteAvailable?: number;
+  otherStoresAvailable?: number;
+
+  availableQuantity: number;
+  issuePossible: number;
+
+  transferRequiredQuantity?: number;
+  shortfallQuantity: number;
+
+  recommendedAction?: string | null;
+
+  availabilityStatus: StoresAvailabilityStatus;
+
+  inventoryControlType?:
+    | 'CONSUMABLE'
+    | 'NON_CONSUMABLE'
+    | null;
+
+  assignmentPolicy:
+    StockAssignmentPolicy;
+
+  itemType?: string | null;
+  category?: string | null;
+
+  standardCost: number;
+
+  assetRegistrationRequired: boolean;
+  custodyTrackingRequired: boolean;
+
+  isSerialized: boolean;
+  isQrTracked: boolean;
+  isRfidTracked: boolean;
+
+  stockItemActive: boolean;
+
+  locations: StoresOperationLocation[];
+};
+
+export type StoresPostedMovement = {
+  id: string;
+  movementNo: string;
+  status: string;
+
+  fromLocationId?: string | null;
+
+  fromLocation?: {
+    id?: string;
+    locationCode?: string | null;
+    locationName?: string | null;
+  } | null;
+
+  postedBy?: string | null;
+  postedAt?: string | null;
+
+  lines: Array<{
+    id: string;
+    stockItemId: string;
+
+    itemCode?: string | null;
+    itemName?: string | null;
+
+    quantity: number;
+    unitCost: number;
+  }>;
+};
+
+export type StoresCustodyAssignmentRecord = {
+  id: string;
+  assignmentNo: string;
+
+  assetId?: string | null;
+  stockItemId?: string | null;
+  qrTagId?: string | null;
+  locationId?: string | null;
+
+  quantity?: string | number;
+
+  stockMovementId?: string | null;
+  stockMovementLineId?: string | null;
+  storesRequisitionId?: string | null;
+
+  assignedToType: StoresIssueAssignmentType;
+  assignedToReferenceId?: string | null;
+
+  assignedToName: string;
+  assignedToEmail?: string | null;
+
+  employeeId?: string | null;
+  employeeNumber?: string | null;
+
+  department?: string | null;
+  site?: string | null;
+  branch?: string | null;
+
+  assignedBy?: string | null;
+  assignedAt?: string | null;
+
+  expectedReturnAt?: string | null;
+
+  returnedBy?: string | null;
+  returnedAt?: string | null;
+
+  status: string;
+
+  conditionOut?: string | null;
+  conditionIn?: string | null;
+
+  notes?: string | null;
+
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type StoresRequisitionOperations = {
+  requisition: StoresRequisitionRecord;
+
+  inventoryControlType?:
+    | 'CONSUMABLE'
+    | 'NON_CONSUMABLE'
+    | null;
+
+  availabilityStatus:
+    StoresAvailabilityStatus;
+
+  lines:
+    StoresOperationLine[];
+
+  movements:
+    StoresPostedMovement[];
+};
+
+export type IssueStoresRequisitionPayload = {
+  fromLocationId: string;
+
+  issuedBy: string;
+  issuedByEmail?: string | null;
+
+  notes?: string | null;
+
+  lines: Array<{
+    stockItemId: string;
+    quantity: number;
+
+    notes?: string | null;
+
+    assignment?:
+      | StoresIssueAssignment
+      | null;
+  }>;
+
+  /*
+   * Temporary compatibility only.
+   *
+   * The current page still references these
+   * fields. We will remove them completely in
+   * the next UI change.
+   */
+  issuedToName?: string | null;
+  issuedToEmployeeNumber?: string | null;
+};
+
+export type IssueStoresRequisitionResponse = {
+  requisitionId: string;
+  requisitionNo: string;
+
+  movement:
+    StoresPostedMovement;
+
+  custodyAssignments?:
+    StoresCustodyAssignmentRecord[];
+
+  custodyWarning?:
+    string | null;
+
+  availabilityStatus:
+    StoresAvailabilityStatus;
+
+  lines:
+    StoresOperationLine[];
+
+  docketDocument?: any;
+
+  documentWarning?:
+    string | null;
+};
+
+export const getStoresRequisitionOperations = (
+  id: string,
+) =>
+  request<StoresRequisitionOperations>(
+    `/stores/requisitions/${id}/operations`,
+  );
+
+export const issueStoresRequisition = (
+  id: string,
+  payload: IssueStoresRequisitionPayload,
+) =>
+  request<IssueStoresRequisitionResponse>(
+    `/stores/requisitions/${id}/issue`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
+
+  export type StoresShortfallProcurementResult = {
+  status:
+    | 'CREATED'
+    | 'EXISTING';
+
+  procurementRequest:
+    any;
+
+  approvalWorkflow?:
+    any;
+
+  message:
+    string;
+};
+
+export const createStoresShortfallProcurementRequest = (
+  id: string,
+  payload: {
+    requestedBy?: string;
+    requestedByEmail?: string | null;
+    requestedByRole?: string;
+    stockItemIds?: string[];
+  } = {},
+) =>
+  request<StoresShortfallProcurementResult>(
+    `/stores/requisitions/${id}/create-shortfall-pr`,
+    {
+      method:
+        'POST',
+
+      body:
+        JSON.stringify(
+          payload,
+        ),
+    },
+  );
+
+  export type StoresSiteOption = {
+    id: string;
+    name: string;
+    code?: string | null;
+    isActive: boolean;
+  };
+
+  export const getStoresSites = () =>
+    request<StoresSiteOption[]>(
+      '/stores/sites',
+    );

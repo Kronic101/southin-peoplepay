@@ -2199,9 +2199,11 @@ model StockItem {
   reorderLevel  Decimal? @db.Decimal(18, 2)
   standardCost  Decimal? @db.Decimal(18, 2)
 
-  inventoryControlType      InventoryControlType @default(CONSUMABLE)
-  assetRegistrationRequired Boolean              @default(false)
-  custodyTrackingRequired   Boolean              @default(false)
+  inventoryControlType InventoryControlType  @default(CONSUMABLE)
+  assignmentPolicy     StockAssignmentPolicy @default(NONE)
+
+  assetRegistrationRequired Boolean @default(false)
+  custodyTrackingRequired   Boolean @default(false)
 
   supplierId   String?
   supplierCode String?
@@ -2410,6 +2412,7 @@ model StockMovement {
   lines               StockMovementLine[]
   ledgerEntries       StockLedger[]
   workshopPartsIssued FleetWorkshopPart[]
+  custodyAssignments  AssetCustodyAssignment[]
 
   @@index([movementType])
   @@index([status])
@@ -2442,7 +2445,8 @@ model StockMovementLine {
 
   createdAt DateTime @default(now())
 
-  ledgerEntries StockLedger[]
+  ledgerEntries      StockLedger[]
+  custodyAssignments AssetCustodyAssignment[]
 
   @@index([movementId])
   @@index([stockItemId])
@@ -2532,52 +2536,86 @@ model AssetCustodyAssignment {
   id           String @id @default(uuid())
   assignmentNo String @unique
 
-  assetId          String?
-  stockItemId      String?
-  qrTagId          String?
-  locationId       String?
-  financeExpenseId String?
+  // What is being assigned
+  assetId     String?
+  stockItemId String?
+  qrTagId     String?
+  locationId  String?
 
-  assignedToType  String
+  // Quantity for controlled non-serialized stock
+  quantity Decimal @default(1) @db.Decimal(18, 2)
+
+  // Source transaction traceability
+  stockMovementId     String?
+  stockMovementLineId String?
+  storesRequisitionId String?
+
+  // Structured destination
+  // EMPLOYEE | SITE | DEPARTMENT | PROJECT
+  assignedToType        String
+  assignedToReferenceId String?
+
+  // Snapshot fields retained for audit
   assignedToName  String
   assignedToEmail String?
-  employeeId      String?
-  employee        Employee? @relation(fields: [employeeId], references: [id])
-  employeeNumber  String?
 
+  // Relational employee assignment
+  employeeId     String?
+  employee       Employee? @relation(fields: [employeeId], references: [id])
+  employeeNumber String?
+
+  // Organisational snapshot
   department String?
   site       String?
   branch     String?
 
+  // Assignment lifecycle
   assignedBy String?
   assignedAt DateTime @default(now())
 
   expectedReturnAt DateTime?
-  returnedBy       String?
-  returnedAt       DateTime?
 
-  status       String  @default("ASSIGNED")
+  returnedBy String?
+  returnedAt DateTime?
+
+  status String @default("ASSIGNED")
+
   conditionOut String?
   conditionIn  String?
-  notes        String?
 
+  notes String?
+
+  // Existing finance / approval linkage
+  financeExpenseId  String?
   approvalRequestId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Existing relations
   asset          HubAsset?       @relation(fields: [assetId], references: [id])
   stockItem      StockItem?      @relation(fields: [stockItemId], references: [id])
   qrTag          AssetQrTag?     @relation(fields: [qrTagId], references: [id])
   location       StockLocation?  @relation(fields: [locationId], references: [id])
   financeExpense FinanceExpense? @relation(fields: [financeExpenseId], references: [id])
 
+  // Stores issue traceability
+  stockMovement     StockMovement?     @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+  stockMovementLine StockMovementLine? @relation(fields: [stockMovementLineId], references: [id], onDelete: SetNull)
+  storesRequisition StoresRequisition? @relation(fields: [storesRequisitionId], references: [id], onDelete: SetNull)
+
   @@index([assetId])
   @@index([stockItemId])
   @@index([qrTagId])
   @@index([locationId])
   @@index([financeExpenseId])
+  @@index([stockMovementId])
+  @@index([stockMovementLineId])
+  @@index([storesRequisitionId])
   @@index([status])
+  @@index([assignedToType])
+  @@index([assignedToReferenceId])
+  @@index([assignedToType, assignedToReferenceId])
   @@index([assignedToName])
   @@index([employeeId])
   @@index([employeeNumber])
@@ -2975,6 +3013,8 @@ model StoresRequisition {
 
   procurementRequests ProcurementRequest[] @relation("StoresGeneratedProcurement")
 
+  custodyAssignments AssetCustodyAssignment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3135,6 +3175,16 @@ enum StockMovementType {
 enum InventoryControlType {
   CONSUMABLE
   NON_CONSUMABLE
+}
+
+enum StockAssignmentPolicy {
+  NONE
+  EMPLOYEE
+  SITE
+  DEPARTMENT
+  PROJECT
+  DEPLOYMENT
+  FLEXIBLE
 }
 
 enum StoresAvailabilityStatus {
