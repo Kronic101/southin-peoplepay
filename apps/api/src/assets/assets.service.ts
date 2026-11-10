@@ -4,7 +4,10 @@ import {
   FinanceExpenseStatus,
   Prisma,
   StockMovementStatus,
-  StockMovementType, } from '@prisma/client';
+  StockMovementType, 
+  InventoryControlType,
+  StockAssignmentPolicy,
+  } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAssetImportPreviewDto,
@@ -456,51 +459,226 @@ export class AssetsService {
       where: { itemCode },
     });
 
-    if (existing && !body?.allowExistingCode && !body?.allowUpdateIfCodeExists) {
-      throw new BadRequestException(`Stock item code ${itemCode} already exists.`);
+    if (
+      existing &&
+      !body?.allowExistingCode &&
+      !body?.allowUpdateIfCodeExists
+    ) {
+      throw new BadRequestException(
+        `Stock item code ${itemCode} already exists.`,
+      );
     }
 
-    if (existing && (body?.allowExistingCode || body?.allowUpdateIfCodeExists)) {
+    const requestedControl =
+      clean(body.inventoryControlType).toUpperCase();
+
+    const inventoryControlType: InventoryControlType =
+      requestedControl === 'NON_CONSUMABLE'
+        ? InventoryControlType.NON_CONSUMABLE
+        : requestedControl === 'CONSUMABLE'
+          ? InventoryControlType.CONSUMABLE
+          : existing?.inventoryControlType ||
+            InventoryControlType.CONSUMABLE;
+
+    const requestedPolicy =
+      clean(body.assignmentPolicy).toUpperCase();
+
+    const allowedPolicies =
+      new Set<string>([
+        'NONE',
+        'EMPLOYEE',
+        'SITE',
+        'DEPARTMENT',
+        'PROJECT',
+        'DEPLOYMENT',
+        'FLEXIBLE',
+      ]);
+
+    let assignmentPolicy: StockAssignmentPolicy =
+      allowedPolicies.has(requestedPolicy)
+        ? (requestedPolicy as StockAssignmentPolicy)
+        : existing?.assignmentPolicy ||
+          (
+            inventoryControlType ===
+            InventoryControlType.NON_CONSUMABLE
+              ? StockAssignmentPolicy.FLEXIBLE
+              : StockAssignmentPolicy.NONE
+          );
+
+    /*
+    * Consumables cannot have a custody /
+    * destination assignment policy.
+    */
+    if (
+      inventoryControlType ===
+      InventoryControlType.CONSUMABLE
+    ) {
+      assignmentPolicy =
+        StockAssignmentPolicy.NONE;
+    }
+
+    /*
+    * A reusable item should never silently
+    * remain NONE. If classification is not
+    * known yet, keep it FLEXIBLE.
+    */
+    if (
+      inventoryControlType ===
+        InventoryControlType.NON_CONSUMABLE &&
+      assignmentPolicy ===
+        StockAssignmentPolicy.NONE
+    ) {
+      assignmentPolicy =
+        StockAssignmentPolicy.FLEXIBLE;
+    }
+
+    const assetRegistrationRequired =
+      inventoryControlType ===
+      InventoryControlType.CONSUMABLE
+        ? false
+        : Boolean(
+            body.assetRegistrationRequired ??
+              existing?.assetRegistrationRequired ??
+              false,
+          );
+
+    /*
+    * Employee-assigned items always require
+    * custody control.
+    *
+    * Site / Department / Project assignment
+    * may still be tracked structurally without
+    * forcing an individual custodian.
+    */
+    const custodyTrackingRequired =
+      inventoryControlType ===
+      InventoryControlType.CONSUMABLE
+        ? false
+        : assignmentPolicy ===
+            StockAssignmentPolicy.EMPLOYEE
+          ? true
+          : Boolean(
+              body.custodyTrackingRequired ??
+                existing?.custodyTrackingRequired ??
+                false,
+            );
+
+    if (
+      assignmentPolicy ===
+        StockAssignmentPolicy.DEPLOYMENT &&
+      itemTypeDefault(
+        body.itemType ||
+          existing?.itemType,
+      ) !== 'SCAFFOLD_COMPONENT'
+    ) {
+      throw new BadRequestException(
+        'DEPLOYMENT assignment is reserved for scaffold/deployment-controlled stock.',
+      );
+    }
+
+    const stockData = {
+      itemName:
+        clean(
+          body.itemName ||
+            existing?.itemName,
+        ),
+
+      itemType:
+        itemTypeDefault(
+          body.itemType ||
+            existing?.itemType,
+        ),
+
+      category:
+        clean(
+          body.category ||
+            existing?.category ||
+            'General',
+        ),
+
+      description:
+        body.description ??
+        existing?.description ??
+        null,
+
+      unitOfMeasure:
+        clean(
+          body.unitOfMeasure ||
+            existing?.unitOfMeasure ||
+            'EA',
+        ),
+
+      minimumLevel:
+        this.decimal(
+          body.minimumLevel ??
+            existing?.minimumLevel ??
+            0,
+        ),
+
+      reorderLevel:
+        this.decimal(
+          body.reorderLevel ??
+            existing?.reorderLevel ??
+            0,
+        ),
+
+      standardCost:
+        body.standardCost === undefined
+          ? existing?.standardCost ?? null
+          : body.standardCost === ''
+            ? null
+            : this.decimal(
+                body.standardCost,
+                0,
+              ),
+
+      inventoryControlType,
+      assignmentPolicy,
+
+      assetRegistrationRequired,
+      custodyTrackingRequired,
+
+      isSerialized:
+        Boolean(
+          body.isSerialized ??
+            existing?.isSerialized ??
+            false,
+        ),
+
+      isQrTracked:
+        Boolean(
+          body.isQrTracked ??
+            existing?.isQrTracked ??
+            false,
+        ),
+
+      isRfidTracked:
+        Boolean(
+          body.isRfidTracked ??
+            body.rfidReady ??
+            existing?.isRfidTracked ??
+            false,
+        ),
+
+      isActive:
+        body.isActive === undefined
+          ? existing?.isActive ?? true
+          : Boolean(body.isActive),
+    };
+
+    if (existing) {
       return this.db().stockItem.update({
-        where: { itemCode },
-        data: {
-          itemName: clean(body.itemName || existing.itemName),
-          itemType: itemTypeDefault(body.itemType || existing.itemType),
-          category: clean(body.category || existing.category || 'General'),
-          description: body.description ?? existing.description,
-          unitOfMeasure: clean(body.unitOfMeasure || existing.unitOfMeasure || 'EA'),
-          minimumLevel: this.decimal(body.minimumLevel ?? existing.minimumLevel ?? 0),
-          reorderLevel: this.decimal(body.reorderLevel ?? existing.reorderLevel ?? 0),
-          standardCost:
-            body.standardCost === undefined
-              ? existing.standardCost
-              : this.decimal(body.standardCost, 0),
-          isSerialized: Boolean(body.isSerialized ?? existing.isSerialized),
-          isQrTracked: Boolean(body.isQrTracked ?? existing.isQrTracked),
-          isRfidTracked: Boolean(body.isRfidTracked ?? existing.isRfidTracked ?? false),
-          isActive: body.isActive === undefined ? existing.isActive : Boolean(body.isActive),
+        where: {
+          itemCode,
         },
+        data: stockData,
       });
     }
 
     return this.db().stockItem.create({
       data: {
         itemCode,
-        itemName: clean(body.itemName),
-        itemType: itemTypeDefault(body.itemType),
-        category: clean(body.category || 'General'),
-        description: body.description || null,
-        unitOfMeasure: clean(body.unitOfMeasure || 'EA'),
-        minimumLevel: this.decimal(body.minimumLevel, 0),
-        reorderLevel: this.decimal(body.reorderLevel, 0),
-        standardCost:
-          body.standardCost === undefined || body.standardCost === ''
-            ? null
-            : this.decimal(body.standardCost, 0),
-        isSerialized: Boolean(body.isSerialized),
-        isQrTracked: Boolean(body.isQrTracked),
-        isRfidTracked: Boolean(body.isRfidTracked ?? body.rfidReady ?? false),
-        isActive: body.isActive === undefined ? true : Boolean(body.isActive),
+        ...stockData,
       },
     });
   }

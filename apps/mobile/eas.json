@@ -11,8 +11,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://southinapi-production.up.railway.app/api",
-        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "EXPO_PUBLIC_API_URL","https://southinapi-production.up.railway.app/api":"true"
-        
+        "EXPO_PUBLIC_ALLOW_DEV_LOGIN": "false"
       }
     },
     "production": {

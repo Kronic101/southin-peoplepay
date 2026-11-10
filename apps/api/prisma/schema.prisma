@@ -1749,6 +1749,8 @@ model HubAsset {
   custodyAssignments  AssetCustodyAssignment[]
   depreciationHistory AssetDepreciationHistory[]
 
+  fleetVehicle FleetVehicle?
+
   @@index([siteId])
   @@index([category])
   @@index([status])
@@ -1798,15 +1800,18 @@ model HubAssetInspection {
 }
 
 model FleetVehicle {
-  id             String  @id @default(uuid())
-  registrationNo String  @unique
-  assetId        String?
-  make           String
-  model          String
-  year           Int?
-  vehicleType    String
-  department     String?
-  site           String?
+  id             String @id @default(uuid())
+  registrationNo String @unique
+
+  assetId String?   @unique
+  asset   HubAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  make        String
+  model       String
+  year        Int?
+  vehicleType String
+  department  String?
+  site        String?
 
   odometerCurrent Decimal            @default(0) @db.Decimal(18, 2)
   status          FleetVehicleStatus @default(ACTIVE)

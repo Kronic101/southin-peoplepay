@@ -676,3 +676,788 @@ tbody tr:hover, .data-table tbody tr:hover, .finance-table tbody tr:hover, .repo
   font-size: 0.75rem;
   opacity: 0.7;
 }
+
+.stores-issue-table-wrap {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.stores-issue-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.stores-issue-table th,
+.stores-issue-table td {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: top;
+  padding: 0.65rem 0.5rem;
+}
+
+.stores-issue-table input,
+.stores-issue-table select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stores-issue-table th:nth-child(1) {
+  width: 15%;
+}
+
+.stores-issue-table th:nth-child(2) {
+  width: 9%;
+}
+
+.stores-issue-table th:nth-child(3),
+.stores-issue-table th:nth-child(4),
+.stores-issue-table th:nth-child(5) {
+  width: 8%;
+}
+
+.stores-issue-table th:nth-child(6),
+.stores-issue-table th:nth-child(7) {
+  width: 10%;
+}
+
+.stores-issue-table th:nth-child(8) {
+  width: 12%;
+}
+
+.stores-issue-table th:nth-child(9) {
+  width: 8%;
+}
+
+.stores-issue-table th:nth-child(10),
+.stores-issue-table th:nth-child(11) {
+  width: 10%;
+}
+
+.approval-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.approval-review-panel {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .approval-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-review-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+.stores-detail-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.approval-review-workspace {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(380px, 0.85fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.approval-request-list {
+  min-width: 0;
+}
+
+.approval-review-panel {
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .approval-review-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-review-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* =========================================================
+   Approval Inbox two-panel workspace
+   ========================================================= */
+
+.approval-review-workspace {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(390px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.approval-request-list,
+.approval-review-panel {
+  min-width: 0;
+}
+
+/*
+ * The request queue gets its own viewport.
+ * Because horizontal + vertical scrolling happen inside
+ * this container, the horizontal scrollbar stays at the
+ * bottom of the visible panel instead of the bottom of
+ * the whole page.
+ */
+.approval-request-scroll {
+  width: 100%;
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Keep the review panel visible while requests are being
+ * browsed on the left.
+ */
+.approval-review-panel {
+  position: sticky;
+  top: 1rem;
+
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Prevent the approval table from squeezing columns
+ * until the text becomes unreadable.
+ */
+.approval-request-scroll .employee-table {
+  min-width: 900px;
+}
+
+/*
+ * Make horizontal scrollbar easier to grab.
+ */
+.approval-request-scroll::-webkit-scrollbar {
+  height: 12px;
+  width: 10px;
+}
+
+.approval-request-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+}
+
+.approval-request-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+}
+
+/* Tablet/mobile falls back to stacked layout */
+@media (max-width: 1100px) {
+  .approval-review-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-request-scroll {
+    max-height: 60vh;
+  }
+
+  .approval-review-panel {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* =========================================================
+   Approval Inbox: split workspace + persistent queue scroller
+   ========================================================= */
+
+.approval-review-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.approval-request-list,
+.approval-review-panel {
+  min-width: 0;
+}
+
+.approval-request-scroll {
+  width: 100%;
+  max-height: calc(100vh - 300px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.approval-request-scroll .employee-table {
+  min-width: 900px;
+}
+
+/*
+ * Keep the native queue scrollbar available, but make the
+ * dedicated synchronized scrollbar below the queue the obvious control.
+ */
+.approval-floating-scroll-shell {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.6rem 0.4rem;
+  border: 1px solid var(--border, #d9e1ec);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.approval-floating-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.approval-floating-scroll-spacer {
+  height: 1px;
+}
+
+.approval-floating-scroll-hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.approval-floating-scroll::-webkit-scrollbar,
+.approval-request-scroll::-webkit-scrollbar {
+  height: 12px;
+  width: 10px;
+}
+
+.approval-floating-scroll::-webkit-scrollbar-thumb,
+.approval-request-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+}
+
+.approval-floating-scroll::-webkit-scrollbar-track,
+.approval-request-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+}
+
+.approval-review-panel {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 1100px) {
+  .approval-review-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-request-scroll {
+    max-height: 60vh;
+  }
+
+  .approval-review-panel {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* =========================================================
+   Approval Inbox: make the synchronized horizontal scroller visible
+   ========================================================= */
+
+.approval-floating-scroll-shell {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 0.65rem;
+  padding: 0.45rem 0.6rem 0.35rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.approval-floating-scroll {
+  width: 100%;
+  min-height: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #e2e8f0;
+}
+
+.approval-floating-scroll-spacer {
+  height: 2px;
+}
+
+.approval-floating-scroll::-webkit-scrollbar {
+  height: 14px;
+  background: #e2e8f0;
+}
+
+.approval-floating-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.approval-floating-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border: 3px solid #e2e8f0;
+  border-radius: 999px;
+  min-width: 80px;
+}
+
+.approval-floating-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+.approval-floating-scroll-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+/* =========================================================
+   Stores requisition detail UX
+   ========================================================= */
+
+.stores-detail-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.stores-reason-box {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+}
+
+.stores-reason-box span,
+.stores-line-item-metrics span,
+.stores-decision-summary span,
+.stores-line-metric-grid span,
+.stores-line-control-grid span,
+.stores-related-pr span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stores-line-items-grid,
+.stores-issue-line-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.stores-line-item-card,
+.stores-issue-line-card {
+  border: 1px solid #dbe4ef;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.stores-line-item-code {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.stores-line-item-name {
+  display: block;
+  font-size: 1rem;
+}
+
+.stores-line-item-metrics,
+.stores-line-metric-grid,
+.stores-decision-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.stores-line-item-metrics > div,
+.stores-line-metric-grid > div,
+.stores-decision-summary > div,
+.stores-line-control-grid > div {
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  background: #f8fafc;
+}
+
+.stores-issue-header {
+  margin: 1rem 0;
+}
+
+.stores-issue-line-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.stores-issue-line-heading h3 {
+  margin: 0.1rem 0 0.15rem;
+}
+
+.stores-line-control-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.7fr) minmax(220px, 1fr) minmax(180px, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  align-items: end;
+}
+
+.stores-inline-control {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.stores-inline-control input {
+  min-width: 0;
+  width: 100%;
+}
+
+.stores-control-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.stores-custody-grid,
+.stores-issue-notes,
+.stores-primary-actions,
+.stores-shortfall-actions {
+  margin-top: 1rem;
+}
+
+.stores-related-pr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding: 0.9rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.stores-related-pr p {
+  margin: 0.25rem 0 0;
+}
+
+.stores-empty-state {
+  padding: 1.25rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.9rem;
+  color: #64748b;
+  text-align: center;
+}
+
+/*
+ * This page intentionally uses responsive cards rather than the old
+ * 11-column issue table, so the Stores workbench no longer needs a
+ * horizontal scrollbar at normal desktop widths.
+ */
+
+@media (min-width: 1100px) {
+  .stores-line-metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .stores-decision-summary {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .stores-line-item-metrics,
+  .stores-line-metric-grid,
+  .stores-decision-summary,
+  .stores-line-control-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stores-related-pr,
+  .stores-issue-line-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .stores-line-item-metrics,
+  .stores-line-metric-grid,
+  .stores-decision-summary,
+  .stores-line-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stores-inline-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+/* =========================================================
+   GLOBAL DETAIL CARD SPACING
+   Applies to Stores, Approval Inbox and other detail pages
+   ========================================================= */
+
+.mini-detail-grid {
+  gap: 0.9rem 1rem;
+}
+
+/* Each detail field */
+.mini-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+/* FIELD HEADER / LABEL */
+.mini-detail-grid > div > span:first-child {
+  display: block;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* FIELD VALUE */
+.mini-detail-grid > div > strong {
+  display: block;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* Space between a section heading and its detail grid */
+.finance-card > h2 + .mini-detail-grid,
+.approval-review-panel h3 + .mini-detail-grid,
+.section-title-row + .mini-detail-grid {
+  margin-top: 1.1rem;
+}
+
+/* More breathing room for headings */
+.finance-card > h2,
+.approval-review-panel h2,
+.approval-review-panel h3 {
+  margin-bottom: 0;
+}
+
+/* Details following other detail sections */
+.mini-detail-grid + .mini-detail-grid {
+  margin-top: 1rem;
+}
+
+/* Summary cards use the same label/value separation */
+.finance-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.finance-summary-card > span {
+  display: block;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.finance-summary-card > strong {
+  display: block;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Approval Request Review */
+.approval-review-panel .mini-detail-grid > div {
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+}
+
+/* Request Details section spacing */
+.approval-review-panel h3 {
+  margin-top: 1.4rem;
+}
+
+/* Store detail page major sections */
+.stores-detail-stack {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.stores-reason-box {
+  margin-top: 1.15rem;
+}
+
+.stores-reason-box > span {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stores-reason-box > strong {
+  display: block;
+  line-height: 1.45;
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .mini-detail-grid {
+    gap: 0.75rem;
+  }
+
+  .mini-detail-grid > div > strong {
+    font-size: 0.9rem;
+  }
+}
+
+/* =========================================================
+   STORES REQUISITION REGISTER FLOATING SCROLLBAR
+   ========================================================= */
+
+.stores-register-scroll {
+  width: 100%;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.stores-register-scroll .employee-table {
+  min-width: 1080px;
+}
+
+.stores-register-floating-scroll-shell {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+
+  margin-top: 0.65rem;
+  padding: 0.45rem 0.6rem 0.35rem;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+
+  background: rgba(
+    255,
+    255,
+    255,
+    0.98
+  );
+
+  box-shadow:
+    0 -4px 14px
+    rgba(15, 23, 42, 0.08);
+}
+
+.stores-register-floating-scroll {
+  width: 100%;
+  min-height: 18px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  scrollbar-width: auto;
+  scrollbar-color:
+    #64748b
+    #e2e8f0;
+}
+
+.stores-register-floating-scroll-spacer {
+  height: 2px;
+}
+
+.stores-register-floating-scroll::-webkit-scrollbar {
+  height: 14px;
+  background: #e2e8f0;
+}
+
+.stores-register-floating-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.stores-register-floating-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+
+  border:
+    3px solid #e2e8f0;
+
+  border-radius: 999px;
+
+  min-width: 80px;
+}
+
+.stores-register-floating-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+.stores-register-floating-scroll-hint {
+  display: block;
+
+  margin-top: 0.25rem;
+
+  color: #64748b;
+
+  font-size: 0.72rem;
+}

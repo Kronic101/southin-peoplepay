@@ -4,7 +4,7 @@ export const env = {
     'http://172.20.10.3:4000/api',
 
   allowDevLogin:
-    process.env.EXPO_PUBLIC_ALLOW_DEV_LOGIN !== 'false',
+    process.env.EXPO_PUBLIC_ALLOW_DEV_LOGIN !== 'true',
 };
 
 export const API_BASE_URL = env.apiBaseUrl;

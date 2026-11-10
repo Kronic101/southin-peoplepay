@@ -398,6 +398,8 @@ export default function StoresRequisitionDetailPage() {
   const [issuedByEmail, setIssuedByEmail] = useState('');
   const [issueAssignments, setIssueAssignments] =
     useState<IssueAssignments>({});
+  const [employeeSearches, setEmployeeSearches] =
+    useState<Record<string, string>>({});
   const [custodyContext, setCustodyContext] = useState<any>(null);
   const [loadingCustodyContext, setLoadingCustodyContext] = useState(false);
   const [issueNotes, setIssueNotes] = useState('');
@@ -740,6 +742,49 @@ export default function StoresRequisitionDetailPage() {
         ...patch,
       },
     }));
+  }
+
+  function updateEmployeeSearch(
+    stockItemId: string,
+    value: string,
+  ) {
+    setEmployeeSearches((current) => ({
+      ...current,
+      [stockItemId]: value,
+    }));
+  }
+
+  function filteredEmployeeOptions(
+    stockItemId: string,
+  ) {
+    const term = String(
+      employeeSearches[stockItemId] || '',
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!term) {
+      return employeeOptions;
+    }
+
+    return employeeOptions.filter((employee: any) => {
+      const searchable = [
+        employee?.employeeNumber,
+        employeeName(employee),
+        employee?.email,
+        employee?.jobTitle?.name,
+        employee?.jobTitleName,
+        employee?.department?.name,
+        employee?.departmentName,
+        employee?.site?.name,
+        employee?.siteName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(term);
+    });
   }
 
   function effectiveAssignmentType(
@@ -1138,6 +1183,7 @@ export default function StoresRequisitionDetailPage() {
 
       setIssueQuantities({});
       setIssueAssignments({});
+      setEmployeeSearches({});
       setIssueNotes('');
 
       await loadData();
@@ -1898,35 +1944,73 @@ export default function StoresRequisitionDetailPage() {
                                   )}
 
                                   {assignmentType === 'EMPLOYEE' ? (
-                                    <label>
-                                      Employee / Custodian
-                                      <select
-                                        value={assignmentDraft.employeeId}
-                                        onChange={(event) =>
-                                          stockItemId
-                                            ? updateIssueAssignment(
-                                                stockItemId,
-                                                {
-                                                  employeeId:
-                                                    event.target.value,
-                                                  referenceId: '',
-                                                },
-                                              )
-                                            : undefined
-                                        }
-                                        disabled={
-                                          issuing ||
-                                          loadingCustodyContext
-                                        }
-                                      >
-                                        <option value="">
-                                          {loadingCustodyContext
-                                            ? 'Loading employees...'
-                                            : 'Select employee'}
-                                        </option>
+                                    <div
+                                      style={{
+                                        display: 'grid',
+                                        gap: '0.55rem',
+                                      }}
+                                    >
+                                      <label>
+                                        Search Employee
+                                        <input
+                                          type="search"
+                                          value={
+                                            stockItemId
+                                              ? employeeSearches[
+                                                  stockItemId
+                                                ] || ''
+                                              : ''
+                                          }
+                                          onChange={(event) =>
+                                            stockItemId
+                                              ? updateEmployeeSearch(
+                                                  stockItemId,
+                                                  event.target.value,
+                                                )
+                                              : undefined
+                                          }
+                                          placeholder="Search by employee number, name, site or department"
+                                          disabled={
+                                            issuing ||
+                                            loadingCustodyContext
+                                          }
+                                          autoComplete="off"
+                                        />
+                                      </label>
 
-                                        {employeeOptions.map(
-                                          (employee: any) => (
+                                      <label>
+                                        Employee / Custodian
+                                        <select
+                                          value={assignmentDraft.employeeId}
+                                          onChange={(event) =>
+                                            stockItemId
+                                              ? updateIssueAssignment(
+                                                  stockItemId,
+                                                  {
+                                                    employeeId:
+                                                      event.target.value,
+                                                    referenceId: '',
+                                                  },
+                                                )
+                                              : undefined
+                                          }
+                                          disabled={
+                                            issuing ||
+                                            loadingCustodyContext
+                                          }
+                                        >
+                                          <option value="">
+                                            {loadingCustodyContext
+                                              ? 'Loading employees...'
+                                              : 'Select employee'}
+                                          </option>
+
+                                          {(stockItemId
+                                            ? filteredEmployeeOptions(
+                                                stockItemId,
+                                              )
+                                            : employeeOptions
+                                          ).map((employee: any) => (
                                             <option
                                               key={employee.id}
                                               value={employee.id}
@@ -1941,10 +2025,28 @@ export default function StoresRequisitionDetailPage() {
                                                   ? ` (${employee.siteName})`
                                                   : ''}
                                             </option>
-                                          ),
-                                        )}
-                                      </select>
-                                    </label>
+                                          ))}
+                                        </select>
+
+                                        {stockItemId &&
+                                        employeeSearches[stockItemId] ? (
+                                          <span className="muted">
+                                            {
+                                              filteredEmployeeOptions(
+                                                stockItemId,
+                                              ).length
+                                            }{' '}
+                                            employee
+                                            {filteredEmployeeOptions(
+                                              stockItemId,
+                                            ).length === 1
+                                              ? ''
+                                              : 's'}{' '}
+                                            found
+                                          </span>
+                                        ) : null}
+                                      </label>
+                                    </div>
                                   ) : null}
 
                                   {assignmentType === 'SITE' ? (

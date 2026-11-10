@@ -167,10 +167,26 @@ const fakeApprovalWorkflowService: any = {
   },
 };
 
+const fakeAssetsService: any = {
+  postMovement: async () => {
+    throw new Error(
+      'postMovement should not be called by requisition creation tests.',
+    );
+  },
+};
+
+const fakeDocumentsService: any = {
+  createStoresIssueDocketDocument: async () => null,
+};
+
+
 const service = new StoresService(
   fakePrisma,
   fakeApprovalWorkflowService,
+  fakeAssetsService,
+  fakeDocumentsService,
 );
+
 
 function baseBody(lines: any[]) {
   return {

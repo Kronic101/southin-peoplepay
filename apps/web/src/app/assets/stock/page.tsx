@@ -16,11 +16,20 @@ const API_BASE =
 
 type CodeMode = 'AUTO' | 'MANUAL' | 'EXTERNAL';
 type InventoryControlType = 'CONSUMABLE' | 'NON_CONSUMABLE';
+type StockAssignmentPolicy =
+  | 'NONE'
+  | 'EMPLOYEE'
+  | 'SITE'
+  | 'DEPARTMENT'
+  | 'PROJECT'
+  | 'DEPLOYMENT'
+  | 'FLEXIBLE';
 
 type ExtendedStockItem = StockItem & {
   inventoryControlType?: InventoryControlType | null;
   assetRegistrationRequired?: boolean | null;
   custodyTrackingRequired?: boolean | null;
+  assignmentPolicy?: StockAssignmentPolicy | null;
 };
 
 type ExtendedStockBalance = StockBalance & {
@@ -35,6 +44,7 @@ type CreateStockForm = {
   itemName: string;
   itemType: string;
   inventoryControlType: InventoryControlType;
+  assignmentPolicy: StockAssignmentPolicy;
   category: string;
   unitOfMeasure: string;
   minimumLevel: string;
@@ -98,6 +108,7 @@ const initialForm: CreateStockForm = {
   itemName: '',
   itemType: 'OTHER',
   inventoryControlType: 'CONSUMABLE',
+  assignmentPolicy: 'NONE',
   category: 'General',
   unitOfMeasure: 'EA',
   minimumLevel: '0',
@@ -158,6 +169,7 @@ export default function AssetStockPage() {
         itemName: item.itemName || '',
         itemType: item.itemType || '',
         inventoryControlType: item.inventoryControlType || 'CONSUMABLE',
+        assignmentPolicy: item.assignmentPolicy || 'NONE',
         category: item.category || '',
         unitOfMeasure: item.unitOfMeasure || '',
         minimumLevel: item.minimumLevel || 0,
@@ -225,9 +237,23 @@ export default function AssetStockPage() {
     setForm((current) => ({
       ...current,
       inventoryControlType: value,
+
+      assignmentPolicy:
+        value === 'CONSUMABLE'
+          ? 'NONE'
+          : current.assignmentPolicy === 'NONE'
+            ? 'FLEXIBLE'
+            : current.assignmentPolicy,
+
       assetRegistrationRequired:
-        value === 'CONSUMABLE' ? false : current.assetRegistrationRequired,
-      custodyTrackingRequired: value === 'NON_CONSUMABLE',
+        value === 'CONSUMABLE'
+          ? false
+          : current.assetRegistrationRequired,
+
+      custodyTrackingRequired:
+        value === 'CONSUMABLE'
+          ? false
+          : current.custodyTrackingRequired,
     }));
   }
 
@@ -253,6 +279,39 @@ export default function AssetStockPage() {
         throw new Error('A consumable item cannot require asset registration.');
       }
 
+      if (
+        form.inventoryControlType ===
+          'CONSUMABLE' &&
+        form.assignmentPolicy !==
+          'NONE'
+      ) {
+        throw new Error(
+          'Consumable stock must use assignment policy NONE.',
+        );
+      }
+
+      if (
+        form.inventoryControlType ===
+          'NON_CONSUMABLE' &&
+        form.assignmentPolicy ===
+          'NONE'
+      ) {
+        throw new Error(
+          'Choose an assignment policy for non-consumable stock.',
+        );
+      }
+
+      if (
+        form.assignmentPolicy ===
+          'DEPLOYMENT' &&
+        form.itemType !==
+          'SCAFFOLD_COMPONENT'
+      ) {
+        throw new Error(
+          'Deployment assignment is reserved for scaffold components.',
+        );
+      }
+
       const payload = {
         ...form,
         itemCode: form.codeMode === 'EXTERNAL' ? form.externalItemCode : form.itemCode,
@@ -267,11 +326,33 @@ export default function AssetStockPage() {
 
       setForm({
         ...initialForm,
-        itemType: form.itemType,
-        inventoryControlType: form.inventoryControlType,
-        category: form.category,
-        unitOfMeasure: form.unitOfMeasure,
-        custodyTrackingRequired: form.inventoryControlType === 'NON_CONSUMABLE',
+
+        itemType:
+          form.itemType,
+
+        inventoryControlType:
+          form.inventoryControlType,
+
+        assignmentPolicy:
+          form.inventoryControlType ===
+          'CONSUMABLE'
+            ? 'NONE'
+            : form.assignmentPolicy,
+
+        category:
+          form.category,
+
+        unitOfMeasure:
+          form.unitOfMeasure,
+
+        custodyTrackingRequired:
+          form.inventoryControlType ===
+            'CONSUMABLE'
+            ? false
+            : form.assignmentPolicy ===
+                'EMPLOYEE'
+              ? true
+              : false,
       });
 
       await loadPage();
@@ -412,6 +493,69 @@ export default function AssetStockPage() {
                 <option value="ALL">All stock</option>
                 <option value="CONSUMABLE">Consumable</option>
                 <option value="NON_CONSUMABLE">Non-Consumable</option>
+              </select>
+            </label>
+
+            <label>
+              Assignment Policy
+
+              <select
+                value={form.assignmentPolicy}
+                disabled={
+                  form.inventoryControlType ===
+                  'CONSUMABLE'
+                }
+                onChange={(event) => {
+                  const value =
+                    event.target
+                      .value as StockAssignmentPolicy;
+
+                  setForm((current) => ({
+                    ...current,
+
+                    assignmentPolicy:
+                      value,
+
+                    custodyTrackingRequired:
+                      value === 'EMPLOYEE'
+                        ? true
+                        : current
+                            .custodyTrackingRequired,
+                  }));
+                }}
+              >
+                {form.inventoryControlType ===
+                'CONSUMABLE' ? (
+                  <option value="NONE">
+                    None — consumable stock
+                  </option>
+                ) : (
+                  <>
+                    <option value="FLEXIBLE">
+                      Flexible — choose destination at issue
+                    </option>
+
+                    <option value="EMPLOYEE">
+                      Employee — personal custody
+                    </option>
+
+                    <option value="SITE">
+                      Site — assigned to a site
+                    </option>
+
+                    <option value="DEPARTMENT">
+                      Department
+                    </option>
+
+                    <option value="PROJECT">
+                      Project
+                    </option>
+
+                    <option value="DEPLOYMENT">
+                      Deployment / Scaffold
+                    </option>
+                  </>
+                )}
               </select>
             </label>
           </div>

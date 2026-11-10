@@ -5,13 +5,22 @@ const SESSION_KEY = 'southin_mobile_session';
 
 export type MobileSession = {
   token?: string | null;
+
   userId?: string | null;
+  employeeId?: string | null;
   employeeNo?: string | null;
+
   driverId?: string | null;
+
   name?: string | null;
+  displayName?: string | null;
+
   role?: string | null;
-  expiresAt?: string | null;
-  [key: string]: any;
+  accessProfile?: string | null;
+
+  allowedModules?: string[];
+
+  mustChangePin?: boolean;
 };
 
 let memorySession: string | null = null;

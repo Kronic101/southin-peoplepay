@@ -89,12 +89,51 @@ export class FleetService {
         .catch(() => 0),
     ]);
 
-    const recentVehicles = await this.db()
-      .fleetVehicle.findMany({
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-      })
-      .catch(() => []);
+    const recentVehicles =
+  importedFleetAssets
+    .slice(0, 10)
+    .map((asset: any) => ({
+      id: asset.id,
+
+      assetId: asset.id,
+
+      registrationNo:
+        asset.assetTag ||
+        asset.assetNo ||
+        asset.name,
+
+      assetNo:
+        asset.assetNo,
+
+      assetTag:
+        asset.assetTag,
+
+      name:
+        asset.name,
+
+      make:
+        asset.manufacturer ||
+        null,
+
+      model:
+        asset.modelNumber ||
+        null,
+
+      serialNumber:
+        asset.serialNumber ||
+        null,
+
+      site:
+        asset.site ||
+        asset.location ||
+        null,
+
+      status:
+        asset.status,
+
+      hasFleetProfile:
+        false,
+    }));
 
     const recentDueItems = await this.db()
       .fleetDueItem.findMany({
@@ -118,15 +157,39 @@ export class FleetService {
 
     return {
       summary: {
-        vehicles: vehicles + importedFleetAssets.length,
+        vehicles:
+          importedFleetAssets.length,
+
+        fleetProfiles:
+          vehicles,
+
         activeVehicles:
-          activeVehicles +
-          importedFleetAssets.filter((asset:any) =>
-            ['ACTIVE', 'IN_USE', 'IN_STORE', 'AVAILABLE'].includes(
-              String(asset.status || '').toUpperCase(),
-            ),
+          importedFleetAssets.filter(
+            (asset: any) =>
+              [
+                'ACTIVE',
+                'IN_USE',
+                'IN_STORE',
+                'AVAILABLE',
+              ].includes(
+                String(
+                  asset.status || '',
+                ).toUpperCase(),
+              ),
           ).length,
-        importedFleetAssets: importedFleetAssets.length,
+
+        underRepairVehicles:
+          importedFleetAssets.filter(
+            (asset: any) =>
+              String(
+                asset.status || '',
+              ).toUpperCase() ===
+              'UNDER_REPAIR',
+          ).length,
+
+        importedFleetAssets:
+          importedFleetAssets.length,
+
         drivers,
         activeAssignments,
         openDueItems,
@@ -454,5 +517,151 @@ export class FleetService {
         drivers: drivers.length,
       },
     };
+  }
+
+  async getVehicleDirectory() {
+    const assets =
+      await this.db().hubAsset.findMany({
+        where: {
+          category:
+            'VEHICLE',
+        },
+
+        include: {
+          fleetVehicle:
+            true,
+
+          siteRecord:
+            true,
+        },
+
+        orderBy: [
+          {
+            assetNo:
+              'asc',
+          },
+        ],
+      });
+
+    return assets.map(
+      (asset: any) => {
+        const fleet =
+          asset.fleetVehicle;
+
+        return {
+          /*
+          * Master identity
+          */
+          assetId:
+            asset.id,
+
+          assetNo:
+            asset.assetNo,
+
+          assetTag:
+            asset.assetTag,
+
+          /*
+          * Registration is currently
+          * represented by the vehicle
+          * Asset No / Tag.
+          */
+          registrationNo:
+            fleet?.registrationNo ||
+            asset.assetTag ||
+            asset.assetNo,
+
+          name:
+            asset.name,
+
+          description:
+            asset.description,
+
+          /*
+          * Asset information
+          */
+          make:
+            fleet?.make ||
+            asset.manufacturer ||
+            null,
+
+          model:
+            fleet?.model ||
+            asset.modelNumber ||
+            null,
+
+          serialNumber:
+            asset.serialNumber,
+
+          year:
+            fleet?.year ||
+            null,
+
+          vehicleType:
+            fleet?.vehicleType ||
+            null,
+
+          department:
+            fleet?.department ||
+            asset.department ||
+            null,
+
+          site:
+            fleet?.site ||
+            asset.siteRecord?.name ||
+            asset.site ||
+            null,
+
+          location:
+            asset.location,
+
+          /*
+          * Asset state
+          */
+          assetStatus:
+            asset.status,
+
+          /*
+          * Fleet state
+          */
+          fleetVehicleId:
+            fleet?.id ||
+            null,
+
+          fleetStatus:
+            fleet?.status ||
+            null,
+
+          odometerCurrent:
+            fleet?.odometerCurrent ||
+            null,
+
+          insuranceExpiry:
+            fleet?.insuranceExpiry ||
+            null,
+
+          fitnessExpiry:
+            fleet?.fitnessExpiry ||
+            null,
+
+          roadTaxExpiry:
+            fleet?.roadTaxExpiry ||
+            null,
+
+          /*
+          * Mobile / workflow controls
+          */
+          hasFleetProfile:
+            Boolean(
+              fleet?.id,
+            ),
+
+          canRecordFleetTransactions:
+            Boolean(
+              fleet?.id,
+            ),
+        };
+      },
+    );
   }
 }

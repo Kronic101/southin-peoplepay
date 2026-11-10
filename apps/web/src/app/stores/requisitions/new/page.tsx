@@ -14,7 +14,11 @@ import {
   StockItem,
 } from '@/lib/assets-api';
 
-import { createStoresRequisition } from '@/lib/stores-api';
+import {
+  createStoresRequisition,
+  getStoresSites,
+  StoresSiteOption,
+} from '@/lib/stores-api';
 
 type InventoryControlType =
   | 'CONSUMABLE'
@@ -157,11 +161,14 @@ export default function NewStoresRequisitionPage() {
   ] =
     useState('');
 
-  const [
-    site,
-    setSite,
-  ] =
-    useState('');
+  const [sites, setSites] =
+  useState<StoresSiteOption[]>([]);
+
+  const [siteId, setSiteId] =
+  useState('');
+
+  const [site, setSite] =
+  useState('');
 
   const [
     branch,
@@ -246,6 +253,39 @@ export default function NewStoresRequisitionPage() {
     },
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSites() {
+      try {
+        const rows =
+          await getStoresSites();
+
+        if (!cancelled) {
+          setSites(
+            rows.filter(
+              (row) =>
+                row.isActive,
+            ),
+          );
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              'Unable to load Sites.',
+          );
+        }
+      }
+    }
+
+    loadSites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function loadCatalogue() {
     setLoadingCatalogue(
@@ -1345,18 +1385,42 @@ export default function NewStoresRequisitionPage() {
 
                 <label>
                   Site
+                  <select
+                    value={siteId}
+                    onChange={(event) => {
+                      const nextId =
+                        event.target.value;
 
-                  <input
-                    value={site}
-                    onChange={(
-                      event,
-                    ) =>
+                      const selected =
+                        sites.find(
+                          (row) =>
+                            row.id === nextId,
+                        );
+
+                      setSiteId(nextId);
+
                       setSite(
-                        event.target.value,
-                      )
-                    }
+                        selected?.name ||
+                          '',
+                      );
+                    }}
                     required
-                  />
+                  >
+                    <option value="">
+                      Select operational site
+                    </option>
+
+                    {sites.map((row) => (
+                      <option
+                        key={row.id}
+                        value={row.id}
+                      >
+                        {row.code
+                          ? `${row.code} — ${row.name}`
+                          : row.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>
@@ -1486,8 +1550,8 @@ export default function NewStoresRequisitionPage() {
                 </div>
               )}
 
-              <div className="finance-table-wrap">
-                <table className="finance-table">
+              <div className="employee-table-wrap stores-issue-table-wrap">
+                <table className="employee-table stores-issue-table">
                   <thead>
                     <tr>
                       <th>

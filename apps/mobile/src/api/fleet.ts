@@ -16,6 +16,9 @@ export const getFleetDashboard = () => apiGet<any>('/fleet/dashboard');
 /**
  * Fleet vehicles
  */
+/**
+ * Fleet vehicles
+ */
 export type FleetVehicle = {
   id: string;
   registrationNo: string;
@@ -48,10 +51,77 @@ export type FleetVehicle = {
     status?: string | null;
   } | null;
 };
-export const getFleetVehicles = () => apiGet<FleetVehicle[]>('/fleet/vehicles');
-export const getFleetMobileContext = () => apiGet('/fleet/mobile/context');
-export const getFleetVehicle = (id: string) =>
-  apiGet<FleetVehicle>(`/fleet/vehicles/${id}`);
+
+export type FleetVehicleDirectoryRecord = {
+  assetId: string;
+  fleetVehicleId?: string | null;
+
+  registrationNo: string;
+  assetNo: string;
+  assetTag?: string | null;
+
+  name?: string | null;
+  description?: string | null;
+
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+
+  vehicleType?: string | null;
+
+  serialNumber?: string | null;
+
+  department?: string | null;
+
+  site?: string | null;
+  location?: string | null;
+
+  assetStatus: string;
+
+  fleetStatus?: string | null;
+
+  odometerCurrent?:
+    | string
+    | number
+    | null;
+
+  insuranceExpiry?:
+    | string
+    | null;
+
+  fitnessExpiry?:
+    | string
+    | null;
+
+  roadTaxExpiry?:
+    | string
+    | null;
+
+  hasFleetProfile: boolean;
+
+  canRecordFleetTransactions:
+    boolean;
+};
+
+export const getFleetVehicles = () =>
+  apiGet<FleetVehicle[]>(
+    '/fleet/vehicles',
+  );
+
+export const getFleetVehicleDirectory = () =>
+  apiGet<FleetVehicleDirectoryRecord[]>(
+    '/fleet/vehicles/directory',
+  );
+
+export const getFleetMobileContext = () =>
+  apiGet('/fleet/mobile/context');
+
+export const getFleetVehicle = (
+  id: string,
+) =>
+  apiGet<FleetVehicle>(
+    `/fleet/vehicles/${id}`,
+  );
 
 /**
  * Fleet inspections

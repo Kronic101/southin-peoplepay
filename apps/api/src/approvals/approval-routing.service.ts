@@ -376,6 +376,313 @@ export class ApprovalRoutingService {
       throw new BadRequestException('Approval role is required for resolver.');
     }
 
+        /*
+    * SITE_MANAGER is operationally owned by SiteManagerAssignment,
+    * not ApprovalApproverAssignment.
+    *
+    * Site is the single source of truth for operational manager routing.
+    */
+    if (
+      input.approvalRole ===
+        'SITE_MANAGER' &&
+      input.site
+    ) {
+      const siteRecord =
+        await this.db().site.findFirst({
+          where: {
+            isActive: true,
+
+            OR: [
+              {
+                name: {
+                  equals:
+                    input.site,
+
+                  mode:
+                    'insensitive',
+                },
+              },
+              {
+                code: {
+                  equals:
+                    input.site,
+
+                  mode:
+                    'insensitive',
+                },
+              },
+            ],
+          },
+
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        });
+
+      if (siteRecord) {
+        const siteManager =
+          await this.db()
+            .siteManagerAssignment
+            .findFirst({
+              where: {
+                siteId:
+                  siteRecord.id,
+
+                isActive:
+                  true,
+              },
+
+              orderBy: [
+                {
+                  isPrimary:
+                    'desc',
+                },
+                {
+                  updatedAt:
+                    'desc',
+                },
+              ],
+            });
+
+        if (
+          siteManager?.managerEmail
+        ) {
+          /*
+          * Preserve the existing approval-delegation behaviour
+          * for dynamically resolved Site Managers as well.
+          */
+          const delegations =
+            await this.db()
+              .approvalDelegation
+              .findMany({
+                where: {
+                  fromUserEmail:
+                    cleanLower(
+                      siteManager.managerEmail,
+                    ),
+
+                  isActive:
+                    true,
+
+                  startsAt: {
+                    lte:
+                      now,
+                  },
+
+                  endsAt: {
+                    gte:
+                      now,
+                  },
+
+                  AND: [
+                    {
+                      OR: [
+                        {
+                          approvalRole:
+                            null,
+                        },
+                        {
+                          approvalRole:
+                            input.approvalRole,
+                        },
+                      ],
+                    },
+                    {
+                      OR: [
+                        {
+                          module:
+                            null,
+                        },
+                        {
+                          module:
+                            input.module,
+                        },
+                      ],
+                    },
+                    {
+                      OR: [
+                        {
+                          workflowType:
+                            null,
+                        },
+                        {
+                          workflowType:
+                            input.workflowType,
+                        },
+                      ],
+                    },
+                    {
+                      OR: [
+                        {
+                          site:
+                            null,
+                        },
+                        {
+                          site:
+                            input.site,
+                        },
+                      ],
+                    },
+                    {
+                      OR: [
+                        {
+                          branch:
+                            null,
+                        },
+                        {
+                          branch:
+                            input.branch,
+                        },
+                      ],
+                    },
+                    {
+                      OR: [
+                        {
+                          departmentId:
+                            null,
+                        },
+                        {
+                          departmentId:
+                            input.departmentId,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              });
+
+          const selectedDelegation =
+            delegations
+              .map(
+                (
+                  delegation:
+                    any,
+                ) => ({
+                  delegation,
+
+                  score:
+                    this.scoreDelegation(
+                      delegation,
+                      input,
+                    ),
+                }),
+              )
+              .sort(
+                (
+                  a: any,
+                  b: any,
+                ) =>
+                  b.score -
+                  a.score,
+              )[0]
+              ?.delegation ||
+            null;
+
+          if (
+            selectedDelegation
+          ) {
+            return {
+              status:
+                'DELEGATED_APPROVER_RESOLVED',
+
+              assigneeType:
+                'USER',
+
+              approvalRole:
+                input.approvalRole,
+
+              source:
+                'SITE_MANAGER_ASSIGNMENT',
+
+              site: {
+                id:
+                  siteRecord.id,
+
+                code:
+                  siteRecord.code,
+
+                name:
+                  siteRecord.name,
+              },
+
+              originalApprover: {
+                email:
+                  cleanLower(
+                    siteManager.managerEmail,
+                  ),
+
+                name:
+                  siteManager.managerName,
+
+                microsoftUserId:
+                  null,
+              },
+
+              approver: {
+                email:
+                  selectedDelegation.toUserEmail,
+
+                name:
+                  selectedDelegation.toUserName,
+
+                microsoftUserId:
+                  selectedDelegation.toMicrosoftUserId,
+              },
+
+              delegation:
+                selectedDelegation,
+
+              assignment:
+                siteManager,
+            };
+          }
+
+          return {
+            status:
+              'APPROVER_RESOLVED',
+
+            assigneeType:
+              'USER',
+
+            approvalRole:
+              input.approvalRole,
+
+            source:
+              'SITE_MANAGER_ASSIGNMENT',
+
+            site: {
+              id:
+                siteRecord.id,
+
+              code:
+                siteRecord.code,
+
+              name:
+                siteRecord.name,
+            },
+
+            approver: {
+              email:
+                cleanLower(
+                  siteManager.managerEmail,
+                ),
+
+              name:
+                siteManager.managerName,
+
+              microsoftUserId:
+                null,
+            },
+
+            assignment:
+              siteManager,
+          };
+        }
+      }
+    }
+
     const assignments = await this.db().approvalApproverAssignment.findMany({
       where: {
         approvalRole: input.approvalRole,

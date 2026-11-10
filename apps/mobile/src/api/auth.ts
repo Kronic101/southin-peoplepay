@@ -1,11 +1,46 @@
 import { apiPost } from './client';
-import { MobileSession } from '../storage/session';
 
 export type MobileLoginPayload = {
-  employeeNo: string;
+  employeeNumber: string;
   pin: string;
 };
 
-export async function mobileLogin(payload: MobileLoginPayload) {
-  return apiPost<MobileSession>('/auth/mobile-login', payload);
+export type MobileLoginResponse = {
+  message: string;
+  token: string;
+  mustChangePin: boolean;
+  accessProfile: string;
+  allowedModules: string[];
+  employee: any;
+};
+
+export type MobileChangePinPayload = {
+  employeeNumber: string;
+  currentPin: string;
+  newPin: string;
+};
+
+export type MobileChangePinResponse = {
+  message: string;
+  token: string;
+  mustChangePin: boolean;
+  employee: any;
+};
+
+export async function mobileLogin(
+  payload: MobileLoginPayload,
+) {
+  return apiPost<MobileLoginResponse>(
+    '/auth/employee/login',
+    payload,
+  );
+}
+
+export async function mobileChangePin(
+  payload: MobileChangePinPayload,
+) {
+  return apiPost<MobileChangePinResponse>(
+    '/auth/employee/change-pin',
+    payload,
+  );
 }

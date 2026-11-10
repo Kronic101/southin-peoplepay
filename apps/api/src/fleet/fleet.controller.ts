@@ -44,4 +44,11 @@ export class FleetController {
   completeDueItem(@Param('id') id: string, @Body() body: any) {
     return this.fleetService.completeDueItem(id, body);
   }
+
+  @Get('vehicles/directory')
+  getVehicleDirectory() {
+    return this.fleetService
+      .getVehicleDirectory();
+  }
+
 }
