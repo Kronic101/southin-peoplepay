@@ -115,38 +115,121 @@ export class ApprovalWorkflowService {
   async findMatrixRule(input: {
     module: string;
     workflowType: string;
+    matrixRuleName?: string | null;
     site?: string | null;
     branch?: string | null;
     departmentId?: string | null;
     amount?: string | number | null;
   }) {
-    const rules = await this.db().approvalMatrixRule.findMany({
-      where: {
-        module: input.module,
-        workflowType: input.workflowType,
-        isActive: true,
-        AND: [
-          { OR: [{ site: null }, { site: clean(input.site) || null }] },
-          { OR: [{ branch: null }, { branch: clean(input.branch) || null }] },
-          { OR: [{ departmentId: null }, { departmentId: clean(input.departmentId) || null }] },
-        ],
-      },
-      orderBy: [{ createdAt: 'asc' }],
-    });
+    const matrixRuleName =
+      clean(input.matrixRuleName);
+
+    const rules =
+      await this.db()
+        .approvalMatrixRule
+        .findMany({
+          where: {
+            module:
+              input.module,
+
+            workflowType:
+              input.workflowType,
+
+            isActive:
+              true,
+
+            ...(matrixRuleName
+              ? {
+                  name:
+                    matrixRuleName,
+                }
+              : {}),
+
+            AND: [
+              {
+                OR: [
+                  {
+                    site:
+                      null,
+                  },
+                  {
+                    site:
+                      clean(
+                        input.site,
+                      ) || null,
+                  },
+                ],
+              },
+              {
+                OR: [
+                  {
+                    branch:
+                      null,
+                  },
+                  {
+                    branch:
+                      clean(
+                        input.branch,
+                      ) || null,
+                  },
+                ],
+              },
+              {
+                OR: [
+                  {
+                    departmentId:
+                      null,
+                  },
+                  {
+                    departmentId:
+                      clean(
+                        input.departmentId,
+                      ) || null,
+                  },
+                ],
+              },
+            ],
+          },
+
+          orderBy: [
+            {
+              createdAt:
+                'asc',
+            },
+          ],
+        });
 
     return (
       rules
-        .map((rule: any) => ({
-          rule,
-          score: this.scoreMatrixRule(rule, input),
-        }))
-        .sort((a: any, b: any) => b.score - a.score)[0]?.rule || null
+        .map(
+          (
+            rule: any,
+          ) => ({
+            rule,
+
+            score:
+              this.scoreMatrixRule(
+                rule,
+                input,
+              ),
+          }),
+        )
+        .sort(
+          (
+            a: any,
+            b: any,
+          ) =>
+            b.score -
+            a.score,
+        )[0]?.rule ||
+      null
     );
   }
 
   async startWorkflow(input: {
     module: string;
     workflowType: string;
+    matrixRuleName?: string | null;
     sourceType?: string;
     sourceId: string;
     requestNo?: string | null;
@@ -180,14 +263,26 @@ export class ApprovalWorkflowService {
       throw new BadRequestException('Approval workflow sourceId is required.');
     }
 
-    const matrixRule = await this.findMatrixRule({
-      module,
-      workflowType,
-      site: input.site,
-      branch: input.branch,
-      departmentId: input.departmentId,
-      amount: input.amount,
-    });
+    const matrixRule =
+      await this.findMatrixRule({
+        module,
+        workflowType,
+
+        matrixRuleName:
+          input.matrixRuleName,
+
+        site:
+          input.site,
+
+        branch:
+          input.branch,
+
+        departmentId:
+          input.departmentId,
+
+        amount:
+          input.amount,
+      });
 
     if (!matrixRule) {
       return {
@@ -378,6 +473,7 @@ export class ApprovalWorkflowService {
   async startWorkflowSafe(input: {
     module: string;
     workflowType: string;
+    matrixRuleName?: string | null;
     sourceType?: string;
     sourceId: string;
     requestNo?: string | null;

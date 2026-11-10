@@ -1,0 +1,807 @@
+[
+    {
+        "id":  "d3ac6d5a-0916-4521-a2ae-34b053eeac0b",
+        "module":  "HR",
+        "workflowType":  "LEAVE_REQUEST",
+        "name":  "Leave request approval",
+        "description":  "Employee leave approval through supervisor or line manager and HR.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "LINE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:11.007Z",
+        "updatedAt":  "2026-06-15T08:25:11.007Z",
+        "department":  null
+    },
+    {
+        "id":  "81eab4f9-bca4-4fed-8456-4a34064b8bea",
+        "module":  "PAYROLL",
+        "workflowType":  "PAYROLL_RUN",
+        "name":  "Payroll run approval",
+        "description":  "Payroll run approval path through HR, Finance, and Director.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              },
+                              {
+                                  "role":  "DIRECTOR",
+                                  "required":  true,
+                                  "sequence":  3
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:13.408Z",
+        "updatedAt":  "2026-06-15T08:25:13.408Z",
+        "department":  null
+    },
+    {
+        "id":  "5f37edb9-70f0-4b7e-a892-696d1246dc0a",
+        "module":  "FINANCE",
+        "workflowType":  "EXPENSE_REQUEST",
+        "name":  "Standard expense approval",
+        "description":  "Low to medium value expenses approved by HOD and Finance.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  "0",
+        "maxAmount":  "5000",
+        "requiresFinance":  true,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "HOD",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:11.618Z",
+        "updatedAt":  "2026-06-15T08:25:11.618Z",
+        "department":  null
+    },
+    {
+        "id":  "42de3c40-1018-4806-acd3-94e8312a8902",
+        "module":  "FINANCE",
+        "workflowType":  "EXPENSE_REQUEST",
+        "name":  "High value expense approval",
+        "description":  "High value expenses require HOD, Finance, and Director Finance approval.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  "5000.01",
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "HOD",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              },
+                              {
+                                  "role":  "DIRECTOR_FINANCE",
+                                  "required":  true,
+                                  "sequence":  3
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:12.363Z",
+        "updatedAt":  "2026-06-15T08:25:12.363Z",
+        "department":  null
+    },
+    {
+        "id":  "747c5cb4-2751-4a6f-b0ba-1817636e587e",
+        "module":  "FINANCE",
+        "workflowType":  "EXPENSE_REQUEST",
+        "name":  "Finance Expense Approval",
+        "description":  "Finance expenses are reviewed by Finance Manager and escalated to Director when required.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Manager Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Finance-Managers"
+                              },
+                              {
+                                  "role":  "DIRECTOR",
+                                  "label":  "Director Final Approval",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Directors"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-29T15:06:03.564Z",
+        "updatedAt":  "2026-06-30T06:48:49.898Z",
+        "department":  null
+    },
+    {
+        "id":  "f397d169-6d3a-42e4-812f-9cc8b2f2438d",
+        "module":  "PROCUREMENT",
+        "workflowType":  "PROCUREMENT_REQUEST",
+        "name":  "Procurement Approval",
+        "description":  "Procurement requests are reviewed by Procurement, Finance and Director where required.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "PROCUREMENT_OFFICER",
+                                  "label":  "Procurement Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Procurement-Officers"
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Finance-Managers"
+                              },
+                              {
+                                  "role":  "DIRECTOR",
+                                  "label":  "Director Final Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Directors"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-30T06:48:59.533Z",
+        "updatedAt":  "2026-06-30T06:48:59.533Z",
+        "department":  null
+    },
+    {
+        "id":  "08ddb2b3-062f-42e0-9a6c-019de7fadb20",
+        "module":  "PROCUREMENT",
+        "workflowType":  "PROCUREMENT_REQUEST",
+        "name":  "Procurement payment approval",
+        "description":  "Procurement requests reviewed by procurement/stores, finance, and operations.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "PROCUREMENT_OFFICER",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              },
+                              {
+                                  "role":  "OPERATIONS_MANAGER",
+                                  "required":  true,
+                                  "sequence":  3
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:12.887Z",
+        "updatedAt":  "2026-06-15T08:25:12.887Z",
+        "department":  null
+    },
+    {
+        "id":  "852db067-12c1-4101-b6de-e992ac5ca315",
+        "module":  "ASSET_MANAGEMENT",
+        "workflowType":  "ASSET_PURCHASE",
+        "name":  "Asset purchase approval",
+        "description":  "Asset purchases reviewed by Asset Manager, Finance, and Director Operations.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "ASSET_MANAGER",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "required":  true,
+                                  "sequence":  2
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "required":  true,
+                                  "sequence":  3
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-15T08:25:13.149Z",
+        "updatedAt":  "2026-06-15T08:25:13.149Z",
+        "department":  null
+    },
+    {
+        "id":  "6fb2d07d-069c-4eba-913a-6aacd2ff42c7",
+        "module":  "ASSET_MANAGEMENT",
+        "workflowType":  "ASSET_MOVEMENT",
+        "name":  "Asset Movement Approval",
+        "description":  "Asset and stores movements are reviewed by Stores and approved by the Asset Manager.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "STORES_OFFICER",
+                                  "label":  "Stores Officer Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Stores-Officers"
+                              },
+                              {
+                                  "role":  "ASSET_MANAGER",
+                                  "label":  "Asset Manager Approval",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Asset-Managers"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-30T06:48:54.728Z",
+        "updatedAt":  "2026-06-30T06:48:54.728Z",
+        "department":  null
+    },
+    {
+        "id":  "f1accdfd-ebb8-412e-b943-6ef33f463185",
+        "module":  "ASSET_MANAGEMENT",
+        "workflowType":  "STOCK_COUNT",
+        "name":  "Stock Count Approval",
+        "description":  "Physical stock counts are captured by Stores and approved by the Asset Manager.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "STORES_OFFICER",
+                                  "label":  "Stores Officer Stock Count Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Stores-Officers"
+                              },
+                              {
+                                  "role":  "ASSET_MANAGER",
+                                  "label":  "Asset Manager Variance Approval",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Asset-Managers"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-30T06:48:57.144Z",
+        "updatedAt":  "2026-06-30T06:48:57.144Z",
+        "department":  null
+    },
+    {
+        "id":  "019b0098-5d3b-413a-bab5-176e5b0b27ab",
+        "module":  "FLEET",
+        "workflowType":  "FLEET_COST",
+        "name":  "Fleet Cost Approval",
+        "description":  "Fleet costs are verified by Fleet Manager and reviewed by Finance before posting to the Finance Dashboard.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "FLEET_MANAGER",
+                                  "label":  "Fleet Manager Verification",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Fleet-Managers"
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Finance-Managers"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-30T06:48:52.339Z",
+        "updatedAt":  "2026-06-30T06:48:52.339Z",
+        "department":  null
+    },
+    {
+        "id":  "35e29f70-f480-4c7d-a67b-3774f42c9606",
+        "module":  "STORES",
+        "workflowType":  "STORES_REQUISITION",
+        "name":  "Stores Requisition Authorisation",
+        "description":  "Stores requisition approval flow: Requester submits, then Site Manager, Operations/Line Manager, Branch Manager KMDC, Administration Manager, and Director of Operations final approval.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SITE_MANAGER",
+                                  "label":  "Site Manager Approval",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "approverName":  null,
+                                  "assigneeType":  "ROLE_DYNAMIC",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Site-Managers"
+                              },
+                              {
+                                  "role":  "OPERATIONS_MANAGER",
+                                  "label":  "Operations Manager / Line Manager Approval",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "alternateRoles":  [
+                                                         "LINE_MANAGER"
+                                                     ],
+                                  "entraGroupName":  "Southin-Approvers-Operations-Line-Managers"
+                              },
+                              {
+                                  "role":  "BRANCH_MANAGER",
+                                  "label":  "Branch Manager - KMDC Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Branch-Managers-KMDC"
+                              },
+                              {
+                                  "role":  "ADMINISTRATION_MANAGER",
+                                  "label":  "Administration Manager Approval",
+                                  "required":  true,
+                                  "sequence":  4,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  false,
+                                  "entraGroupName":  "Southin-Approvers-Administration-Managers"
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director of Operations Final Approval",
+                                  "required":  true,
+                                  "sequence":  5,
+                                  "approverName":  null,
+                                  "assigneeType":  "ENTRA_GROUP",
+                                  "entraGroupId":  null,
+                                  "approverEmail":  null,
+                                  "finalApproval":  true,
+                                  "entraGroupName":  "Southin-Approvers-Directors-Operations"
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-06-30T06:48:47.441Z",
+        "updatedAt":  "2026-06-30T06:48:47.441Z",
+        "department":  null
+    },
+    {
+        "id":  "0ec6fe0c-09b7-43eb-99a6-7a523e4511b4",
+        "module":  "SAFETY",
+        "workflowType":  "SAFETY_INCIDENT",
+        "name":  "Safety Incident Review",
+        "description":  "Review workflow for safety incidents and near misses.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SAFETY_OFFICER",
+                                  "label":  "Safety Officer Review",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "OPERATIONS_MANAGER",
+                                  "label":  "Operations Manager Review",
+                                  "required":  true,
+                                  "sequence":  2
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director Operations Review",
+                                  "required":  false,
+                                  "sequence":  3
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-20T09:39:24.007Z",
+        "updatedAt":  "2026-07-20T09:39:24.007Z",
+        "department":  null
+    },
+    {
+        "id":  "eb7b6d75-9ff0-439f-bd94-5fc2c12a8c30",
+        "module":  "SAFETY",
+        "workflowType":  "SAFETY_OBSERVATION_REVIEW",
+        "name":  "High Risk Safety Observation Review",
+        "description":  "Review workflow for high and critical safety observations.",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  false,
+        "requiresDirector":  false,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SAFETY_OFFICER",
+                                  "label":  "Safety Officer Review",
+                                  "required":  true,
+                                  "sequence":  1
+                              },
+                              {
+                                  "role":  "OPERATIONS_MANAGER",
+                                  "label":  "Operations Manager Review",
+                                  "required":  true,
+                                  "sequence":  2
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-20T09:39:24.007Z",
+        "updatedAt":  "2026-07-20T09:39:24.007Z",
+        "department":  null
+    },
+    {
+        "id":  "39035bf9-cb19-42ac-9edd-b964acd101c5",
+        "module":  "PEOPLE_OPERATIONS",
+        "workflowType":  "LEAVE_REQUEST",
+        "name":  "People Operations - Leave Approval",
+        "description":  "Leave request approval before payroll impact",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SITE_MANAGER",
+                                  "label":  "Site Manager Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_OFFICER",
+                                  "label":  "HR Officer Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "label":  "HR Manager Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director Operations Approval",
+                                  "required":  true,
+                                  "sequence":  4,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Manager Payroll Release",
+                                  "required":  true,
+                                  "sequence":  5,
+                                  "finalApproval":  true
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-14T13:08:19.230Z",
+        "updatedAt":  "2026-07-14T13:08:19.230Z",
+        "department":  null
+    },
+    {
+        "id":  "c59be73c-c2a1-4ba5-8d89-d0256e99143a",
+        "module":  "PEOPLE_OPERATIONS",
+        "workflowType":  "PEOPLE_ATTENDANCE_REVIEW",
+        "name":  "People Operations - Attendance Review",
+        "description":  "Monthly/weekly attendance review before payroll consumption",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SITE_MANAGER",
+                                  "label":  "Site Manager Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_OFFICER",
+                                  "label":  "HR Officer Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "label":  "HR Manager Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director Operations Approval",
+                                  "required":  true,
+                                  "sequence":  4,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Manager Payroll Release",
+                                  "required":  true,
+                                  "sequence":  5,
+                                  "finalApproval":  true
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-14T13:08:19.230Z",
+        "updatedAt":  "2026-07-14T13:08:19.230Z",
+        "department":  null
+    },
+    {
+        "id":  "263d64c4-3c2d-458a-b1da-9f0b0d4ec80c",
+        "module":  "PEOPLE_OPERATIONS",
+        "workflowType":  "TIMESHEET_APPROVAL",
+        "name":  "People Operations - Timesheet Approval",
+        "description":  "Timesheet approval before payroll consumption",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SITE_MANAGER",
+                                  "label":  "Site Manager Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_OFFICER",
+                                  "label":  "HR Officer Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "label":  "HR Manager Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director Operations Approval",
+                                  "required":  true,
+                                  "sequence":  4,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Manager Payroll Release",
+                                  "required":  true,
+                                  "sequence":  5,
+                                  "finalApproval":  true
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-14T13:08:19.230Z",
+        "updatedAt":  "2026-07-14T13:08:19.230Z",
+        "department":  null
+    },
+    {
+        "id":  "8bc4d5aa-790a-4e38-9b3c-e147c92906fc",
+        "module":  "PEOPLE_OPERATIONS",
+        "workflowType":  "OVERTIME_REQUEST",
+        "name":  "People Operations - Overtime Approval",
+        "description":  "Overtime request approval before payroll impact",
+        "departmentId":  null,
+        "site":  null,
+        "branch":  null,
+        "minAmount":  null,
+        "maxAmount":  null,
+        "requiresFinance":  true,
+        "requiresDirector":  true,
+        "approvalSteps":  [
+                              {
+                                  "role":  "SITE_MANAGER",
+                                  "label":  "Site Manager Review",
+                                  "required":  true,
+                                  "sequence":  1,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_OFFICER",
+                                  "label":  "HR Officer Review",
+                                  "required":  true,
+                                  "sequence":  2,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "HR_MANAGER",
+                                  "label":  "HR Manager Approval",
+                                  "required":  true,
+                                  "sequence":  3,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "DIRECTOR_OPERATIONS",
+                                  "label":  "Director Operations Approval",
+                                  "required":  true,
+                                  "sequence":  4,
+                                  "finalApproval":  false
+                              },
+                              {
+                                  "role":  "FINANCE_MANAGER",
+                                  "label":  "Finance Manager Payroll Release",
+                                  "required":  true,
+                                  "sequence":  5,
+                                  "finalApproval":  true
+                              }
+                          ],
+        "isActive":  true,
+        "createdAt":  "2026-07-14T13:08:19.230Z",
+        "updatedAt":  "2026-07-14T13:08:19.230Z",
+        "department":  null
+    }
+]

@@ -35,8 +35,32 @@ export default function LoginPage() {
     setSaving(true);
 
     try {
-      await auth.login(employeeNo, pin);
-      router.replace('/dashboard');
+      const result =
+        await auth.login(
+          employeeNo,
+          pin,
+        );
+
+      if (result.mustChangePin) {
+        router.replace({
+          pathname:
+            '/login/change-pin',
+
+          params: {
+            employeeNumber:
+              result.employeeNo ||
+              employeeNo
+                .trim()
+                .toUpperCase(),
+          },
+        });
+
+        return;
+      }
+
+      router.replace(
+        '/dashboard',
+      );
     } catch (error: any) {
       Alert.alert('Login failed', error?.message || 'Unable to login.');
     } finally {

@@ -293,77 +293,400 @@ export class ApprovalMatrixService {
   async seedDefaultMatrix() {
     const defaults = [
       {
-        module: 'STORES',
-        workflowType: 'STORES_REQUISITION',
-        name: 'Stores Requisition Authorisation',
-        description:
-          'Stores requisition approval flow: Requester submits, then Site Manager, Operations/Line Manager, Branch Manager KMDC, Administration Manager, and Director of Operations final approval.',
-        requiresFinance: false,
-        requiresDirector: true,
-        approvalSteps: [
-          {
-            sequence: 1,
-            label: 'Site Manager Approval',
-            role: 'SITE_MANAGER',
-            assigneeType: 'ROLE_DYNAMIC',
-            entraGroupName: 'Southin-Approvers-Site-Managers',
-            entraGroupId: null,
-            approverEmail: null,
-            approverName: null,
-            required: true,
-            finalApproval: false,
-          },
-          {
-            sequence: 2,
-            label: 'Operations Manager / Line Manager Approval',
-            role: 'OPERATIONS_MANAGER',
-            alternateRoles: ['LINE_MANAGER'],
-            assigneeType: 'ENTRA_GROUP',
-            entraGroupName: 'Southin-Approvers-Operations-Line-Managers',
-            entraGroupId: null,
-            approverEmail: null,
-            approverName: null,
-            required: true,
-            finalApproval: false,
-          },
-          {
-            sequence: 3,
-            label: 'Branch Manager - KMDC Approval',
-            role: 'BRANCH_MANAGER',
-            assigneeType: 'ENTRA_GROUP',
-            entraGroupName: 'Southin-Approvers-Branch-Managers-KMDC',
-            entraGroupId: null,
-            approverEmail: null,
-            approverName: null,
-            required: true,
-            finalApproval: false,
-          },
-          {
-            sequence: 4,
-            label: 'Administration Manager Approval',
-            role: 'ADMINISTRATION_MANAGER',
-            assigneeType: 'ENTRA_GROUP',
-            entraGroupName: 'Southin-Approvers-Administration-Managers',
-            entraGroupId: null,
-            approverEmail: null,
-            approverName: null,
-            required: true,
-            finalApproval: false,
-          },
-          {
-            sequence: 5,
-            label: 'Director of Operations Final Approval',
-            role: 'DIRECTOR_OPERATIONS',
-            assigneeType: 'ENTRA_GROUP',
-            entraGroupName: 'Southin-Approvers-Directors-Operations',
-            entraGroupId: null,
-            approverEmail: null,
-            approverName: null,
-            required: true,
-            finalApproval: true,
-          },
-        ],
+  module:
+    'STORES',
+
+  workflowType:
+    'STORES_REQUISITION',
+
+  name:
+    'Stores Requisition Authorisation - Consumable',
+
+  description:
+    'Consumable Stores requisition authorisation: Site Manager, Operations Manager, Branch Manager KMDC, Administration Manager and Director of Operations final approval.',
+
+  requiresFinance:
+    false,
+
+  requiresDirector:
+    true,
+
+  approvalSteps: [
+    {
+      sequence:
+        1,
+
+      label:
+        'Site Manager Approval',
+
+      role:
+        'SITE_MANAGER',
+
+      assigneeType:
+        'ROLE_DYNAMIC',
+
+      entraGroupName:
+        'Southin-Approvers-Site-Managers',
+
+      entraGroupId:
+        null,
+
+      approverEmail:
+        null,
+
+      approverName:
+        null,
+
+      required:
+        true,
+
+      finalApproval:
+        false,
+    },
+
+    {
+      sequence:
+        2,
+
+      label:
+        'Operations Manager Approval',
+
+      role:
+        'OPERATIONS_MANAGER',
+
+      assigneeType:
+        'ENTRA_GROUP',
+
+      entraGroupName:
+        'Southin-Approvers-Operations-Managers',
+
+      entraGroupId:
+        null,
+
+      approverEmail:
+        null,
+
+      approverName:
+        null,
+
+      required:
+        true,
+
+      finalApproval:
+        false,
+    },
+
+    {
+      sequence:
+        3,
+
+      label:
+        'Branch Manager - KMDC Approval',
+
+      role:
+        'BRANCH_MANAGER',
+
+      assigneeType:
+        'ENTRA_GROUP',
+
+      entraGroupName:
+        'Southin-Approvers-Branch-Managers-KMDC',
+
+      entraGroupId:
+        null,
+
+      approverEmail:
+        null,
+
+      approverName:
+        null,
+
+      required:
+        true,
+
+      finalApproval:
+        false,
+    },
+
+    {
+      sequence:
+        4,
+
+      label:
+        'Administration Manager Approval',
+
+      role:
+        'ADMINISTRATION_MANAGER',
+
+      assigneeType:
+        'ENTRA_GROUP',
+
+      entraGroupName:
+        'Southin-Approvers-Administration-Managers',
+
+      entraGroupId:
+        null,
+
+      approverEmail:
+        null,
+
+      approverName:
+        null,
+
+      required:
+        true,
+
+      finalApproval:
+        false,
+    },
+
+    {
+      sequence:
+        5,
+
+      label:
+        'Director of Operations Final Approval',
+
+      role:
+        'DIRECTOR_OPERATIONS',
+
+      assigneeType:
+        'ENTRA_GROUP',
+
+      entraGroupName:
+        'Southin-Approvers-Directors-Operations',
+
+      entraGroupId:
+        null,
+
+      approverEmail:
+        null,
+
+      approverName:
+        null,
+
+      required:
+        true,
+
+      finalApproval:
+        true,
+    },
+  ],
+},
+
+{
+    module:
+      'STORES',
+
+    workflowType:
+      'STORES_REQUISITION',
+
+    name:
+      'Stores Requisition Authorisation - Non-Consumable',
+
+    description:
+      'Asset and Non-Consumable Stores requisition authorisation: Site Manager, Operations Manager, Branch Manager KMDC, Asset and Inventory Manager, Administration Manager and Director of Operations final approval.',
+
+    requiresFinance:
+      false,
+
+    requiresDirector:
+      true,
+
+    approvalSteps: [
+      {
+        sequence:
+          1,
+
+        label:
+          'Site Manager Approval',
+
+        role:
+          'SITE_MANAGER',
+
+        assigneeType:
+          'ROLE_DYNAMIC',
+
+        entraGroupName:
+          'Southin-Approvers-Site-Managers',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          false,
       },
+
+      {
+        sequence:
+          2,
+
+        label:
+          'Operations Manager Approval',
+
+        role:
+          'OPERATIONS_MANAGER',
+
+        assigneeType:
+          'ENTRA_GROUP',
+
+        entraGroupName:
+          'Southin-Approvers-Operations-Managers',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          false,
+      },
+
+      {
+        sequence:
+          3,
+
+        label:
+          'Branch Manager - KMDC Approval',
+
+        role:
+          'BRANCH_MANAGER',
+
+        assigneeType:
+          'ENTRA_GROUP',
+
+        entraGroupName:
+          'Southin-Approvers-Branch-Managers-KMDC',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          false,
+      },
+
+      {
+        sequence:
+          4,
+
+        label:
+          'Asset & Inventory Manager Approval',
+
+        role:
+          'ASSET_MANAGER',
+
+        assigneeType:
+          'ENTRA_GROUP',
+
+        entraGroupName:
+          'Southin-Approvers-Asset-Managers',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          false,
+      },
+
+      {
+        sequence:
+          5,
+
+        label:
+          'Administration Manager Approval',
+
+        role:
+          'ADMINISTRATION_MANAGER',
+
+        assigneeType:
+          'ENTRA_GROUP',
+
+        entraGroupName:
+          'Southin-Approvers-Administration-Managers',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          false,
+      },
+
+      {
+        sequence:
+          6,
+
+        label:
+          'Director of Operations Final Approval',
+
+        role:
+          'DIRECTOR_OPERATIONS',
+
+        assigneeType:
+          'ENTRA_GROUP',
+
+        entraGroupName:
+          'Southin-Approvers-Directors-Operations',
+
+        entraGroupId:
+          null,
+
+        approverEmail:
+          null,
+
+        approverName:
+          null,
+
+        required:
+          true,
+
+        finalApproval:
+          true,
+      },
+    ],
+  },
       {
         module: 'FINANCE',
         workflowType: 'EXPENSE_REQUEST',
@@ -583,6 +906,33 @@ export class ApprovalMatrixService {
       }
     }
 
+    /*
+    * Legacy generic Stores rule must no longer
+    * be selected for new requisitions.
+    *
+    * Existing ApprovalRequest records remain
+    * safe because they retain the matrixRuleId
+    * originally assigned to them.
+    */
+    await this.db()
+      .approvalMatrixRule
+      .updateMany({
+        where: {
+          module:
+            'STORES',
+
+          workflowType:
+            'STORES_REQUISITION',
+
+          name:
+            'Stores Requisition Authorisation',
+        },
+
+        data: {
+          isActive:
+            false,
+        },
+      });
     const approvers = [
       {
         email: 'site.manager@southincon.com',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import AppShell from '@/components/AppShell';
@@ -614,6 +614,12 @@ export default function ApprovalInboxPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const queueScrollRef = useRef<HTMLDivElement | null>(null);
+  const floatingQueueScrollRef = useRef<HTMLDivElement | null>(null);
+  const [queueScrollWidth, setQueueScrollWidth] = useState(0);
+  const [queueHasHorizontalOverflow, setQueueHasHorizontalOverflow] =
+    useState(false);
+
   const signedInEmail = session?.user?.email ?? '';
   const signedInName = session?.user?.name ?? session?.user?.email ?? '';
   const signedInEntraId = (session?.user as any)?.entraObjectId ?? '';
@@ -664,6 +670,112 @@ export default function ApprovalInboxPage() {
       rejected: records.filter((item) => normalise(item.status) === 'REJECTED').length,
     };
   }, [records]);
+
+  const orderedRecords = useMemo(() => {
+    return [...records].sort((left, right) => {
+      const leftRole = getCurrentRole(left);
+      const rightRole = getCurrentRole(right);
+
+      const leftActionable =
+        !isTerminalStatus(left) &&
+        roleMatchesApprovalStep(signedInRole, leftRole);
+
+      const rightActionable =
+        !isTerminalStatus(right) &&
+        roleMatchesApprovalStep(signedInRole, rightRole);
+
+      if (leftActionable !== rightActionable) {
+        return leftActionable ? -1 : 1;
+      }
+
+      const leftUnconfigured =
+        normalise(getWorkflowStatus(left)) === 'APPROVER_NOT_CONFIGURED';
+
+      const rightUnconfigured =
+        normalise(getWorkflowStatus(right)) === 'APPROVER_NOT_CONFIGURED';
+
+      if (leftUnconfigured !== rightUnconfigured) {
+        return leftUnconfigured ? -1 : 1;
+      }
+
+      const leftDate = new Date(
+        (left as any).submittedAt ||
+          (left as any).createdAt ||
+          0,
+      ).getTime();
+
+      const rightDate = new Date(
+        (right as any).submittedAt ||
+          (right as any).createdAt ||
+          0,
+      ).getTime();
+
+      return rightDate - leftDate;
+    });
+  }, [records, signedInRole]);
+
+  const refreshQueueScrollMetrics = useCallback(() => {
+    const queue = queueScrollRef.current;
+
+    if (!queue) {
+      setQueueScrollWidth(0);
+      setQueueHasHorizontalOverflow(false);
+      return;
+    }
+
+    setQueueScrollWidth(queue.scrollWidth);
+    setQueueHasHorizontalOverflow(
+      queue.scrollWidth > queue.clientWidth + 1,
+    );
+  }, []);
+
+  useEffect(() => {
+    refreshQueueScrollMetrics();
+
+    const queue = queueScrollRef.current;
+
+    if (!queue || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      refreshQueueScrollMetrics();
+    });
+
+    observer.observe(queue);
+
+    const table = queue.querySelector('table');
+
+    if (table) {
+      observer.observe(table);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [orderedRecords, refreshQueueScrollMetrics]);
+
+  const syncQueueFromTable = useCallback(() => {
+    const queue = queueScrollRef.current;
+    const floating = floatingQueueScrollRef.current;
+
+    if (!queue || !floating) return;
+
+    if (floating.scrollLeft !== queue.scrollLeft) {
+      floating.scrollLeft = queue.scrollLeft;
+    }
+  }, []);
+
+  const syncQueueFromFloatingBar = useCallback(() => {
+    const queue = queueScrollRef.current;
+    const floating = floatingQueueScrollRef.current;
+
+    if (!queue || !floating) return;
+
+    if (queue.scrollLeft !== floating.scrollLeft) {
+      queue.scrollLeft = floating.scrollLeft;
+    }
+  }, []);
 
   const selectedCurrentRole = selected ? getCurrentRole(selected) : '';
   const selectedCanAction =
@@ -840,323 +952,389 @@ export default function ApprovalInboxPage() {
             </p>
           </div>
 
-          <div className="finance-summary-card">
-            <h2>Pending / Recent Requests</h2>
-
-            <div className="employee-table-wrap">
-              <table className="employee-table">
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Workflow</th>
-                    <th>Requester</th>
-                    <th>Current Step</th>
-                    <th>Approver</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {!records.length ? (
-                    <tr>
-                      <td colSpan={8}>{loading ? 'Loading approval requests...' : 'No approval requests found.'}</td>
-                    </tr>
-                  ) : (
-                    records.map((record) => {
-                      const currentRole = getCurrentRole(record);
-                      const canReview =
-                        !isTerminalStatus(record) &&
-                        roleMatchesApprovalStep(signedInRole, currentRole);
-
-                      return (
-                        <tr key={record.id}>
-                          <td>
-                            <strong>{record.requestReference || record.id.slice(0, 8)}</strong>
-                            <br />
-                            <span className="muted">{formatDate(record.submittedAt || record.createdAt)}</span>
-                          </td>
-
-                          <td>
-                            <strong>{record.module}</strong>
-                            <br />
-                            <span className="muted">{record.workflowType}</span>
-                          </td>
-
-                          <td>
-                            <strong>{record.requesterName || '-'}</strong>
-                            <br />
-                            <span className="muted">
-                              {record.requesterDepartment || record.requesterSite || record.requesterRole || '-'}
-                            </span>
-                          </td>
-
-                          <td>
-                            <strong>{getCurrentStepLabel(record)}</strong>
-                            <br />
-                            <span className="muted">{currentRole}</span>
-                          </td>
-
-                          <td>{getCurrentApprover(record)}</td>
-                          <td>{formatAmount(record.amount)}</td>
-
-                          <td>
-                            <span className={statusClass(String(getWorkflowStatus(record)))}>
-                              {cleanStatus(String(getWorkflowStatus(record)))}
-                            </span>
-                          </td>
-
-                          <td>
-                            <div className="action-row">
-                              <button
-                                className={canReview ? 'btn-secondary' : 'btn-ghost'}
-                                type="button"
-                                onClick={() => {
-                                  setSelected(record);
-                                  setComments('');
-                                  setError('');
-                                  setMessage('');
-                                }}
-                              >
-                                {canReview ? 'Review' : 'View'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {selected ? (
-            <div className="finance-summary-card">
-              <div className="section-heading-row">
-                <div>
-                  <p className="eyebrow">Request Review</p>
-                  <h2>{selected.requestTitle || selected.requestReference || 'Approval Request'}</h2>
-                  <p className="muted">{selected.requestDescription || 'No request description provided.'}</p>
-                </div>
-
-                <button className="btn-secondary" type="button" onClick={() => setSelected(null)}>
-                  Close
-                </button>
-              </div>
-
-              <div className="mini-detail-grid">
-                <div>
-                  <span>Reference</span>
-                  <strong>{selected.requestReference || selected.id}</strong>
-                </div>
-                <div>
-                  <span>Module</span>
-                  <strong>{selected.module}</strong>
-                </div>
-                <div>
-                  <span>Workflow</span>
-                  <strong>{selected.workflowType}</strong>
-                </div>
-                <div>
-                  <span>Requester</span>
-                  <strong>{selected.requesterName || '-'}</strong>
-                </div>
-                <div>
-                  <span>Current Step</span>
-                  <strong>{getCurrentStepLabel(selected)}</strong>
-                </div>
-                <div>
-                  <span>Required Role</span>
-                  <strong>{selectedCurrentRole || '-'}</strong>
-                </div>
-                <div>
-                  <span>Detected Role</span>
-                  <strong>{signedInRole || '-'}</strong>
-                </div>
-                <div>
-                  <span>Amount</span>
-                  <strong>{formatAmount(selected.amount)}</strong>
-                </div>
-                <div>
-                  <span>Status</span>
-                  <strong>{cleanStatus(String(getWorkflowStatus(selected)))}</strong>
-                </div>
-              </div>
-
-              {selectedAssetMovement ? (
-                <div style={{ marginTop: '1.25rem' }}>
-                  <h3>Asset Movement Details</h3>
-
-                  <div className="mini-detail-grid">
-                    <div>
-                      <span>Movement Number</span>
-                      <strong>{selectedAssetMovement.movementNo}</strong>
-                    </div>
-
-                    <div>
-                      <span>Movement Type</span>
-                      <strong>{selectedAssetMovement.movementType}</strong>
-                    </div>
-
-                    <div>
-                      <span>Item / Items Being Moved</span>
-                      <strong>{selectedAssetMovement.itemSummary}</strong>
-                    </div>
-
-                    <div>
-                      <span>Quantity</span>
-                      <strong>
-                        {selectedAssetMovement.quantity} {selectedAssetMovement.unitOfMeasure}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>From Location</span>
-                      <strong>{selectedAssetMovement.fromLocation}</strong>
-                    </div>
-
-                    <div>
-                      <span>To Location</span>
-                      <strong>{selectedAssetMovement.toLocation}</strong>
-                    </div>
-
-                    <div>
-                      <span>Site</span>
-                      <strong>{selectedAssetMovement.site}</strong>
-                    </div>
-
-                    <div>
-                      <span>Branch</span>
-                      <strong>{selectedAssetMovement.branch}</strong>
-                    </div>
-
-                    <div>
-                      <span>Department</span>
-                      <strong>{selectedAssetMovement.department}</strong>
-                    </div>
-
-                    <div>
-                      <span>Requested By</span>
-                      <strong>{selectedAssetMovement.requestedBy}</strong>
-                      <br />
-                      <span className="muted">{selectedAssetMovement.requestedByEmail}</span>
-                    </div>
-
-                    <div>
-                      <span>Line Count</span>
-                      <strong>{selectedAssetMovement.lineCount}</strong>
-                    </div>
-                  </div>
-
-                  <div className="mini-detail-grid" style={{ marginTop: '0.75rem' }}>
-                    <div>
-                      <span>Reason</span>
-                      <strong>{selectedAssetMovement.reason}</strong>
-                    </div>
+          <div className="approval-review-workspace">
+            <div className="approval-request-list">
+              <div className="finance-summary-card">
+                <div className="section-heading-row">
+                  <div>
+                    <p className="eyebrow">Approval Queue</p>
+                    <h2>Pending / Recent Requests</h2>
+                    <p className="muted">
+                      Select Review to inspect and action the request without leaving the queue.
+                    </p>
                   </div>
                 </div>
-              ) : null}
 
-              {selectedContextRows.length ? (
-                <div style={{ marginTop: '1.25rem' }}>
-                  <h3>Request Details</h3>
-
-                  <div className="mini-detail-grid">
-                    {selectedContextRows.map(([label, value]) => (
-                      <div key={String(label)}>
-                        <span>{label}</span>
-                        <strong>{String(value)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {!selectedCanAction && !isTerminalStatus(selected) ? (
-                <div className="alert warning" style={{ marginTop: '1rem' }}>
-                  You can view this request, but your detected role cannot action the current approval step.
-                </div>
-              ) : null}
-
-              {isTerminalStatus(selected) ? (
-                <div className="alert success" style={{ marginTop: '1rem' }}>
-                  This request is already closed and cannot be changed.
-                </div>
-              ) : null}
-
-              <label style={{ display: 'block', marginTop: '1rem' }}>
-                Comments
-                <textarea
-                  value={comments}
-                  onChange={(event) => setComments(event.target.value)}
-                  placeholder="Add approval or rejection comments."
-                  disabled={!selectedCanAction || actioning}
-                />
-              </label>
-
-              <div className="action-row" style={{ marginTop: '1rem' }}>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={!selectedCanAction || actioning}
-                  onClick={() => handleApprove(selected)}
+                <div
+                  ref={queueScrollRef}
+                  className="employee-table-wrap approval-request-scroll"
+                  onScroll={syncQueueFromTable}
                 >
-                  {actioning ? 'Processing...' : 'Approve'}
-                </button>
-
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  disabled={!selectedCanAction || actioning}
-                  onClick={() => handleReject(selected)}
-                >
-                  Reject
-                </button>
-
-                <button className="btn-secondary" type="button" onClick={() => setSelected(null)}>
-                  Close
-                </button>
-              </div>
-
-              <h3 style={{ marginTop: '1.5rem' }}>Approval History</h3>
-
-              {!getHistory(selected).length ? (
-                <p className="muted">No approval actions recorded yet.</p>
-              ) : (
-                <div className="employee-table-wrap">
                   <table className="employee-table">
                     <thead>
                       <tr>
-                        <th>Step</th>
-                        <th>Action</th>
-                        <th>Actioned By</th>
-                        <th>Comments</th>
-                        <th>Date</th>
+                        <th>Reference</th>
+                        <th>Workflow</th>
+                        <th>Requester</th>
+                        <th>Current Step</th>
+                        <th>Approver</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {getHistory(selected).map((item: any, index: number) => (
-                        <tr key={`${item.actionedAt || item.decidedAt || index}-${index}`}>
-                          <td>{item.stepSequence || item.sequence || '-'}</td>
-                          <td>{cleanStatus(item.action || item.status)}</td>
-                          <td>
-                            <strong>{item.actionedBy || item.approverName || '-'}</strong>
-                            <br />
-                            <span className="muted">{item.actionedByEmail || item.approverEmail || '-'}</span>
+                      {!records.length ? (
+                        <tr>
+                          <td colSpan={8}>
+                            {loading ? 'Loading approval requests...' : 'No approval requests found.'}
                           </td>
-                          <td>{item.comments || '-'}</td>
-                          <td>{formatDate(item.actionedAt || item.decidedAt || item.updatedAt)}</td>
                         </tr>
-                      ))}
+                      ) : (
+                        orderedRecords.map((record) => {
+                          const currentRole = getCurrentRole(record);
+                          const canReview =
+                            !isTerminalStatus(record) &&
+                            roleMatchesApprovalStep(signedInRole, currentRole);
+
+                          const isSelected = selected?.id === record.id;
+
+                          return (
+                            <tr key={record.id}>
+                              <td>
+                                <strong>{record.requestReference || record.id.slice(0, 8)}</strong>
+                                <br />
+                                <span className="muted">
+                                  {formatDate(record.submittedAt || record.createdAt)}
+                                </span>
+                              </td>
+
+                              <td>
+                                <strong>{record.module}</strong>
+                                <br />
+                                <span className="muted">{record.workflowType}</span>
+                              </td>
+
+                              <td>
+                                <strong>{record.requesterName || '-'}</strong>
+                                <br />
+                                <span className="muted">
+                                  {record.requesterDepartment ||
+                                    record.requesterSite ||
+                                    record.requesterRole ||
+                                    '-'}
+                                </span>
+                              </td>
+
+                              <td>
+                                <strong>{getCurrentStepLabel(record)}</strong>
+                                <br />
+                                <span className="muted">{currentRole}</span>
+                              </td>
+
+                              <td>{getCurrentApprover(record)}</td>
+                              <td>{formatAmount(record.amount)}</td>
+
+                              <td>
+                                <span className={statusClass(String(getWorkflowStatus(record)))}>
+                                  {cleanStatus(String(getWorkflowStatus(record)))}
+                                </span>
+                              </td>
+
+                              <td>
+                                <div className="action-row">
+                                  <button
+                                    className={isSelected ? 'btn' : canReview ? 'btn-secondary' : 'btn-ghost'}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelected(record);
+                                      setComments('');
+                                      setError('');
+                                      setMessage('');
+                                    }}
+                                  >
+                                    {isSelected ? 'Selected' : canReview ? 'Review' : 'View'}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
-              )}
+
+                {queueHasHorizontalOverflow ? (
+                  <div className="approval-floating-scroll-shell" aria-label="Approval queue horizontal scroll">
+                    <div
+                      ref={floatingQueueScrollRef}
+                      className="approval-floating-scroll"
+                      onScroll={syncQueueFromFloatingBar}
+                    >
+                      <div
+                        className="approval-floating-scroll-spacer"
+                        style={{ width: `${queueScrollWidth}px` }}
+                      />
+                    </div>
+                    <span className="approval-floating-scroll-hint">
+                      Drag left / right to view all request columns
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          ) : null}
+
+            {selected ? (
+              <div className="finance-summary-card approval-review-panel">
+                <div className="section-heading-row">
+                  <div>
+                    <p className="eyebrow">Request Review</p>
+                    <h2>{selected.requestTitle || selected.requestReference || 'Approval Request'}</h2>
+                    <p className="muted">
+                      {selected.requestDescription || 'No request description provided.'}
+                    </p>
+                  </div>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => setSelected(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="mini-detail-grid">
+                  <div>
+                    <span>Reference</span>
+                    <strong>{selected.requestReference || selected.id}</strong>
+                  </div>
+                  <div>
+                    <span>Module</span>
+                    <strong>{selected.module}</strong>
+                  </div>
+                  <div>
+                    <span>Workflow</span>
+                    <strong>{selected.workflowType}</strong>
+                  </div>
+                  <div>
+                    <span>Requester</span>
+                    <strong>{selected.requesterName || '-'}</strong>
+                  </div>
+                  <div>
+                    <span>Current Step</span>
+                    <strong>{getCurrentStepLabel(selected)}</strong>
+                  </div>
+                  <div>
+                    <span>Required Role</span>
+                    <strong>{selectedCurrentRole || '-'}</strong>
+                  </div>
+                  <div>
+                    <span>Detected Role</span>
+                    <strong>{signedInRole || '-'}</strong>
+                  </div>
+                  <div>
+                    <span>Amount</span>
+                    <strong>{formatAmount(selected.amount)}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong>{cleanStatus(String(getWorkflowStatus(selected)))}</strong>
+                  </div>
+                </div>
+
+                {selectedAssetMovement ? (
+                  <div style={{ marginTop: '1.25rem' }}>
+                    <h3>Asset Movement Details</h3>
+
+                    <div className="mini-detail-grid">
+                      <div>
+                        <span>Movement Number</span>
+                        <strong>{selectedAssetMovement.movementNo}</strong>
+                      </div>
+
+                      <div>
+                        <span>Movement Type</span>
+                        <strong>{selectedAssetMovement.movementType}</strong>
+                      </div>
+
+                      <div>
+                        <span>Item / Items Being Moved</span>
+                        <strong>{selectedAssetMovement.itemSummary}</strong>
+                      </div>
+
+                      <div>
+                        <span>Quantity</span>
+                        <strong>
+                          {selectedAssetMovement.quantity} {selectedAssetMovement.unitOfMeasure}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>From Location</span>
+                        <strong>{selectedAssetMovement.fromLocation}</strong>
+                      </div>
+
+                      <div>
+                        <span>To Location</span>
+                        <strong>{selectedAssetMovement.toLocation}</strong>
+                      </div>
+
+                      <div>
+                        <span>Site</span>
+                        <strong>{selectedAssetMovement.site}</strong>
+                      </div>
+
+                      <div>
+                        <span>Branch</span>
+                        <strong>{selectedAssetMovement.branch}</strong>
+                      </div>
+
+                      <div>
+                        <span>Department</span>
+                        <strong>{selectedAssetMovement.department}</strong>
+                      </div>
+
+                      <div>
+                        <span>Requested By</span>
+                        <strong>{selectedAssetMovement.requestedBy}</strong>
+                        <br />
+                        <span className="muted">{selectedAssetMovement.requestedByEmail}</span>
+                      </div>
+
+                      <div>
+                        <span>Line Count</span>
+                        <strong>{selectedAssetMovement.lineCount}</strong>
+                      </div>
+                    </div>
+
+                    <div className="mini-detail-grid" style={{ marginTop: '0.75rem' }}>
+                      <div>
+                        <span>Reason</span>
+                        <strong>{selectedAssetMovement.reason}</strong>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedContextRows.length ? (
+                  <div style={{ marginTop: '1.25rem' }}>
+                    <h3>Request Details</h3>
+
+                    <div className="mini-detail-grid">
+                      {selectedContextRows.map(([label, value]) => (
+                        <div key={String(label)}>
+                          <span>{label}</span>
+                          <strong>{String(value)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!selectedCanAction && !isTerminalStatus(selected) ? (
+                  <div className="alert warning" style={{ marginTop: '1rem' }}>
+                    You can view this request, but your detected role cannot action the current approval step.
+                  </div>
+                ) : null}
+
+                {isTerminalStatus(selected) ? (
+                  <div className="alert success" style={{ marginTop: '1rem' }}>
+                    This request is already closed and cannot be changed.
+                  </div>
+                ) : null}
+
+                <label style={{ display: 'block', marginTop: '1rem' }}>
+                  Comments
+                  <textarea
+                    value={comments}
+                    onChange={(event) => setComments(event.target.value)}
+                    placeholder="Add approval or rejection comments."
+                    disabled={!selectedCanAction || actioning}
+                  />
+                </label>
+
+                <div className="action-row" style={{ marginTop: '1rem' }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={!selectedCanAction || actioning}
+                    onClick={() => handleApprove(selected)}
+                  >
+                    {actioning ? 'Processing...' : 'Approve'}
+                  </button>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    disabled={!selectedCanAction || actioning}
+                    onClick={() => handleReject(selected)}
+                  >
+                    Reject
+                  </button>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => setSelected(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <h3 style={{ marginTop: '1.5rem' }}>Approval History</h3>
+
+                {!getHistory(selected).length ? (
+                  <p className="muted">No approval actions recorded yet.</p>
+                ) : (
+                  <div className="employee-table-wrap">
+                    <table className="employee-table">
+                      <thead>
+                        <tr>
+                          <th>Step</th>
+                          <th>Action</th>
+                          <th>Actioned By</th>
+                          <th>Comments</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {getHistory(selected).map((item: any, index: number) => (
+                          <tr key={`${item.actionedAt || item.decidedAt || index}-${index}`}>
+                            <td>{item.stepSequence || item.sequence || '-'}</td>
+                            <td>{cleanStatus(item.action || item.status)}</td>
+                            <td>
+                              <strong>{item.actionedBy || item.approverName || '-'}</strong>
+                              <br />
+                              <span className="muted">
+                                {item.actionedByEmail || item.approverEmail || '-'}
+                              </span>
+                            </td>
+                            <td>{item.comments || '-'}</td>
+                            <td>
+                              {formatDate(item.actionedAt || item.decidedAt || item.updatedAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="finance-summary-card approval-review-panel">
+                <p className="eyebrow">Request Review</p>
+                <h2>Select a request</h2>
+                <p className="muted">
+                  Choose Review or View from the approval queue to inspect the request,
+                  supporting details and approval history here.
+                </p>
+              </div>
+            )}
+          </div>
         </section>
       </RequireStaffRole>
     </AppShell>

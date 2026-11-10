@@ -361,18 +361,32 @@ export default function NewMobileSafetyCorrectiveActionPage() {
         />
 
         <Text style={styles.label}>Priority</Text>
+
         <View style={styles.optionGrid}>
-          {SAFETY_RISK_LEVELS.map((level: string) => {
-            const selected = level === priority;
+          {SAFETY_RISK_LEVELS.map((level) => {
+            const selected =
+              priority === level.value;
 
             return (
               <Pressable
-                key={level}
-                style={[styles.optionButton, selected && styles.optionSelected]}
-                onPress={() => setPriority(level)}
+                key={level.value}
+                style={[
+                  styles.optionButton,
+                  selected &&
+                    styles.optionSelected,
+                ]}
+                onPress={() =>
+                  setPriority(level.value)
+                }
               >
-                <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
-                  {level}
+                <Text
+                  style={[
+                    styles.optionText,
+                    selected &&
+                      styles.optionTextSelected,
+                  ]}
+                >
+                  {level.label}
                 </Text>
               </Pressable>
             );

@@ -337,13 +337,13 @@ export default function MobileDashboardPage() {
         <PressableSummaryCard
           label="Vehicles"
           value={summary.vehicles}
-          onPress={() => navigate('/dashboard')}
+          onPress={() => navigate('/fleet')}
         />
 
         <PressableSummaryCard
           label="Active"
           value={summary.activeVehicles}
-          onPress={() => navigate('/dashboard')}
+          onPress={() => navigate('/fleet')}
         />
 
         <PressableSummaryCard
@@ -528,7 +528,28 @@ export default function MobileDashboardPage() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Recent Vehicles</Text>
+        <View style={styles.cardHeaderRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>
+            Vehicle Register
+          </Text>
+
+          <Text style={styles.muted}>
+            Company vehicles from the Asset Master.
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.smallDarkButton}
+          onPress={() =>
+            navigate('/fleet')
+          }
+        >
+          <Text style={styles.smallDarkButtonText}>
+            View All
+          </Text>
+        </Pressable>
+      </View>
 
         {loading && !data?.recentVehicles?.length ? (
           <View style={styles.loadingRow}>
@@ -538,13 +559,15 @@ export default function MobileDashboardPage() {
         ) : null}
 
         {!loading && !data?.recentVehicles?.length ? (
-          <Text style={styles.emptyText}>No recent vehicles found.</Text>
+          <Text style={styles.emptyText}>
+            No vehicle assets found.
+          </Text>
         ) : null}
 
         {(data?.recentVehicles || []).slice(0, 5).map((vehicle) => (
           <PressableListRow
             key={vehicle.id}
-            onPress={() => navigate('/dashboard')}
+            onPress={() => navigate('/fleet')}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{vehicle.registrationNo || '-'}</Text>

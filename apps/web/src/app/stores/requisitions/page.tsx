@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import AppShell from '@/components/AppShell';
 import { RequireStaffRole } from '@/components/RequireStaffRole';
@@ -67,6 +73,22 @@ export default function StoresRequisitionsPage() {
   const [filter, setFilter] = useState('ALL');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const registerScrollRef =
+  useRef<HTMLDivElement | null>(null);
+
+  const floatingRegisterScrollRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const [
+    registerScrollWidth,
+    setRegisterScrollWidth,
+  ] = useState(0);
+
+  const [
+    registerHasHorizontalOverflow,
+    setRegisterHasHorizontalOverflow,
+  ] = useState(false);
+
 
   async function loadData() {
     setLoading(true);
@@ -96,6 +118,105 @@ export default function StoresRequisitionsPage() {
 
     return records.filter((item) => getOperationalStatus(item) === filter || item.status === filter);
   }, [filter, records]);
+
+  const refreshRegisterScrollMetrics =
+  useCallback(() => {
+    const register =
+      registerScrollRef.current;
+
+    if (!register) {
+      setRegisterScrollWidth(0);
+      setRegisterHasHorizontalOverflow(false);
+      return;
+    }
+
+    setRegisterScrollWidth(
+      register.scrollWidth,
+    );
+
+    setRegisterHasHorizontalOverflow(
+      register.scrollWidth >
+        register.clientWidth + 1,
+    );
+  }, []);
+
+useEffect(() => {
+  refreshRegisterScrollMetrics();
+
+  const register =
+    registerScrollRef.current;
+
+  if (
+    !register ||
+    typeof ResizeObserver ===
+      'undefined'
+  ) {
+    return;
+  }
+
+  const observer =
+    new ResizeObserver(() => {
+      refreshRegisterScrollMetrics();
+    });
+
+  observer.observe(register);
+
+  const table =
+    register.querySelector('table');
+
+  if (table) {
+    observer.observe(table);
+  }
+
+  return () => {
+    observer.disconnect();
+  };
+}, [
+  filteredRecords,
+  refreshRegisterScrollMetrics,
+]);
+
+const syncRegisterFromTable =
+  useCallback(() => {
+    const register =
+      registerScrollRef.current;
+
+    const floating =
+      floatingRegisterScrollRef.current;
+
+    if (!register || !floating) {
+      return;
+    }
+
+    if (
+      floating.scrollLeft !==
+      register.scrollLeft
+    ) {
+      floating.scrollLeft =
+        register.scrollLeft;
+    }
+  }, []);
+
+const syncRegisterFromFloating =
+  useCallback(() => {
+    const register =
+      registerScrollRef.current;
+
+    const floating =
+      floatingRegisterScrollRef.current;
+
+    if (!register || !floating) {
+      return;
+    }
+
+    if (
+      register.scrollLeft !==
+      floating.scrollLeft
+    ) {
+      register.scrollLeft =
+        floating.scrollLeft;
+    }
+  }, []);
 
   const stats = useMemo(() => {
     return {
@@ -198,8 +319,12 @@ export default function StoresRequisitionsPage() {
               </div>
             </div>
 
-            <div className="employee-table-wrap">
-              <table className="employee-table">
+            <div
+                ref={registerScrollRef}
+                className="employee-table-wrap stores-register-scroll"
+                onScroll={syncRegisterFromTable}
+              >
+                <table className="employee-table">
                 <thead>
                   <tr>
                     <th>Requisition</th>
@@ -284,6 +409,32 @@ export default function StoresRequisitionsPage() {
               </table>
             </div>
           </div>
+          {registerHasHorizontalOverflow ? (
+            <div className="stores-register-floating-scroll-shell">
+              <div
+                ref={
+                  floatingRegisterScrollRef
+                }
+                className="stores-register-floating-scroll"
+                onScroll={
+                  syncRegisterFromFloating
+                }
+              >
+                <div
+                  className="stores-register-floating-scroll-spacer"
+                  style={{
+                    width:
+                      `${registerScrollWidth}px`,
+                  }}
+                />
+              </div>
+
+              <span className="stores-register-floating-scroll-hint">
+                Drag left / right to view all
+                requisition columns
+              </span>
+            </div>
+          ) : null}
         </section>
       </RequireStaffRole>
     </AppShell>
