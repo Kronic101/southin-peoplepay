@@ -1806,10 +1806,10 @@ model FleetVehicle {
   assetId String?   @unique
   asset   HubAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
-  make        String
-  model       String
+  make        String?
+  model       String?
+  vehicleType String?
   year        Int?
-  vehicleType String
   department  String?
   site        String?
 

@@ -1,0 +1,4 @@
+ALTER TABLE "fleet_vehicles"
+  ALTER COLUMN "make" DROP NOT NULL,
+  ALTER COLUMN "model" DROP NOT NULL,
+  ALTER COLUMN "vehicleType" DROP NOT NULL;
